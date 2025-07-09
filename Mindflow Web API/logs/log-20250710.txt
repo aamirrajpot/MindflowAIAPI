@@ -1572,3 +1572,230 @@ END
 2025-07-10 02:40:51.836 +05:00 [INF] Executing endpoint 'HTTP: GET /openapi/{documentName}.json'
 2025-07-10 02:40:52.018 +05:00 [INF] Executed endpoint 'HTTP: GET /openapi/{documentName}.json'
 2025-07-10 02:40:52.024 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/openapi/v1.json - 200 null application/json;charset=utf-8 198.847ms
+2025-07-10 02:42:01.635 +05:00 [INF] Executed DbCommand (999ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 02:42:01.714 +05:00 [INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+2025-07-10 02:42:02.068 +05:00 [INF] Executed DbCommand (340ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+2025-07-10 02:42:02.815 +05:00 [INF] Executed DbCommand (259ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+2025-07-10 02:42:04.207 +05:00 [INF] Executed DbCommand (786ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 02:42:04.497 +05:00 [INF] Executed DbCommand (276ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2025-07-10 02:42:04.910 +05:00 [INF] Executed DbCommand (395ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2025-07-10 02:42:04.966 +05:00 [INF] No migrations were applied. The database is already up to date.
+2025-07-10 02:42:07.322 +05:00 [INF] Executed DbCommand (1,892ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-07-10 02:42:08.009 +05:00 [INF] Executed DbCommand (279ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_releaseapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session';
+SELECT @result
+2025-07-10 02:42:08.947 +05:00 [INF] Executed DbCommand (831ms) [Parameters=[@__adminEmail_0='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [app].[Users] AS [u]
+        WHERE [u].[Email] = @__adminEmail_0) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+2025-07-10 02:42:08.983 +05:00 [INF] Scalar UI initializing at /reference
+2025-07-10 02:42:09.031 +05:00 [INF] Scalar UI initialized at /reference
+2025-07-10 02:42:09.152 +05:00 [INF] User profile is available. Using 'C:\Users\muhammad.aamir2810\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2025-07-10 02:42:10.026 +05:00 [INF] Now listening on: https://localhost:7046
+2025-07-10 02:42:10.029 +05:00 [INF] Now listening on: http://localhost:5000
+2025-07-10 02:42:10.053 +05:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2025-07-10 02:42:10.155 +05:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-07-10 02:42:10.158 +05:00 [INF] Hosting environment: Development
+2025-07-10 02:42:10.161 +05:00 [INF] Content root path: C:\Users\muhammad.aamir2810\Desktop\Personal\MindflowAIAPI\Mindflow Web API
+2025-07-10 02:42:10.571 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/v1 - null null
+2025-07-10 02:42:11.046 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 02:42:11.126 +05:00 [INF] Write content with HTTP Response ContentType of text/html
+2025-07-10 02:42:11.154 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 02:42:11.166 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/v1 - 200 null text/html 609.3585ms
+2025-07-10 02:42:11.193 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.js - null null
+2025-07-10 02:42:11.193 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - null null
+2025-07-10 02:42:11.193 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_vs/browserLink - null null
+2025-07-10 02:42:11.193 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - null null
+2025-07-10 02:42:11.279 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 02:42:11.285 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 02:42:11.364 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 02:42:11.364 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 02:42:11.367 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - 200 16517 application/javascript; charset=utf-8 174.6136ms
+2025-07-10 02:42:11.368 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 02:42:11.373 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 02:42:11.392 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - 304 null null 199.5193ms
+2025-07-10 02:42:11.395 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.js - 304 null null 202.1074ms
+2025-07-10 02:42:11.418 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_vs/browserLink - 200 null text/javascript; charset=UTF-8 225.8725ms
+2025-07-10 02:42:11.765 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/openapi/v1.json - null null
+2025-07-10 02:42:11.775 +05:00 [INF] Executing endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 02:42:12.187 +05:00 [INF] Executed endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 02:42:12.198 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/openapi/v1.json - 200 null application/json;charset=utf-8 432.7947ms
+2025-07-10 02:43:22.568 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/openapi/v1.json - null null
+2025-07-10 02:43:22.608 +05:00 [INF] Executing endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 02:43:22.633 +05:00 [INF] Executed endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 02:43:22.641 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/openapi/v1.json - 200 null application/json;charset=utf-8 74.5369ms
+2025-07-10 03:09:21.350 +05:00 [INF] Executed DbCommand (309ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 03:09:21.426 +05:00 [INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+2025-07-10 03:09:21.705 +05:00 [INF] Executed DbCommand (274ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+2025-07-10 03:09:22.292 +05:00 [INF] Executed DbCommand (255ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+2025-07-10 03:09:23.082 +05:00 [INF] Executed DbCommand (256ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 03:09:23.345 +05:00 [INF] Executed DbCommand (255ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2025-07-10 03:09:23.650 +05:00 [INF] Executed DbCommand (289ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2025-07-10 03:09:23.663 +05:00 [INF] No migrations were applied. The database is already up to date.
+2025-07-10 03:09:24.162 +05:00 [INF] Executed DbCommand (255ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-07-10 03:09:24.729 +05:00 [INF] Executed DbCommand (256ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_releaseapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session';
+SELECT @result
+2025-07-10 03:09:25.031 +05:00 [INF] Executed DbCommand (267ms) [Parameters=[@__adminEmail_0='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [app].[Users] AS [u]
+        WHERE [u].[Email] = @__adminEmail_0) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+2025-07-10 03:09:25.043 +05:00 [INF] Scalar UI initializing at /reference
+2025-07-10 03:09:25.056 +05:00 [INF] Scalar UI initialized at /reference
+2025-07-10 03:09:25.092 +05:00 [INF] User profile is available. Using 'C:\Users\muhammad.aamir2810\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2025-07-10 03:09:25.450 +05:00 [INF] Now listening on: https://localhost:7046
+2025-07-10 03:09:25.453 +05:00 [INF] Now listening on: http://localhost:5000
+2025-07-10 03:09:25.459 +05:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2025-07-10 03:09:25.488 +05:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-07-10 03:09:25.489 +05:00 [INF] Hosting environment: Development
+2025-07-10 03:09:25.491 +05:00 [INF] Content root path: C:\Users\muhammad.aamir2810\Desktop\Personal\MindflowAIAPI\Mindflow Web API
+2025-07-10 03:09:25.986 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/v1 - null null
+2025-07-10 03:09:26.179 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 03:09:26.208 +05:00 [INF] Write content with HTTP Response ContentType of text/html
+2025-07-10 03:09:26.220 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 03:09:26.229 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/v1 - 200 null text/html 248.5531ms
+2025-07-10 03:09:26.244 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.js - null null
+2025-07-10 03:09:26.244 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - null null
+2025-07-10 03:09:26.244 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - null null
+2025-07-10 03:09:26.274 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_vs/browserLink - null null
+2025-07-10 03:09:26.339 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 03:09:26.344 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 03:09:26.368 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - 200 16517 application/javascript; charset=utf-8 124.0694ms
+2025-07-10 03:09:26.371 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 03:09:26.371 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 03:09:26.375 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 03:09:26.378 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 03:09:26.379 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.js - 304 null null 135.8884ms
+2025-07-10 03:09:26.381 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - 304 null null 137.6474ms
+2025-07-10 03:09:26.401 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_vs/browserLink - 200 null text/javascript; charset=UTF-8 156.7806ms
+2025-07-10 03:09:26.523 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/openapi/v1.json - null null
+2025-07-10 03:09:26.530 +05:00 [INF] Executing endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 03:09:26.646 +05:00 [INF] Executed endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 03:09:26.652 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/openapi/v1.json - 200 null application/json;charset=utf-8 128.9446ms
+2025-07-10 03:11:43.787 +05:00 [INF] Executed DbCommand (277ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 03:11:43.840 +05:00 [INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+2025-07-10 03:11:44.120 +05:00 [INF] Executed DbCommand (274ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+2025-07-10 03:11:44.709 +05:00 [INF] Executed DbCommand (255ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+2025-07-10 03:11:45.527 +05:00 [INF] Executed DbCommand (252ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 03:11:45.790 +05:00 [INF] Executed DbCommand (254ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2025-07-10 03:11:46.051 +05:00 [INF] Executed DbCommand (253ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2025-07-10 03:11:46.072 +05:00 [INF] No migrations were applied. The database is already up to date.
+2025-07-10 03:11:46.605 +05:00 [INF] Executed DbCommand (287ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-07-10 03:11:47.171 +05:00 [INF] Executed DbCommand (257ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_releaseapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session';
+SELECT @result
+2025-07-10 03:11:47.486 +05:00 [INF] Executed DbCommand (271ms) [Parameters=[@__adminEmail_0='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [app].[Users] AS [u]
+        WHERE [u].[Email] = @__adminEmail_0) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+2025-07-10 03:11:47.499 +05:00 [INF] Scalar UI initializing at /reference
+2025-07-10 03:11:47.514 +05:00 [INF] Scalar UI initialized at /reference
+2025-07-10 03:11:47.556 +05:00 [INF] User profile is available. Using 'C:\Users\muhammad.aamir2810\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2025-07-10 03:11:47.979 +05:00 [INF] Now listening on: https://localhost:7046
+2025-07-10 03:11:47.983 +05:00 [INF] Now listening on: http://localhost:5000
+2025-07-10 03:11:47.998 +05:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2025-07-10 03:11:48.029 +05:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-07-10 03:11:48.031 +05:00 [INF] Hosting environment: Development
+2025-07-10 03:11:48.033 +05:00 [INF] Content root path: C:\Users\muhammad.aamir2810\Desktop\Personal\MindflowAIAPI\Mindflow Web API
+2025-07-10 03:11:48.394 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/v1 - null null
+2025-07-10 03:11:48.599 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 03:11:48.640 +05:00 [INF] Write content with HTTP Response ContentType of text/html
+2025-07-10 03:11:48.647 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 03:11:48.655 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/v1 - 200 null text/html 269.7568ms
+2025-07-10 03:11:48.664 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - null null
+2025-07-10 03:11:48.664 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.js - null null
+2025-07-10 03:11:48.664 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - null null
+2025-07-10 03:11:48.702 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_vs/browserLink - null null
+2025-07-10 03:11:48.725 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 03:11:48.735 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 03:11:48.736 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - 200 16517 application/javascript; charset=utf-8 72.3371ms
+2025-07-10 03:11:48.754 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 03:11:48.754 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 03:11:48.757 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 03:11:48.758 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 03:11:48.759 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.js - 304 null null 95.1859ms
+2025-07-10 03:11:48.760 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - 304 null null 96.9241ms
+2025-07-10 03:11:48.775 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_vs/browserLink - 200 null text/javascript; charset=UTF-8 111.1262ms
+2025-07-10 03:11:49.012 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/openapi/v1.json - null null
+2025-07-10 03:11:49.018 +05:00 [INF] Executing endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 03:11:49.126 +05:00 [INF] Executed endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 03:11:49.133 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/openapi/v1.json - 200 null application/json;charset=utf-8 120.3553ms
+2025-07-10 03:14:02.259 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/openapi/v1.json - null null
+2025-07-10 03:14:02.270 +05:00 [INF] Executing endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 03:14:02.276 +05:00 [INF] Executed endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 03:14:02.278 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/openapi/v1.json - 200 null application/json;charset=utf-8 19.1595ms

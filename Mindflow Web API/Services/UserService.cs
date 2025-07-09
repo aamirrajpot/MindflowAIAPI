@@ -61,10 +61,10 @@ namespace Mindflow_Web_API.Services
                 _logger.LogWarning($"Failed sign-in attempt for: {command.UserNameOrEmail}");
                 return null;
             }
-            if (!user.IsActive)
+            if (!user.IsActive || !user.EmailConfirmed)
             {
-                _logger.LogWarning($"Inactive user tried to sign in: {user.UserName}");
-                return null;
+                _logger.LogWarning($"Inactive or unconfirmed user tried to sign in: {user.UserName}");
+                throw new InvalidOperationException("Please verify your email and then try to sign in.");
             }
             // Generate JWT token
             var jwtSettings = _configuration.GetSection("Jwt");
@@ -95,6 +95,16 @@ namespace Mindflow_Web_API.Services
             var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == email);
             if (user == null)
                 return new SendOtpResponseDto(email, false);
+
+            // Mark all previous OTPs as expired
+            var previousOtps = await _dbContext.UserOtps
+                .Where(o => o.UserId == user.Id && !o.IsUsed)
+                .ToListAsync();
+            foreach (var otpRecord in previousOtps)
+            {
+                otpRecord.IsUsed = true; // Mark as used/expired
+            }
+
             // Generate OTP
             var otp = new Random().Next(1000, 10000).ToString();
             var expiry = DateTimeOffset.UtcNow.AddMinutes(5);
@@ -126,12 +136,16 @@ namespace Mindflow_Web_API.Services
             var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == command.UserId);
             if (user == null)
                 return false;
+
+            // Get the latest non-expired OTP
             var otpRecord = await _dbContext.UserOtps
                 .Where(o => o.UserId == user.Id && o.Otp == command.Code && !o.IsUsed && o.Expiry > DateTimeOffset.UtcNow)
-                .OrderByDescending(o => o.Expiry)
+                .OrderByDescending(o => o.Expiry) // Get the latest one
                 .FirstOrDefaultAsync();
+
             if (otpRecord == null)
                 return false;
+
             otpRecord.IsUsed = true;
             user.IsActive = true;
             user.EmailConfirmed = true;
@@ -174,6 +188,71 @@ namespace Mindflow_Web_API.Services
             return true;
         }
 
+        public async Task<SendOtpResponseDto> ForgotPasswordAsync(ForgotPasswordDto command)
+        {
+            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == command.Email);
+            if (user == null)
+                return new SendOtpResponseDto(command.Email, false);
+
+            // Mark all previous OTPs as expired
+            var previousOtps = await _dbContext.UserOtps
+                .Where(o => o.UserId == user.Id && !o.IsUsed)
+                .ToListAsync();
+            foreach (var otpRecord in previousOtps)
+            {
+                otpRecord.IsUsed = true; // Mark as used/expired
+            }
+
+            // Generate OTP
+            var otp = new Random().Next(1000, 10000).ToString();
+            var expiry = DateTimeOffset.UtcNow.AddMinutes(5);
+            var userOtp = new UserOtp
+            {
+                UserId = user.Id,
+                Otp = otp,
+                Expiry = expiry,
+                IsUsed = false
+            };
+            await _dbContext.UserOtps.AddAsync(userOtp);
+            await _dbContext.SaveChangesAsync();
+
+            var subject = "Password Reset - Mindflow AI";
+            var body = $@"
+                    Hi {user.FirstName} {user.LastName},<br/><br/>
+                    You requested a password reset for your <b>Mindflow AI</b> account. Please use the following One-Time Password (OTP) to reset your password:<br/><br/>
+                    <h2 style='color:#e74c3c;'>🔐 {otp}</h2><br/>
+                    This code is valid for the next <b>5 minutes</b>.<br/><br/>
+                    If you did not request this password reset, please ignore this email and your password will remain unchanged.<br/><br/>
+                    Thanks,<br/>
+                    <b>Mindflow AI Team</b>
+                    ";
+            var sent = await _emailService.SendEmailAsync(command.Email, subject, body, true);
+            return new SendOtpResponseDto(command.Email, sent);
+        }
+
+        public async Task<bool> ResetPasswordAsync(ResetPasswordDto command)
+        {
+            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == command.Email);
+            if (user == null)
+                return false;
+
+            // Get the latest non-expired OTP
+            var otpRecord = await _dbContext.UserOtps
+                .Where(o => o.UserId == user.Id && o.Otp == command.Otp && !o.IsUsed && o.Expiry > DateTimeOffset.UtcNow)
+                .OrderByDescending(o => o.Expiry) // Get the latest one
+                .FirstOrDefaultAsync();
+
+            if (otpRecord == null)
+                return false;
+
+            otpRecord.IsUsed = true;
+            user.PasswordHash = HashPassword(command.NewPassword);
+            user.SecurityStamp = Guid.NewGuid().ToString();
+            await _dbContext.SaveChangesAsync();
+            _logger.LogInformation($"Password reset for user: {user.UserName}");
+            return true;
+        }
+
         private static string HashPassword(string password)
         {
             using var sha256 = SHA256.Create();
@@ -187,4 +266,4 @@ namespace Mindflow_Web_API.Services
             return HashPassword(password) == hash;
         }
     }
-} 
+}

@@ -6,6 +6,8 @@ namespace Mindflow_Web_API.DTOs
     public record SendOtpResponseDto(string Email, bool Sent);
     public record VerifyOtpDto(Guid UserId, string Code);
     public record ChangePasswordDto(string CurrentPassword, string NewPassword);
+    public record ForgotPasswordDto(string Email);
+    public record ResetPasswordDto(string Email, string Otp, string NewPassword);
     public record TokenResponseDto(string access_token, string token_type, int expires_in);
     public record UserProfileDto(string UserName, string Email, string? FirstName, string? LastName, DateTime? DateOfBirth);
     public record UpdateProfileDto(string? FirstName, string? LastName, DateTime? DateOfBirth);

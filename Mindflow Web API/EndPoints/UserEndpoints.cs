@@ -72,6 +72,18 @@ namespace Mindflow_Web_API.EndPoints
                 var result = await externalAuthService.GoogleAuthenticateAsync(dto);
                 return result is not null ? Results.Ok(result) : Results.Unauthorized();
             });
+
+            usersApi.MapPost("/users/forgot-password", async (ForgotPasswordDto dto, IUserService userService) =>
+            {
+                var result = await userService.ForgotPasswordAsync(dto);
+                return result.Sent ? Results.Ok(result) : Results.BadRequest(result);
+            });
+
+            usersApi.MapPost("/users/reset-password", async (ResetPasswordDto dto, IUserService userService) =>
+            {
+                var success = await userService.ResetPasswordAsync(dto);
+                return success ? Results.Ok("Password reset successfully.") : Results.BadRequest("Invalid OTP or user not found.");
+            });
         }
     }
 } 
