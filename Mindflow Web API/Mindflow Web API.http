@@ -1,0 +1,34 @@
+@Mindflow_Web_API_HostAddress = http://localhost:5000
+
+### Get all movies
+GET {{Mindflow_Web_API_HostAddress}}/api/movies
+Accept: application/json
+
+### Get movie by ID
+GET {{Mindflow_Web_API_HostAddress}}/api/movies/123e4567-e89b-12d3-a456-426614174000
+Accept: application/json
+
+### Create new movie
+POST {{Mindflow_Web_API_HostAddress}}/api/movies
+Content-Type: application/json
+
+{
+    "title": "The Matrix",
+    "releaseYear": 1999,
+    "genre": "Sci-Fi",
+    "director": "Lana Wachowski"
+}
+
+### Update movie
+PUT {{Mindflow_Web_API_HostAddress}}/api/movies/123e4567-e89b-12d3-a456-426614174000
+Content-Type: application/json
+
+{
+    "title": "The Matrix",
+    "releaseYear": 1999,
+    "genre": "Science Fiction",
+    "director": "Lana Wachowski"
+}
+
+### Delete movie
+DELETE {{Mindflow_Web_API_HostAddress}}/api/movies/123e4567-e89b-12d3-a456-426614174000

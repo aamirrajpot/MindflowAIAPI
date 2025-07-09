@@ -1,0 +1,1392 @@
+2025-07-10 00:00:41.337 +05:00 [INF] Executed DbCommand (21ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 00:00:41.441 +05:00 [INF] Executed DbCommand (53ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2025-07-10 00:00:41.758 +05:00 [INF] Executed DbCommand (16ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-07-10 00:00:42.192 +05:00 [INF] Now listening on: https://localhost:7046
+2025-07-10 00:00:42.195 +05:00 [INF] Now listening on: http://localhost:5000
+2025-07-10 00:00:42.203 +05:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2025-07-10 00:00:42.295 +05:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-07-10 00:00:42.297 +05:00 [INF] Hosting environment: Development
+2025-07-10 00:00:42.299 +05:00 [INF] Content root path: C:\Users\muhammad.aamir2810\source\repos\Simple Web API\Mindflow Web API
+2025-07-10 00:00:42.929 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/v1 - null null
+2025-07-10 00:00:43.085 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 00:00:43.117 +05:00 [INF] Write content with HTTP Response ContentType of text/html
+2025-07-10 00:00:43.128 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 00:00:43.134 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/v1 - 200 null text/html 212.4314ms
+2025-07-10 00:00:43.144 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - null null
+2025-07-10 00:00:43.211 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.js - null null
+2025-07-10 00:00:43.144 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - null null
+2025-07-10 00:00:43.230 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_vs/browserLink - null null
+2025-07-10 00:00:43.247 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 00:00:43.254 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 00:00:43.282 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - 200 16517 application/javascript; charset=utf-8 138.8103ms
+2025-07-10 00:00:43.284 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 00:00:43.284 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 00:00:43.289 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 00:00:43.291 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 00:00:43.293 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - 304 null null 149.5104ms
+2025-07-10 00:00:43.295 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.js - 304 null null 150.6308ms
+2025-07-10 00:00:43.322 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_vs/browserLink - 200 null text/javascript; charset=UTF-8 92.4147ms
+2025-07-10 00:00:43.599 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/openapi/v1.json - null null
+2025-07-10 00:00:43.606 +05:00 [INF] Executing endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 00:00:43.701 +05:00 [INF] Executed endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 00:00:43.706 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/openapi/v1.json - 200 null application/json;charset=utf-8 106.858ms
+2025-07-10 00:18:14.166 +05:00 [INF] Executed DbCommand (12ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 00:18:14.196 +05:00 [INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+2025-07-10 00:18:14.212 +05:00 [INF] Executed DbCommand (14ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+2025-07-10 00:18:14.257 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+2025-07-10 00:18:14.262 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 00:18:14.263 +05:00 [INF] Executed DbCommand (0ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2025-07-10 00:18:14.266 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2025-07-10 00:18:14.273 +05:00 [INF] Applying migration '20250709191755_UserEntity_Added'.
+2025-07-10 00:18:14.285 +05:00 [INF] Executed DbCommand (4ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE TABLE [app].[Users] (
+    [Id] uniqueidentifier NOT NULL,
+    [UserName] nvarchar(100) NOT NULL,
+    [Email] nvarchar(200) NOT NULL,
+    [EmailConfirmed] bit NOT NULL,
+    [PasswordHash] nvarchar(max) NOT NULL,
+    [SecurityStamp] nvarchar(max) NOT NULL,
+    [IsActive] bit NOT NULL,
+    [FirstName] nvarchar(100) NOT NULL,
+    [LastName] nvarchar(100) NOT NULL,
+    [Created] datetimeoffset NOT NULL,
+    [LastModified] datetimeoffset NOT NULL,
+    CONSTRAINT [PK_Users] PRIMARY KEY ([Id])
+);
+2025-07-10 00:18:14.286 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_Users_Email] ON [app].[Users] ([Email]);
+2025-07-10 00:18:14.287 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_Users_UserName] ON [app].[Users] ([UserName]);
+2025-07-10 00:18:14.289 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES (N'20250709191755_UserEntity_Added', N'9.0.2');
+2025-07-10 00:18:14.467 +05:00 [INF] Executed DbCommand (8ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-07-10 00:18:14.532 +05:00 [INF] Executed DbCommand (4ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_releaseapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session';
+SELECT @result
+2025-07-10 00:19:50.764 +05:00 [INF] Executed DbCommand (19ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 00:19:50.858 +05:00 [INF] Executed DbCommand (38ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2025-07-10 00:19:51.143 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-07-10 00:19:51.248 +05:00 [INF] User profile is available. Using 'C:\Users\muhammad.aamir2810\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2025-07-10 00:19:51.535 +05:00 [INF] Now listening on: https://localhost:7046
+2025-07-10 00:19:51.539 +05:00 [INF] Now listening on: http://localhost:5000
+2025-07-10 00:19:51.545 +05:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2025-07-10 00:19:51.573 +05:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-07-10 00:19:51.576 +05:00 [INF] Hosting environment: Development
+2025-07-10 00:19:51.577 +05:00 [INF] Content root path: C:\Users\muhammad.aamir2810\source\repos\Simple Web API\Mindflow Web API
+2025-07-10 00:19:52.028 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/v1 - null null
+2025-07-10 00:19:52.251 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 00:19:52.280 +05:00 [INF] Write content with HTTP Response ContentType of text/html
+2025-07-10 00:19:52.291 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 00:19:52.298 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/v1 - 200 null text/html 275.0578ms
+2025-07-10 00:19:52.312 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - null null
+2025-07-10 00:19:52.312 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - null null
+2025-07-10 00:19:52.384 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 00:19:52.312 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_vs/browserLink - null null
+2025-07-10 00:19:52.312 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.js - null null
+2025-07-10 00:19:52.472 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 00:19:52.474 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - 200 16517 application/javascript; charset=utf-8 161.3344ms
+2025-07-10 00:19:52.476 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 00:19:52.477 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 00:19:52.490 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - 304 null null 177.9795ms
+2025-07-10 00:19:52.492 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 00:19:52.498 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 00:19:52.501 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.js - 304 null null 188.8616ms
+2025-07-10 00:19:52.514 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_vs/browserLink - 200 null text/javascript; charset=UTF-8 201.3249ms
+2025-07-10 00:19:52.751 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/openapi/v1.json - null null
+2025-07-10 00:19:52.758 +05:00 [INF] Executing endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 00:19:52.868 +05:00 [INF] Executed endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 00:19:52.872 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/openapi/v1.json - 200 null application/json;charset=utf-8 120.9078ms
+2025-07-10 00:21:38.984 +05:00 [INF] Executed DbCommand (22ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 00:21:39.081 +05:00 [INF] Executed DbCommand (44ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2025-07-10 00:21:39.377 +05:00 [INF] Executed DbCommand (5ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-07-10 00:21:39.473 +05:00 [INF] User profile is available. Using 'C:\Users\muhammad.aamir2810\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2025-07-10 00:21:39.733 +05:00 [INF] Now listening on: https://localhost:7046
+2025-07-10 00:21:39.736 +05:00 [INF] Now listening on: http://localhost:5000
+2025-07-10 00:21:39.745 +05:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2025-07-10 00:21:39.775 +05:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-07-10 00:21:39.778 +05:00 [INF] Hosting environment: Development
+2025-07-10 00:21:39.780 +05:00 [INF] Content root path: C:\Users\muhammad.aamir2810\source\repos\Simple Web API\Mindflow Web API
+2025-07-10 00:21:40.145 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/v1 - null null
+2025-07-10 00:21:40.386 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 00:21:40.419 +05:00 [INF] Write content with HTTP Response ContentType of text/html
+2025-07-10 00:21:40.432 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 00:21:40.438 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/v1 - 200 null text/html 299.5184ms
+2025-07-10 00:21:40.455 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - null null
+2025-07-10 00:21:40.455 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.js - null null
+2025-07-10 00:21:40.491 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_vs/browserLink - null null
+2025-07-10 00:21:40.456 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - null null
+2025-07-10 00:21:40.538 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 00:21:40.545 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 00:21:40.608 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 00:21:40.608 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 00:21:40.611 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - 200 16517 application/javascript; charset=utf-8 155.9273ms
+2025-07-10 00:21:40.612 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 00:21:40.615 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 00:21:40.621 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.js - 304 null null 166.0439ms
+2025-07-10 00:21:40.623 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - 304 null null 167.9123ms
+2025-07-10 00:21:40.629 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_vs/browserLink - 200 null text/javascript; charset=UTF-8 138.1591ms
+2025-07-10 00:21:40.755 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/openapi/v1.json - null null
+2025-07-10 00:21:40.763 +05:00 [INF] Executing endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 00:21:40.886 +05:00 [INF] Executed endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 00:21:40.890 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/openapi/v1.json - 200 null application/json;charset=utf-8 134.9248ms
+2025-07-10 00:40:59.029 +05:00 [INF] Executed DbCommand (11ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 00:40:59.063 +05:00 [INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+2025-07-10 00:40:59.085 +05:00 [INF] Executed DbCommand (20ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+2025-07-10 00:40:59.143 +05:00 [INF] Executed DbCommand (4ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+2025-07-10 00:40:59.151 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 00:40:59.152 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2025-07-10 00:40:59.157 +05:00 [INF] Executed DbCommand (4ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2025-07-10 00:40:59.164 +05:00 [INF] Applying migration '20250709194047_UserOtpsEntity_Added'.
+2025-07-10 00:40:59.181 +05:00 [INF] Executed DbCommand (11ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE TABLE [app].[UserOtps] (
+    [Id] uniqueidentifier NOT NULL,
+    [UserId] uniqueidentifier NOT NULL,
+    [Otp] nvarchar(max) NOT NULL,
+    [Expiry] datetimeoffset NOT NULL,
+    [IsUsed] bit NOT NULL,
+    CONSTRAINT [PK_UserOtps] PRIMARY KEY ([Id])
+);
+2025-07-10 00:40:59.184 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES (N'20250709194047_UserOtpsEntity_Added', N'9.0.2');
+2025-07-10 00:40:59.403 +05:00 [INF] Executed DbCommand (9ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-07-10 00:40:59.448 +05:00 [INF] Executed DbCommand (7ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_releaseapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session';
+SELECT @result
+2025-07-10 00:41:22.662 +05:00 [INF] Executed DbCommand (19ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 00:41:22.759 +05:00 [INF] Executed DbCommand (42ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2025-07-10 00:41:23.030 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-07-10 00:41:23.132 +05:00 [INF] User profile is available. Using 'C:\Users\muhammad.aamir2810\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2025-07-10 00:41:23.434 +05:00 [INF] Now listening on: https://localhost:7046
+2025-07-10 00:41:23.437 +05:00 [INF] Now listening on: http://localhost:5000
+2025-07-10 00:41:23.445 +05:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2025-07-10 00:41:23.482 +05:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-07-10 00:41:23.484 +05:00 [INF] Hosting environment: Development
+2025-07-10 00:41:23.486 +05:00 [INF] Content root path: C:\Users\muhammad.aamir2810\source\repos\Simple Web API\Mindflow Web API
+2025-07-10 00:41:24.079 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/v1 - null null
+2025-07-10 00:41:24.377 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 00:41:24.410 +05:00 [INF] Write content with HTTP Response ContentType of text/html
+2025-07-10 00:41:24.423 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 00:41:24.428 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/v1 - 200 null text/html 356.8591ms
+2025-07-10 00:41:24.444 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - null null
+2025-07-10 00:41:24.444 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - null null
+2025-07-10 00:41:24.444 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_vs/browserLink - null null
+2025-07-10 00:41:24.444 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.js - null null
+2025-07-10 00:41:24.463 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 00:41:24.472 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 00:41:24.506 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - 200 16517 application/javascript; charset=utf-8 61.8507ms
+2025-07-10 00:41:24.507 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 00:41:24.507 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 00:41:24.513 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 00:41:24.515 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 00:41:24.517 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.js - 304 null null 72.9455ms
+2025-07-10 00:41:24.518 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - 304 null null 74.6689ms
+2025-07-10 00:41:24.535 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_vs/browserLink - 200 null text/javascript; charset=UTF-8 91.6316ms
+2025-07-10 00:41:24.678 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/openapi/v1.json - null null
+2025-07-10 00:41:24.686 +05:00 [INF] Executing endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 00:41:24.820 +05:00 [INF] Executed endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 00:41:24.822 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/openapi/v1.json - 200 null application/json;charset=utf-8 143.7622ms
+2025-07-10 00:42:28.522 +05:00 [INF] Request starting HTTP/2 POST https://localhost:7046/api/users/users/register - application/json 143
+2025-07-10 00:42:28.542 +05:00 [INF] Executing endpoint 'HTTP: POST /api/users/users/register'
+2025-07-10 00:42:32.354 +05:00 [INF] Executed DbCommand (30ms) [Parameters=[@__command_UserName_0='?' (Size = 100), @__command_Email_1='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [app].[Users] AS [u]
+        WHERE [u].[UserName] = @__command_UserName_0 OR [u].[Email] = @__command_Email_1) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+2025-07-10 00:42:50.651 +05:00 [INF] Executed DbCommand (6ms) [Parameters=[@p0='?' (DbType = Guid), @p1='?' (DbType = DateTimeOffset), @p2='?' (Size = 200), @p3='?' (DbType = Boolean), @p4='?' (Size = 100), @p5='?' (DbType = Boolean), @p6='?' (DbType = DateTimeOffset), @p7='?' (Size = 100), @p8='?' (Size = 4000), @p9='?' (Size = 4000), @p10='?' (Size = 100)], CommandType='"Text"', CommandTimeout='30']
+SET IMPLICIT_TRANSACTIONS OFF;
+SET NOCOUNT ON;
+INSERT INTO [app].[Users] ([Id], [Created], [Email], [EmailConfirmed], [FirstName], [IsActive], [LastModified], [LastName], [PasswordHash], [SecurityStamp], [UserName])
+VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9, @p10);
+2025-07-10 00:42:51.600 +05:00 [INF] User registered: AamirRajpot
+2025-07-10 00:42:58.202 +05:00 [INF] Executed DbCommand (19ms) [Parameters=[@__email_0='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[Created], [u].[Email], [u].[EmailConfirmed], [u].[FirstName], [u].[IsActive], [u].[LastModified], [u].[LastName], [u].[PasswordHash], [u].[SecurityStamp], [u].[UserName]
+FROM [app].[Users] AS [u]
+WHERE [u].[Email] = @__email_0
+2025-07-10 00:43:06.878 +05:00 [INF] Executed DbCommand (16ms) [Parameters=[@p0='?' (DbType = Guid), @p1='?' (DbType = DateTimeOffset), @p2='?' (DbType = Boolean), @p3='?' (Size = 4000), @p4='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SET IMPLICIT_TRANSACTIONS OFF;
+SET NOCOUNT ON;
+INSERT INTO [app].[UserOtps] ([Id], [Expiry], [IsUsed], [Otp], [UserId])
+VALUES (@p0, @p1, @p2, @p3, @p4);
+2025-07-10 00:45:46.818 +05:00 [INF] Executed DbCommand (20ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 00:45:46.904 +05:00 [INF] Executed DbCommand (34ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2025-07-10 00:45:47.169 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-07-10 00:45:47.262 +05:00 [INF] User profile is available. Using 'C:\Users\muhammad.aamir2810\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2025-07-10 00:45:47.523 +05:00 [INF] Now listening on: https://localhost:7046
+2025-07-10 00:45:47.525 +05:00 [INF] Now listening on: http://localhost:5000
+2025-07-10 00:45:47.531 +05:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2025-07-10 00:45:47.560 +05:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-07-10 00:45:47.562 +05:00 [INF] Hosting environment: Development
+2025-07-10 00:45:47.564 +05:00 [INF] Content root path: C:\Users\muhammad.aamir2810\source\repos\Simple Web API\Mindflow Web API
+2025-07-10 00:45:48.097 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/v1 - null null
+2025-07-10 00:45:48.299 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 00:45:48.328 +05:00 [INF] Write content with HTTP Response ContentType of text/html
+2025-07-10 00:45:48.338 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 00:45:48.344 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/v1 - 200 null text/html 249.9257ms
+2025-07-10 00:45:48.360 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - null null
+2025-07-10 00:45:48.360 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.js - null null
+2025-07-10 00:45:48.360 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_vs/browserLink - null null
+2025-07-10 00:45:48.360 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - null null
+2025-07-10 00:45:48.412 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 00:45:48.415 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 00:45:48.470 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 00:45:48.470 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 00:45:48.470 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - 200 16517 application/javascript; charset=utf-8 111.1651ms
+2025-07-10 00:45:48.473 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 00:45:48.475 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 00:45:48.481 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - 304 null null 121.2751ms
+2025-07-10 00:45:48.483 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.js - 304 null null 122.7297ms
+2025-07-10 00:45:48.491 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_vs/browserLink - 200 null text/javascript; charset=UTF-8 131.9235ms
+2025-07-10 00:45:48.614 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/openapi/v1.json - null null
+2025-07-10 00:45:48.620 +05:00 [INF] Executing endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 00:45:48.745 +05:00 [INF] Executed endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 00:45:48.751 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/openapi/v1.json - 200 null application/json;charset=utf-8 136.3815ms
+2025-07-10 00:46:25.175 +05:00 [INF] Request starting HTTP/2 POST https://localhost:7046/api/users/users/register - application/json 143
+2025-07-10 00:46:25.190 +05:00 [INF] Executing endpoint 'HTTP: POST /api/users/users/register'
+2025-07-10 00:46:27.985 +05:00 [INF] Executed DbCommand (49ms) [Parameters=[@__command_UserName_0='?' (Size = 100), @__command_Email_1='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [app].[Users] AS [u]
+        WHERE [u].[UserName] = @__command_UserName_0 OR [u].[Email] = @__command_Email_1) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+2025-07-10 00:46:28.424 +05:00 [INF] Executed endpoint 'HTTP: POST /api/users/users/register'
+2025-07-10 00:46:28.656 +05:00 [ERR] An unhandled exception has occurred while executing the request.
+System.InvalidOperationException: Username or Email already exists.
+   at Mindflow_Web_API.Services.UserService.RegisterAsync(RegisterUserDto command) in C:\Users\muhammad.aamir2810\source\repos\Simple Web API\Mindflow Web API\Services\UserService.cs:line 31
+   at Mindflow_Web_API.EndPoints.UserEndpoints.<>c.<<MapUserEndpoints>b__0_0>d.MoveNext() in C:\Users\muhammad.aamir2810\source\repos\Simple Web API\Mindflow Web API\EndPoints\UserEndpoints.cs:line 13
+--- End of stack trace from previous location ---
+   at Microsoft.AspNetCore.Http.RequestDelegateFactory.ExecuteTaskResult[T](Task`1 task, HttpContext httpContext)
+   at Microsoft.AspNetCore.Http.RequestDelegateFactory.<>c__DisplayClass101_2.<<HandleRequestBodyAndCompileRequestDelegateForJson>b__2>d.MoveNext()
+--- End of stack trace from previous location ---
+   at Microsoft.AspNetCore.Routing.EndpointMiddleware.<Invoke>g__AwaitRequestTask|7_0(Endpoint endpoint, Task requestTask, ILogger logger)
+   at Microsoft.AspNetCore.Authorization.AuthorizationMiddleware.Invoke(HttpContext context)
+   at Microsoft.AspNetCore.Authentication.AuthenticationMiddleware.Invoke(HttpContext context)
+   at Microsoft.AspNetCore.Diagnostics.DeveloperExceptionPageMiddlewareImpl.Invoke(HttpContext context)
+2025-07-10 00:46:28.690 +05:00 [INF] Request finished HTTP/2 POST https://localhost:7046/api/users/users/register - 500 null text/plain; charset=utf-8 3515.0533ms
+2025-07-10 00:46:31.479 +05:00 [INF] Request starting HTTP/2 POST https://localhost:7046/api/users/users/register - application/json 143
+2025-07-10 00:46:31.488 +05:00 [INF] Executing endpoint 'HTTP: POST /api/users/users/register'
+2025-07-10 00:47:06.148 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[@__command_UserName_0='?' (Size = 100), @__command_Email_1='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [app].[Users] AS [u]
+        WHERE [u].[UserName] = @__command_UserName_0 OR [u].[Email] = @__command_Email_1) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+2025-07-10 00:47:06.243 +05:00 [INF] Executed endpoint 'HTTP: POST /api/users/users/register'
+2025-07-10 00:47:07.684 +05:00 [ERR] An unhandled exception has occurred while executing the request.
+System.InvalidOperationException: Username or Email already exists.
+   at Mindflow_Web_API.Services.UserService.RegisterAsync(RegisterUserDto command) in C:\Users\muhammad.aamir2810\source\repos\Simple Web API\Mindflow Web API\Services\UserService.cs:line 31
+   at Mindflow_Web_API.EndPoints.UserEndpoints.<>c.<<MapUserEndpoints>b__0_0>d.MoveNext() in C:\Users\muhammad.aamir2810\source\repos\Simple Web API\Mindflow Web API\EndPoints\UserEndpoints.cs:line 13
+--- End of stack trace from previous location ---
+   at Microsoft.AspNetCore.Http.RequestDelegateFactory.ExecuteTaskResult[T](Task`1 task, HttpContext httpContext)
+   at Microsoft.AspNetCore.Http.RequestDelegateFactory.<>c__DisplayClass101_2.<<HandleRequestBodyAndCompileRequestDelegateForJson>b__2>d.MoveNext()
+--- End of stack trace from previous location ---
+   at Microsoft.AspNetCore.Routing.EndpointMiddleware.<Invoke>g__AwaitRequestTask|7_0(Endpoint endpoint, Task requestTask, ILogger logger)
+   at Microsoft.AspNetCore.Authorization.AuthorizationMiddleware.Invoke(HttpContext context)
+   at Microsoft.AspNetCore.Authentication.AuthenticationMiddleware.Invoke(HttpContext context)
+   at Microsoft.AspNetCore.Diagnostics.DeveloperExceptionPageMiddlewareImpl.Invoke(HttpContext context)
+2025-07-10 00:47:07.690 +05:00 [INF] Request finished HTTP/2 POST https://localhost:7046/api/users/users/register - 500 null text/plain; charset=utf-8 36210.8016ms
+2025-07-10 00:47:13.929 +05:00 [INF] Request starting HTTP/2 POST https://localhost:7046/api/users/users/register - application/json 142
+2025-07-10 00:47:13.935 +05:00 [INF] Executing endpoint 'HTTP: POST /api/users/users/register'
+2025-07-10 00:47:16.147 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[@__command_UserName_0='?' (Size = 100), @__command_Email_1='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [app].[Users] AS [u]
+        WHERE [u].[UserName] = @__command_UserName_0 OR [u].[Email] = @__command_Email_1) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+2025-07-10 00:47:18.346 +05:00 [INF] Executed DbCommand (32ms) [Parameters=[@p0='?' (DbType = Guid), @p1='?' (DbType = DateTimeOffset), @p2='?' (Size = 200), @p3='?' (DbType = Boolean), @p4='?' (Size = 100), @p5='?' (DbType = Boolean), @p6='?' (DbType = DateTimeOffset), @p7='?' (Size = 100), @p8='?' (Size = 4000), @p9='?' (Size = 4000), @p10='?' (Size = 100)], CommandType='"Text"', CommandTimeout='30']
+SET IMPLICIT_TRANSACTIONS OFF;
+SET NOCOUNT ON;
+INSERT INTO [app].[Users] ([Id], [Created], [Email], [EmailConfirmed], [FirstName], [IsActive], [LastModified], [LastName], [PasswordHash], [SecurityStamp], [UserName])
+VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9, @p10);
+2025-07-10 00:47:18.563 +05:00 [INF] User registered: amirrajpot
+2025-07-10 00:47:20.027 +05:00 [INF] Executed DbCommand (4ms) [Parameters=[@__email_0='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[Created], [u].[Email], [u].[EmailConfirmed], [u].[FirstName], [u].[IsActive], [u].[LastModified], [u].[LastName], [u].[PasswordHash], [u].[SecurityStamp], [u].[UserName]
+FROM [app].[Users] AS [u]
+WHERE [u].[Email] = @__email_0
+2025-07-10 00:47:23.427 +05:00 [INF] Executed DbCommand (26ms) [Parameters=[@p0='?' (DbType = Guid), @p1='?' (DbType = DateTimeOffset), @p2='?' (DbType = Boolean), @p3='?' (Size = 4000), @p4='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SET IMPLICIT_TRANSACTIONS OFF;
+SET NOCOUNT ON;
+INSERT INTO [app].[UserOtps] ([Id], [Expiry], [IsUsed], [Otp], [UserId])
+VALUES (@p0, @p1, @p2, @p3, @p4);
+2025-07-10 00:48:13.854 +05:00 [INF] Executed DbCommand (19ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 00:48:13.946 +05:00 [INF] Executed DbCommand (40ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2025-07-10 00:48:14.220 +05:00 [INF] Executed DbCommand (4ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-07-10 00:48:14.313 +05:00 [INF] User profile is available. Using 'C:\Users\muhammad.aamir2810\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2025-07-10 00:48:14.623 +05:00 [INF] Now listening on: https://localhost:7046
+2025-07-10 00:48:14.626 +05:00 [INF] Now listening on: http://localhost:5000
+2025-07-10 00:48:14.634 +05:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2025-07-10 00:48:14.670 +05:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-07-10 00:48:14.673 +05:00 [INF] Hosting environment: Development
+2025-07-10 00:48:14.675 +05:00 [INF] Content root path: C:\Users\muhammad.aamir2810\source\repos\Simple Web API\Mindflow Web API
+2025-07-10 00:48:14.901 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/v1 - null null
+2025-07-10 00:48:15.097 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 00:48:15.126 +05:00 [INF] Write content with HTTP Response ContentType of text/html
+2025-07-10 00:48:15.138 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 00:48:15.143 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/v1 - 200 null text/html 248.6319ms
+2025-07-10 00:48:15.158 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - null null
+2025-07-10 00:48:15.158 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - null null
+2025-07-10 00:48:15.158 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.js - null null
+2025-07-10 00:48:15.158 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_vs/browserLink - null null
+2025-07-10 00:48:15.170 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 00:48:15.179 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 00:48:15.182 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - 200 16517 application/javascript; charset=utf-8 24.1177ms
+2025-07-10 00:48:15.230 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 00:48:15.230 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 00:48:15.236 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 00:48:15.235 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 00:48:15.237 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.js - 304 null null 79.2565ms
+2025-07-10 00:48:15.238 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - 304 null null 80.2162ms
+2025-07-10 00:48:15.255 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_vs/browserLink - 200 null text/javascript; charset=UTF-8 97.1554ms
+2025-07-10 00:48:15.369 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/openapi/v1.json - null null
+2025-07-10 00:48:15.375 +05:00 [INF] Executing endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 00:48:15.498 +05:00 [INF] Executed endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 00:48:15.503 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/openapi/v1.json - 200 null application/json;charset=utf-8 133.2007ms
+2025-07-10 00:48:56.394 +05:00 [INF] Request starting HTTP/2 POST https://localhost:7046/api/users/users/register - application/json 140
+2025-07-10 00:48:56.443 +05:00 [INF] Executing endpoint 'HTTP: POST /api/users/users/register'
+2025-07-10 00:48:59.602 +05:00 [INF] Executed DbCommand (32ms) [Parameters=[@__command_UserName_0='?' (Size = 100), @__command_Email_1='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [app].[Users] AS [u]
+        WHERE [u].[UserName] = @__command_UserName_0 OR [u].[Email] = @__command_Email_1) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+2025-07-10 00:49:02.505 +05:00 [INF] Executed DbCommand (24ms) [Parameters=[@p0='?' (DbType = Guid), @p1='?' (DbType = DateTimeOffset), @p2='?' (Size = 200), @p3='?' (DbType = Boolean), @p4='?' (Size = 100), @p5='?' (DbType = Boolean), @p6='?' (DbType = DateTimeOffset), @p7='?' (Size = 100), @p8='?' (Size = 4000), @p9='?' (Size = 4000), @p10='?' (Size = 100)], CommandType='"Text"', CommandTimeout='30']
+SET IMPLICIT_TRANSACTIONS OFF;
+SET NOCOUNT ON;
+INSERT INTO [app].[Users] ([Id], [Created], [Email], [EmailConfirmed], [FirstName], [IsActive], [LastModified], [LastName], [PasswordHash], [SecurityStamp], [UserName])
+VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9, @p10);
+2025-07-10 00:49:02.882 +05:00 [INF] User registered: amirr
+2025-07-10 00:49:03.909 +05:00 [INF] Executed DbCommand (18ms) [Parameters=[@__email_0='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[Created], [u].[Email], [u].[EmailConfirmed], [u].[FirstName], [u].[IsActive], [u].[LastModified], [u].[LastName], [u].[PasswordHash], [u].[SecurityStamp], [u].[UserName]
+FROM [app].[Users] AS [u]
+WHERE [u].[Email] = @__email_0
+2025-07-10 00:49:05.912 +05:00 [INF] Executed DbCommand (17ms) [Parameters=[@p0='?' (DbType = Guid), @p1='?' (DbType = DateTimeOffset), @p2='?' (DbType = Boolean), @p3='?' (Size = 4000), @p4='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SET IMPLICIT_TRANSACTIONS OFF;
+SET NOCOUNT ON;
+INSERT INTO [app].[UserOtps] ([Id], [Expiry], [IsUsed], [Otp], [UserId])
+VALUES (@p0, @p1, @p2, @p3, @p4);
+2025-07-10 00:58:56.379 +05:00 [INF] Executed DbCommand (19ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 00:58:56.475 +05:00 [INF] Executed DbCommand (45ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2025-07-10 00:58:56.746 +05:00 [INF] Executed DbCommand (4ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-07-10 00:58:56.841 +05:00 [INF] User profile is available. Using 'C:\Users\muhammad.aamir2810\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2025-07-10 00:58:57.151 +05:00 [INF] Now listening on: https://localhost:7046
+2025-07-10 00:58:57.154 +05:00 [INF] Now listening on: http://localhost:5000
+2025-07-10 00:58:57.162 +05:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2025-07-10 00:58:57.198 +05:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-07-10 00:58:57.200 +05:00 [INF] Hosting environment: Development
+2025-07-10 00:58:57.202 +05:00 [INF] Content root path: C:\Users\muhammad.aamir2810\source\repos\Simple Web API\Mindflow Web API
+2025-07-10 00:58:57.493 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/v1 - null null
+2025-07-10 00:58:57.712 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 00:58:57.754 +05:00 [INF] Write content with HTTP Response ContentType of text/html
+2025-07-10 00:58:57.770 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 00:58:57.776 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/v1 - 200 null text/html 287.8152ms
+2025-07-10 00:58:57.790 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.js - null null
+2025-07-10 00:58:57.792 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_vs/browserLink - null null
+2025-07-10 00:58:57.790 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - null null
+2025-07-10 00:58:57.864 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 00:58:57.790 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - null null
+2025-07-10 00:58:57.892 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 00:58:57.895 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 00:58:57.902 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - 200 16517 application/javascript; charset=utf-8 112.1191ms
+2025-07-10 00:58:57.903 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 00:58:57.904 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 00:58:57.913 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 00:58:57.914 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.js - 304 null null 124.211ms
+2025-07-10 00:58:57.916 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - 304 null null 125.7339ms
+2025-07-10 00:58:57.925 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_vs/browserLink - 200 null text/javascript; charset=UTF-8 134.682ms
+2025-07-10 00:58:58.064 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/openapi/v1.json - null null
+2025-07-10 00:58:58.071 +05:00 [INF] Executing endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 00:58:58.218 +05:00 [INF] Executed endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 00:58:58.222 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/openapi/v1.json - 200 null application/json;charset=utf-8 157.4036ms
+2025-07-10 00:59:36.161 +05:00 [INF] Request starting HTTP/2 POST https://localhost:7046/api/users/users/register - application/json 139
+2025-07-10 00:59:36.183 +05:00 [INF] Executing endpoint 'HTTP: POST /api/users/users/register'
+2025-07-10 00:59:38.371 +05:00 [INF] Executed DbCommand (28ms) [Parameters=[@__command_UserName_0='?' (Size = 100), @__command_Email_1='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [app].[Users] AS [u]
+        WHERE [u].[UserName] = @__command_UserName_0 OR [u].[Email] = @__command_Email_1) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+2025-07-10 00:59:38.902 +05:00 [INF] Executed DbCommand (25ms) [Parameters=[@p0='?' (DbType = Guid), @p1='?' (DbType = DateTimeOffset), @p2='?' (Size = 200), @p3='?' (DbType = Boolean), @p4='?' (Size = 100), @p5='?' (DbType = Boolean), @p6='?' (DbType = DateTimeOffset), @p7='?' (Size = 100), @p8='?' (Size = 4000), @p9='?' (Size = 4000), @p10='?' (Size = 100)], CommandType='"Text"', CommandTimeout='30']
+SET IMPLICIT_TRANSACTIONS OFF;
+SET NOCOUNT ON;
+INSERT INTO [app].[Users] ([Id], [Created], [Email], [EmailConfirmed], [FirstName], [IsActive], [LastModified], [LastName], [PasswordHash], [SecurityStamp], [UserName])
+VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9, @p10);
+2025-07-10 00:59:39.478 +05:00 [INF] User registered: amamir
+2025-07-10 00:59:40.625 +05:00 [INF] Executed DbCommand (20ms) [Parameters=[@__email_0='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[Created], [u].[Email], [u].[EmailConfirmed], [u].[FirstName], [u].[IsActive], [u].[LastModified], [u].[LastName], [u].[PasswordHash], [u].[SecurityStamp], [u].[UserName]
+FROM [app].[Users] AS [u]
+WHERE [u].[Email] = @__email_0
+2025-07-10 00:59:42.127 +05:00 [INF] Executed DbCommand (5ms) [Parameters=[@p0='?' (DbType = Guid), @p1='?' (DbType = DateTimeOffset), @p2='?' (DbType = Boolean), @p3='?' (Size = 4000), @p4='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SET IMPLICIT_TRANSACTIONS OFF;
+SET NOCOUNT ON;
+INSERT INTO [app].[UserOtps] ([Id], [Expiry], [IsUsed], [Otp], [UserId])
+VALUES (@p0, @p1, @p2, @p3, @p4);
+2025-07-10 00:59:54.829 +05:00 [INF] Setting HTTP status code 200.
+2025-07-10 00:59:54.833 +05:00 [INF] Writing value of type 'UserDto' as Json.
+2025-07-10 00:59:54.837 +05:00 [INF] Executed endpoint 'HTTP: POST /api/users/users/register'
+2025-07-10 00:59:54.840 +05:00 [INF] Request finished HTTP/2 POST https://localhost:7046/api/users/users/register - 200 null application/json; charset=utf-8 18679.1603ms
+2025-07-10 01:02:04.981 +05:00 [INF] Executed DbCommand (27ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 01:02:05.075 +05:00 [INF] Executed DbCommand (44ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2025-07-10 01:02:05.359 +05:00 [INF] Executed DbCommand (4ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-07-10 01:02:05.454 +05:00 [INF] User profile is available. Using 'C:\Users\muhammad.aamir2810\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2025-07-10 01:02:05.761 +05:00 [INF] Now listening on: https://localhost:7046
+2025-07-10 01:02:05.766 +05:00 [INF] Now listening on: http://localhost:5000
+2025-07-10 01:02:05.773 +05:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2025-07-10 01:02:05.800 +05:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-07-10 01:02:05.802 +05:00 [INF] Hosting environment: Development
+2025-07-10 01:02:05.806 +05:00 [INF] Content root path: C:\Users\muhammad.aamir2810\source\repos\Simple Web API\Mindflow Web API
+2025-07-10 01:02:06.291 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/v1 - null null
+2025-07-10 01:02:06.494 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 01:02:06.524 +05:00 [INF] Write content with HTTP Response ContentType of text/html
+2025-07-10 01:02:06.531 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 01:02:06.537 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/v1 - 200 null text/html 254.0188ms
+2025-07-10 01:02:06.547 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - null null
+2025-07-10 01:02:06.547 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.js - null null
+2025-07-10 01:02:06.580 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_vs/browserLink - null null
+2025-07-10 01:02:06.547 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - null null
+2025-07-10 01:02:06.675 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 01:02:06.676 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - 200 16517 application/javascript; charset=utf-8 129.9031ms
+2025-07-10 01:02:06.706 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 01:02:06.724 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 01:02:06.730 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 01:02:06.731 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 01:02:06.731 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 01:02:06.732 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - 304 null null 185.7251ms
+2025-07-10 01:02:06.734 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.js - 304 null null 186.6123ms
+2025-07-10 01:02:06.741 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_vs/browserLink - 200 null text/javascript; charset=UTF-8 189.7566ms
+2025-07-10 01:02:06.876 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/openapi/v1.json - null null
+2025-07-10 01:02:06.884 +05:00 [INF] Executing endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 01:02:07.007 +05:00 [INF] Executed endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 01:02:07.011 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/openapi/v1.json - 200 null application/json;charset=utf-8 134.7132ms
+2025-07-10 01:02:28.596 +05:00 [INF] Request starting HTTP/2 POST https://localhost:7046/api/users/users/verify-otp - application/json 72
+2025-07-10 01:02:28.637 +05:00 [INF] Executing endpoint 'HTTP: POST /api/users/users/verify-otp'
+2025-07-10 01:02:31.057 +05:00 [INF] Executed DbCommand (20ms) [Parameters=[@__command_UserId_0='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[Created], [u].[Email], [u].[EmailConfirmed], [u].[FirstName], [u].[IsActive], [u].[LastModified], [u].[LastName], [u].[PasswordHash], [u].[SecurityStamp], [u].[UserName]
+FROM [app].[Users] AS [u]
+WHERE [u].[Id] = @__command_UserId_0
+2025-07-10 01:02:32.675 +05:00 [INF] Executed DbCommand (17ms) [Parameters=[@__user_Id_0='?' (DbType = Guid), @__command_Code_1='?' (Size = 4000)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[Expiry], [u].[IsUsed], [u].[Otp], [u].[UserId]
+FROM [app].[UserOtps] AS [u]
+WHERE [u].[UserId] = @__user_Id_0 AND [u].[Otp] = @__command_Code_1 AND [u].[IsUsed] = CAST(0 AS bit) AND [u].[Expiry] > CAST(SYSUTCDATETIME() AS datetimeoffset)
+ORDER BY [u].[Expiry] DESC
+2025-07-10 01:02:41.060 +05:00 [INF] Executed DbCommand (25ms) [Parameters=[@p1='?' (DbType = Guid), @p0='?' (DbType = Boolean), @p4='?' (DbType = Guid), @p2='?' (DbType = Boolean), @p3='?' (DbType = Boolean)], CommandType='"Text"', CommandTimeout='30']
+SET NOCOUNT ON;
+UPDATE [app].[UserOtps] SET [IsUsed] = @p0
+OUTPUT 1
+WHERE [Id] = @p1;
+UPDATE [app].[Users] SET [EmailConfirmed] = @p2, [IsActive] = @p3
+OUTPUT INSERTED.[LastModified]
+WHERE [Id] = @p4;
+2025-07-10 01:02:42.678 +05:00 [INF] Setting HTTP status code 200.
+2025-07-10 01:02:42.681 +05:00 [INF] Executed endpoint 'HTTP: POST /api/users/users/verify-otp'
+2025-07-10 01:02:42.683 +05:00 [INF] Request finished HTTP/2 POST https://localhost:7046/api/users/users/verify-otp - 200 0 null 14086.7913ms
+2025-07-10 01:03:31.146 +05:00 [INF] Request starting HTTP/2 POST https://localhost:7046/api/users/users/signin - application/json 77
+2025-07-10 01:03:31.168 +05:00 [INF] Executing endpoint 'HTTP: POST /api/users/users/signin'
+2025-07-10 01:03:34.056 +05:00 [INF] Executed DbCommand (16ms) [Parameters=[@__command_UserNameOrEmail_0='?' (Size = 100), @__command_UserNameOrEmail_0_1='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[Created], [u].[Email], [u].[EmailConfirmed], [u].[FirstName], [u].[IsActive], [u].[LastModified], [u].[LastName], [u].[PasswordHash], [u].[SecurityStamp], [u].[UserName]
+FROM [app].[Users] AS [u]
+WHERE [u].[UserName] = @__command_UserNameOrEmail_0 OR [u].[Email] = @__command_UserNameOrEmail_0_1
+2025-07-10 01:03:53.428 +05:00 [INF] Executed endpoint 'HTTP: POST /api/users/users/signin'
+2025-07-10 01:04:46.474 +05:00 [INF] Executed DbCommand (24ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 01:04:46.574 +05:00 [INF] Executed DbCommand (45ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2025-07-10 01:04:46.929 +05:00 [INF] Executed DbCommand (5ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-07-10 01:04:47.037 +05:00 [INF] User profile is available. Using 'C:\Users\muhammad.aamir2810\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2025-07-10 01:04:47.337 +05:00 [INF] Now listening on: https://localhost:7046
+2025-07-10 01:04:47.340 +05:00 [INF] Now listening on: http://localhost:5000
+2025-07-10 01:04:47.352 +05:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2025-07-10 01:04:47.382 +05:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-07-10 01:04:47.385 +05:00 [INF] Hosting environment: Development
+2025-07-10 01:04:47.386 +05:00 [INF] Content root path: C:\Users\muhammad.aamir2810\source\repos\Simple Web API\Mindflow Web API
+2025-07-10 01:04:48.092 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/v1 - null null
+2025-07-10 01:04:48.330 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 01:04:48.363 +05:00 [INF] Write content with HTTP Response ContentType of text/html
+2025-07-10 01:04:48.372 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 01:04:48.381 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/v1 - 200 null text/html 294.2408ms
+2025-07-10 01:04:48.395 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.js - null null
+2025-07-10 01:04:48.395 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_vs/browserLink - null null
+2025-07-10 01:04:48.395 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - null null
+2025-07-10 01:04:48.395 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - null null
+2025-07-10 01:04:48.411 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 01:04:48.436 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 01:04:48.483 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - 200 16517 application/javascript; charset=utf-8 88.0334ms
+2025-07-10 01:04:48.485 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 01:04:48.485 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 01:04:48.493 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 01:04:48.496 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 01:04:48.497 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - 304 null null 102.0967ms
+2025-07-10 01:04:48.498 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.js - 304 null null 103.3578ms
+2025-07-10 01:04:48.517 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_vs/browserLink - 200 null text/javascript; charset=UTF-8 121.5678ms
+2025-07-10 01:04:48.739 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/openapi/v1.json - null null
+2025-07-10 01:04:48.747 +05:00 [INF] Executing endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 01:04:48.931 +05:00 [INF] Executed endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 01:04:48.934 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/openapi/v1.json - 200 null application/json;charset=utf-8 195.1352ms
+2025-07-10 01:05:07.817 +05:00 [INF] Request starting HTTP/2 POST https://localhost:7046/api/users/users/signin - application/json 77
+2025-07-10 01:05:07.825 +05:00 [INF] Executing endpoint 'HTTP: POST /api/users/users/signin'
+2025-07-10 01:05:09.771 +05:00 [INF] Executed DbCommand (41ms) [Parameters=[@__command_UserNameOrEmail_0='?' (Size = 100), @__command_UserNameOrEmail_0_1='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[Created], [u].[Email], [u].[EmailConfirmed], [u].[FirstName], [u].[IsActive], [u].[LastModified], [u].[LastName], [u].[PasswordHash], [u].[SecurityStamp], [u].[UserName]
+FROM [app].[Users] AS [u]
+WHERE [u].[UserName] = @__command_UserNameOrEmail_0 OR [u].[Email] = @__command_UserNameOrEmail_0_1
+2025-07-10 01:05:15.242 +05:00 [INF] User signed in: amamir
+2025-07-10 01:05:16.812 +05:00 [INF] Setting HTTP status code 200.
+2025-07-10 01:05:16.815 +05:00 [INF] Writing value of type '<>f__AnonymousType1`1' as Json.
+2025-07-10 01:05:16.817 +05:00 [INF] Executed endpoint 'HTTP: POST /api/users/users/signin'
+2025-07-10 01:05:16.819 +05:00 [INF] Request finished HTTP/2 POST https://localhost:7046/api/users/users/signin - 200 null application/json; charset=utf-8 9002.2223ms
+2025-07-10 01:08:29.109 +05:00 [INF] Executed DbCommand (30ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 01:08:29.229 +05:00 [INF] Executed DbCommand (40ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2025-07-10 01:08:29.515 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-07-10 01:08:29.609 +05:00 [INF] User profile is available. Using 'C:\Users\muhammad.aamir2810\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2025-07-10 01:08:29.945 +05:00 [INF] Now listening on: https://localhost:7046
+2025-07-10 01:08:29.947 +05:00 [INF] Now listening on: http://localhost:5000
+2025-07-10 01:08:29.959 +05:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2025-07-10 01:08:30.004 +05:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-07-10 01:08:30.008 +05:00 [INF] Hosting environment: Development
+2025-07-10 01:08:30.011 +05:00 [INF] Content root path: C:\Users\muhammad.aamir2810\source\repos\Simple Web API\Mindflow Web API
+2025-07-10 01:08:30.208 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/v1 - null null
+2025-07-10 01:08:30.404 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 01:08:30.434 +05:00 [INF] Write content with HTTP Response ContentType of text/html
+2025-07-10 01:08:30.444 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 01:08:30.451 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/v1 - 200 null text/html 250.9048ms
+2025-07-10 01:08:30.462 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - null null
+2025-07-10 01:08:30.462 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.js - null null
+2025-07-10 01:08:30.462 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - null null
+2025-07-10 01:08:30.463 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_vs/browserLink - null null
+2025-07-10 01:08:30.475 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 01:08:30.479 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 01:08:30.509 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - 200 16517 application/javascript; charset=utf-8 47.0764ms
+2025-07-10 01:08:30.511 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 01:08:30.511 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 01:08:30.522 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 01:08:30.524 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 01:08:30.526 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - 304 null null 63.9087ms
+2025-07-10 01:08:30.528 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.js - 304 null null 65.5754ms
+2025-07-10 01:08:30.541 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_vs/browserLink - 200 null text/javascript; charset=UTF-8 78.0031ms
+2025-07-10 01:08:30.673 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/openapi/v1.json - null null
+2025-07-10 01:08:30.678 +05:00 [INF] Executing endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 01:08:30.794 +05:00 [INF] Executed endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 01:08:30.799 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/openapi/v1.json - 200 null application/json;charset=utf-8 125.7704ms
+2025-07-10 01:08:50.561 +05:00 [INF] Request starting HTTP/2 POST https://localhost:7046/api/users/users/signin - application/json 77
+2025-07-10 01:08:50.569 +05:00 [INF] Executing endpoint 'HTTP: POST /api/users/users/signin'
+2025-07-10 01:08:52.467 +05:00 [INF] Executed DbCommand (39ms) [Parameters=[@__command_UserNameOrEmail_0='?' (Size = 100), @__command_UserNameOrEmail_0_1='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[Created], [u].[Email], [u].[EmailConfirmed], [u].[FirstName], [u].[IsActive], [u].[LastModified], [u].[LastName], [u].[PasswordHash], [u].[SecurityStamp], [u].[UserName]
+FROM [app].[Users] AS [u]
+WHERE [u].[UserName] = @__command_UserNameOrEmail_0 OR [u].[Email] = @__command_UserNameOrEmail_0_1
+2025-07-10 01:08:55.380 +05:00 [INF] User signed in: amamir
+2025-07-10 01:08:57.403 +05:00 [INF] Setting HTTP status code 200.
+2025-07-10 01:08:57.406 +05:00 [INF] Writing value of type 'TokenResponseDto' as Json.
+2025-07-10 01:08:57.410 +05:00 [INF] Executed endpoint 'HTTP: POST /api/users/users/signin'
+2025-07-10 01:08:57.412 +05:00 [INF] Request finished HTTP/2 POST https://localhost:7046/api/users/users/signin - 200 null application/json; charset=utf-8 6850.7618ms
+2025-07-10 01:11:07.367 +05:00 [INF] Request starting HTTP/2 POST https://localhost:7046/api/users/users/change-password - application/json 67
+2025-07-10 01:11:07.429 +05:00 [INF] Executing endpoint 'HTTP: POST /api/users/users/change-password'
+2025-07-10 01:11:15.440 +05:00 [INF] Executed DbCommand (21ms) [Parameters=[@__userId_0='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[Created], [u].[Email], [u].[EmailConfirmed], [u].[FirstName], [u].[IsActive], [u].[LastModified], [u].[LastName], [u].[PasswordHash], [u].[SecurityStamp], [u].[UserName]
+FROM [app].[Users] AS [u]
+WHERE [u].[Id] = @__userId_0
+2025-07-10 01:11:25.257 +05:00 [INF] Executed DbCommand (21ms) [Parameters=[@p2='?' (DbType = Guid), @p0='?' (Size = 4000), @p1='?' (Size = 4000)], CommandType='"Text"', CommandTimeout='30']
+SET IMPLICIT_TRANSACTIONS OFF;
+SET NOCOUNT ON;
+UPDATE [app].[Users] SET [PasswordHash] = @p0, [SecurityStamp] = @p1
+OUTPUT INSERTED.[LastModified]
+WHERE [Id] = @p2;
+2025-07-10 01:11:25.280 +05:00 [INF] Password changed for user: amamir
+2025-07-10 01:11:25.282 +05:00 [INF] Setting HTTP status code 200.
+2025-07-10 01:11:25.283 +05:00 [INF] Executed endpoint 'HTTP: POST /api/users/users/change-password'
+2025-07-10 01:11:25.284 +05:00 [INF] Request finished HTTP/2 POST https://localhost:7046/api/users/users/change-password - 200 0 null 17916.8347ms
+2025-07-10 01:15:41.221 +05:00 [INF] Executed DbCommand (14ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 01:15:41.272 +05:00 [INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+2025-07-10 01:15:41.297 +05:00 [INF] Executed DbCommand (22ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+2025-07-10 01:15:41.364 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+2025-07-10 01:15:41.373 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 01:15:41.374 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2025-07-10 01:15:41.381 +05:00 [INF] Executed DbCommand (5ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2025-07-10 01:15:41.392 +05:00 [INF] Applying migration '20250709201528_DOB_Added_UserEntity'.
+2025-07-10 01:15:41.409 +05:00 [INF] Executed DbCommand (8ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+ALTER TABLE [app].[Users] ADD [DateOfBirth] datetime2 NULL;
+2025-07-10 01:15:41.413 +05:00 [INF] Executed DbCommand (4ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES (N'20250709201528_DOB_Added_UserEntity', N'9.0.2');
+2025-07-10 01:15:41.754 +05:00 [INF] Executed DbCommand (13ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-07-10 01:15:41.810 +05:00 [INF] Executed DbCommand (4ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_releaseapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session';
+SELECT @result
+2025-07-10 01:19:21.911 +05:00 [INF] Executed DbCommand (54ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 01:19:22.102 +05:00 [INF] Executed DbCommand (75ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2025-07-10 01:19:22.748 +05:00 [INF] Executed DbCommand (10ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-07-10 01:19:23.023 +05:00 [INF] User profile is available. Using 'C:\Users\muhammad.aamir2810\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2025-07-10 01:19:23.687 +05:00 [INF] Now listening on: https://localhost:7046
+2025-07-10 01:19:23.689 +05:00 [INF] Now listening on: http://localhost:5000
+2025-07-10 01:19:23.705 +05:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2025-07-10 01:19:23.775 +05:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-07-10 01:19:23.809 +05:00 [INF] Hosting environment: Development
+2025-07-10 01:19:23.811 +05:00 [INF] Content root path: C:\Users\muhammad.aamir2810\source\repos\Simple Web API\Mindflow Web API
+2025-07-10 01:19:24.111 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/v1 - null null
+2025-07-10 01:19:24.528 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 01:19:24.586 +05:00 [INF] Write content with HTTP Response ContentType of text/html
+2025-07-10 01:19:24.598 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 01:19:24.604 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/v1 - 200 null text/html 505.9504ms
+2025-07-10 01:19:24.617 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - null null
+2025-07-10 01:19:24.617 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - null null
+2025-07-10 01:19:24.617 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_vs/browserLink - null null
+2025-07-10 01:19:24.617 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.js - null null
+2025-07-10 01:19:24.641 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 01:19:24.672 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - 200 16517 application/javascript; charset=utf-8 55.046ms
+2025-07-10 01:19:24.683 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 01:19:24.708 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 01:19:24.708 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 01:19:24.711 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 01:19:24.715 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 01:19:24.717 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - 304 null null 100.7227ms
+2025-07-10 01:19:24.720 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.js - 304 null null 103.3241ms
+2025-07-10 01:19:24.736 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_vs/browserLink - 200 null text/javascript; charset=UTF-8 119.1854ms
+2025-07-10 01:19:24.974 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/openapi/v1.json - null null
+2025-07-10 01:19:24.984 +05:00 [INF] Executing endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 01:19:25.167 +05:00 [INF] Executed endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 01:19:25.171 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/openapi/v1.json - 200 null application/json;charset=utf-8 196.8704ms
+2025-07-10 01:19:56.277 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/api/users/users/profile - null null
+2025-07-10 01:19:56.475 +05:00 [INF] Executing endpoint 'HTTP: GET /api/users/users/profile'
+2025-07-10 01:19:59.920 +05:00 [INF] Executed DbCommand (53ms) [Parameters=[@__userId_0='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[Created], [u].[DateOfBirth], [u].[Email], [u].[EmailConfirmed], [u].[FirstName], [u].[IsActive], [u].[LastModified], [u].[LastName], [u].[PasswordHash], [u].[SecurityStamp], [u].[UserName]
+FROM [app].[Users] AS [u]
+WHERE [u].[Id] = @__userId_0
+2025-07-10 01:20:02.129 +05:00 [INF] Setting HTTP status code 200.
+2025-07-10 01:20:02.134 +05:00 [INF] Writing value of type 'UserProfileDto' as Json.
+2025-07-10 01:20:02.143 +05:00 [INF] Executed endpoint 'HTTP: GET /api/users/users/profile'
+2025-07-10 01:20:02.147 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/api/users/users/profile - 200 null application/json; charset=utf-8 5871.0352ms
+2025-07-10 01:21:02.441 +05:00 [INF] Request starting HTTP/2 PUT https://localhost:7046/api/users/users/profile - application/json 81
+2025-07-10 01:21:02.504 +05:00 [INF] Executing endpoint 'HTTP: PUT /api/users/users/profile'
+2025-07-10 01:21:02.570 +05:00 [INF] Executed endpoint 'HTTP: PUT /api/users/users/profile'
+2025-07-10 01:21:02.581 +05:00 [ERR] An unhandled exception has occurred while executing the request.
+Microsoft.AspNetCore.Http.BadHttpRequestException: Failed to read parameter "UpdateProfileDto dto" from the request body as JSON.
+ ---> System.Text.Json.JsonException: The JSON value could not be converted to Mindflow_Web_API.DTOs.UpdateProfileDto. Path: $.dateOfBirth | LineNumber: 3 | BytePositionInLine: 29.
+ ---> System.FormatException: The JSON value is not in a supported DateTime format.
+   at System.Text.Json.ThrowHelper.ThrowFormatException(DataType dataType)
+   at System.Text.Json.Utf8JsonReader.GetDateTime()
+   at System.Text.Json.Serialization.Converters.NullableConverter`1.Read(Utf8JsonReader& reader, Type typeToConvert, JsonSerializerOptions options)
+   at System.Text.Json.Serialization.JsonConverter`1.TryRead(Utf8JsonReader& reader, Type typeToConvert, JsonSerializerOptions options, ReadStack& state, T& value, Boolean& isPopulatedValue)
+   at System.Text.Json.Serialization.Converters.SmallObjectWithParameterizedConstructorConverter`5.TryRead[TArg](ReadStack& state, Utf8JsonReader& reader, JsonParameterInfo jsonParameterInfo, TArg& arg)
+   at System.Text.Json.Serialization.Converters.SmallObjectWithParameterizedConstructorConverter`5.ReadAndCacheConstructorArgument(ReadStack& state, Utf8JsonReader& reader, JsonParameterInfo jsonParameterInfo)
+   at System.Text.Json.Serialization.Converters.ObjectWithParameterizedConstructorConverter`1.ReadConstructorArgumentsWithContinuation(ReadStack& state, Utf8JsonReader& reader, JsonSerializerOptions options)
+   at System.Text.Json.Serialization.Converters.ObjectWithParameterizedConstructorConverter`1.OnTryRead(Utf8JsonReader& reader, Type typeToConvert, JsonSerializerOptions options, ReadStack& state, T& value)
+   at System.Text.Json.Serialization.JsonConverter`1.TryRead(Utf8JsonReader& reader, Type typeToConvert, JsonSerializerOptions options, ReadStack& state, T& value, Boolean& isPopulatedValue)
+   at System.Text.Json.Serialization.JsonConverter`1.ReadCore(Utf8JsonReader& reader, T& value, JsonSerializerOptions options, ReadStack& state)
+   --- End of inner exception stack trace ---
+   at System.Text.Json.ThrowHelper.ReThrowWithPath(ReadStack& state, Utf8JsonReader& reader, Exception ex)
+   at System.Text.Json.Serialization.JsonConverter`1.ReadCore(Utf8JsonReader& reader, T& value, JsonSerializerOptions options, ReadStack& state)
+   at System.Text.Json.Serialization.Metadata.JsonTypeInfo`1.ContinueDeserialize(ReadBufferState& bufferState, JsonReaderState& jsonReaderState, ReadStack& readStack, T& value)
+   at System.Text.Json.Serialization.Metadata.JsonTypeInfo`1.DeserializeAsync(Stream utf8Json, CancellationToken cancellationToken)
+   at System.Text.Json.Serialization.Metadata.JsonTypeInfo`1.DeserializeAsObjectAsync(Stream utf8Json, CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Http.HttpRequestJsonExtensions.ReadFromJsonAsync(HttpRequest request, JsonTypeInfo jsonTypeInfo, CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Http.HttpRequestJsonExtensions.ReadFromJsonAsync(HttpRequest request, JsonTypeInfo jsonTypeInfo, CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Http.RequestDelegateFactory.<HandleRequestBodyAndCompileRequestDelegateForJson>g__TryReadBodyAsync|101_0(HttpContext httpContext, Type bodyType, String parameterTypeName, String parameterName, Boolean allowEmptyRequestBody, Boolean throwOnBadRequest, JsonTypeInfo jsonTypeInfo)
+   --- End of inner exception stack trace ---
+   at Microsoft.AspNetCore.Http.RequestDelegateFactory.Log.InvalidJsonRequestBody(HttpContext httpContext, String parameterTypeName, String parameterName, Exception exception, Boolean shouldThrow)
+   at Microsoft.AspNetCore.Http.RequestDelegateFactory.<HandleRequestBodyAndCompileRequestDelegateForJson>g__TryReadBodyAsync|101_0(HttpContext httpContext, Type bodyType, String parameterTypeName, String parameterName, Boolean allowEmptyRequestBody, Boolean throwOnBadRequest, JsonTypeInfo jsonTypeInfo)
+   at Microsoft.AspNetCore.Http.RequestDelegateFactory.<>c__DisplayClass101_2.<<HandleRequestBodyAndCompileRequestDelegateForJson>b__2>d.MoveNext()
+--- End of stack trace from previous location ---
+   at Microsoft.AspNetCore.Routing.EndpointMiddleware.<Invoke>g__AwaitRequestTask|7_0(Endpoint endpoint, Task requestTask, ILogger logger)
+   at Microsoft.AspNetCore.Authorization.AuthorizationMiddleware.Invoke(HttpContext context)
+   at Microsoft.AspNetCore.Authentication.AuthenticationMiddleware.Invoke(HttpContext context)
+   at Microsoft.AspNetCore.Diagnostics.DeveloperExceptionPageMiddlewareImpl.Invoke(HttpContext context)
+2025-07-10 01:21:02.671 +05:00 [INF] Request finished HTTP/2 PUT https://localhost:7046/api/users/users/profile - 400 null text/plain; charset=utf-8 230.0381ms
+2025-07-10 01:21:46.637 +05:00 [INF] Request starting HTTP/2 PUT https://localhost:7046/api/users/users/profile - application/json 81
+2025-07-10 01:21:46.699 +05:00 [INF] Executing endpoint 'HTTP: PUT /api/users/users/profile'
+2025-07-10 01:21:46.713 +05:00 [INF] Executed endpoint 'HTTP: PUT /api/users/users/profile'
+2025-07-10 01:21:46.725 +05:00 [ERR] An unhandled exception has occurred while executing the request.
+Microsoft.AspNetCore.Http.BadHttpRequestException: Failed to read parameter "UpdateProfileDto dto" from the request body as JSON.
+ ---> System.Text.Json.JsonException: The JSON value could not be converted to Mindflow_Web_API.DTOs.UpdateProfileDto. Path: $.dateOfBirth | LineNumber: 3 | BytePositionInLine: 29.
+ ---> System.FormatException: The JSON value is not in a supported DateTime format.
+   at System.Text.Json.ThrowHelper.ThrowFormatException(DataType dataType)
+   at System.Text.Json.Utf8JsonReader.GetDateTime()
+   at System.Text.Json.Serialization.Converters.NullableConverter`1.Read(Utf8JsonReader& reader, Type typeToConvert, JsonSerializerOptions options)
+   at System.Text.Json.Serialization.JsonConverter`1.TryRead(Utf8JsonReader& reader, Type typeToConvert, JsonSerializerOptions options, ReadStack& state, T& value, Boolean& isPopulatedValue)
+   at System.Text.Json.Serialization.Converters.SmallObjectWithParameterizedConstructorConverter`5.TryRead[TArg](ReadStack& state, Utf8JsonReader& reader, JsonParameterInfo jsonParameterInfo, TArg& arg)
+   at System.Text.Json.Serialization.Converters.SmallObjectWithParameterizedConstructorConverter`5.ReadAndCacheConstructorArgument(ReadStack& state, Utf8JsonReader& reader, JsonParameterInfo jsonParameterInfo)
+   at System.Text.Json.Serialization.Converters.ObjectWithParameterizedConstructorConverter`1.ReadConstructorArgumentsWithContinuation(ReadStack& state, Utf8JsonReader& reader, JsonSerializerOptions options)
+   at System.Text.Json.Serialization.Converters.ObjectWithParameterizedConstructorConverter`1.OnTryRead(Utf8JsonReader& reader, Type typeToConvert, JsonSerializerOptions options, ReadStack& state, T& value)
+   at System.Text.Json.Serialization.JsonConverter`1.TryRead(Utf8JsonReader& reader, Type typeToConvert, JsonSerializerOptions options, ReadStack& state, T& value, Boolean& isPopulatedValue)
+   at System.Text.Json.Serialization.JsonConverter`1.ReadCore(Utf8JsonReader& reader, T& value, JsonSerializerOptions options, ReadStack& state)
+   --- End of inner exception stack trace ---
+   at System.Text.Json.ThrowHelper.ReThrowWithPath(ReadStack& state, Utf8JsonReader& reader, Exception ex)
+   at System.Text.Json.Serialization.JsonConverter`1.ReadCore(Utf8JsonReader& reader, T& value, JsonSerializerOptions options, ReadStack& state)
+   at System.Text.Json.Serialization.Metadata.JsonTypeInfo`1.ContinueDeserialize(ReadBufferState& bufferState, JsonReaderState& jsonReaderState, ReadStack& readStack, T& value)
+   at System.Text.Json.Serialization.Metadata.JsonTypeInfo`1.DeserializeAsync(Stream utf8Json, CancellationToken cancellationToken)
+   at System.Text.Json.Serialization.Metadata.JsonTypeInfo`1.DeserializeAsObjectAsync(Stream utf8Json, CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Http.HttpRequestJsonExtensions.ReadFromJsonAsync(HttpRequest request, JsonTypeInfo jsonTypeInfo, CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Http.HttpRequestJsonExtensions.ReadFromJsonAsync(HttpRequest request, JsonTypeInfo jsonTypeInfo, CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Http.RequestDelegateFactory.<HandleRequestBodyAndCompileRequestDelegateForJson>g__TryReadBodyAsync|101_0(HttpContext httpContext, Type bodyType, String parameterTypeName, String parameterName, Boolean allowEmptyRequestBody, Boolean throwOnBadRequest, JsonTypeInfo jsonTypeInfo)
+   --- End of inner exception stack trace ---
+   at Microsoft.AspNetCore.Http.RequestDelegateFactory.Log.InvalidJsonRequestBody(HttpContext httpContext, String parameterTypeName, String parameterName, Exception exception, Boolean shouldThrow)
+   at Microsoft.AspNetCore.Http.RequestDelegateFactory.<HandleRequestBodyAndCompileRequestDelegateForJson>g__TryReadBodyAsync|101_0(HttpContext httpContext, Type bodyType, String parameterTypeName, String parameterName, Boolean allowEmptyRequestBody, Boolean throwOnBadRequest, JsonTypeInfo jsonTypeInfo)
+   at Microsoft.AspNetCore.Http.RequestDelegateFactory.<>c__DisplayClass101_2.<<HandleRequestBodyAndCompileRequestDelegateForJson>b__2>d.MoveNext()
+--- End of stack trace from previous location ---
+   at Microsoft.AspNetCore.Routing.EndpointMiddleware.<Invoke>g__AwaitRequestTask|7_0(Endpoint endpoint, Task requestTask, ILogger logger)
+   at Microsoft.AspNetCore.Authorization.AuthorizationMiddleware.Invoke(HttpContext context)
+   at Microsoft.AspNetCore.Authentication.AuthenticationMiddleware.Invoke(HttpContext context)
+   at Microsoft.AspNetCore.Diagnostics.DeveloperExceptionPageMiddlewareImpl.Invoke(HttpContext context)
+2025-07-10 01:21:46.777 +05:00 [INF] Request finished HTTP/2 PUT https://localhost:7046/api/users/users/profile - 400 null text/plain; charset=utf-8 169.4615ms
+2025-07-10 01:22:42.810 +05:00 [INF] Request starting HTTP/2 PUT https://localhost:7046/api/users/users/profile - application/json 81
+2025-07-10 01:22:42.908 +05:00 [INF] Executing endpoint 'HTTP: PUT /api/users/users/profile'
+2025-07-10 01:22:42.917 +05:00 [INF] Executed endpoint 'HTTP: PUT /api/users/users/profile'
+2025-07-10 01:22:42.924 +05:00 [ERR] An unhandled exception has occurred while executing the request.
+Microsoft.AspNetCore.Http.BadHttpRequestException: Failed to read parameter "UpdateProfileDto dto" from the request body as JSON.
+ ---> System.Text.Json.JsonException: The JSON value could not be converted to Mindflow_Web_API.DTOs.UpdateProfileDto. Path: $.dateOfBirth | LineNumber: 3 | BytePositionInLine: 29.
+ ---> System.FormatException: The JSON value is not in a supported DateTime format.
+   at System.Text.Json.ThrowHelper.ThrowFormatException(DataType dataType)
+   at System.Text.Json.Utf8JsonReader.GetDateTime()
+   at System.Text.Json.Serialization.Converters.NullableConverter`1.Read(Utf8JsonReader& reader, Type typeToConvert, JsonSerializerOptions options)
+   at System.Text.Json.Serialization.JsonConverter`1.TryRead(Utf8JsonReader& reader, Type typeToConvert, JsonSerializerOptions options, ReadStack& state, T& value, Boolean& isPopulatedValue)
+   at System.Text.Json.Serialization.Converters.SmallObjectWithParameterizedConstructorConverter`5.TryRead[TArg](ReadStack& state, Utf8JsonReader& reader, JsonParameterInfo jsonParameterInfo, TArg& arg)
+   at System.Text.Json.Serialization.Converters.SmallObjectWithParameterizedConstructorConverter`5.ReadAndCacheConstructorArgument(ReadStack& state, Utf8JsonReader& reader, JsonParameterInfo jsonParameterInfo)
+   at System.Text.Json.Serialization.Converters.ObjectWithParameterizedConstructorConverter`1.ReadConstructorArgumentsWithContinuation(ReadStack& state, Utf8JsonReader& reader, JsonSerializerOptions options)
+   at System.Text.Json.Serialization.Converters.ObjectWithParameterizedConstructorConverter`1.OnTryRead(Utf8JsonReader& reader, Type typeToConvert, JsonSerializerOptions options, ReadStack& state, T& value)
+   at System.Text.Json.Serialization.JsonConverter`1.TryRead(Utf8JsonReader& reader, Type typeToConvert, JsonSerializerOptions options, ReadStack& state, T& value, Boolean& isPopulatedValue)
+   at System.Text.Json.Serialization.JsonConverter`1.ReadCore(Utf8JsonReader& reader, T& value, JsonSerializerOptions options, ReadStack& state)
+   --- End of inner exception stack trace ---
+   at System.Text.Json.ThrowHelper.ReThrowWithPath(ReadStack& state, Utf8JsonReader& reader, Exception ex)
+   at System.Text.Json.Serialization.JsonConverter`1.ReadCore(Utf8JsonReader& reader, T& value, JsonSerializerOptions options, ReadStack& state)
+   at System.Text.Json.Serialization.Metadata.JsonTypeInfo`1.ContinueDeserialize(ReadBufferState& bufferState, JsonReaderState& jsonReaderState, ReadStack& readStack, T& value)
+   at System.Text.Json.Serialization.Metadata.JsonTypeInfo`1.DeserializeAsync(Stream utf8Json, CancellationToken cancellationToken)
+   at System.Text.Json.Serialization.Metadata.JsonTypeInfo`1.DeserializeAsObjectAsync(Stream utf8Json, CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Http.HttpRequestJsonExtensions.ReadFromJsonAsync(HttpRequest request, JsonTypeInfo jsonTypeInfo, CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Http.HttpRequestJsonExtensions.ReadFromJsonAsync(HttpRequest request, JsonTypeInfo jsonTypeInfo, CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Http.RequestDelegateFactory.<HandleRequestBodyAndCompileRequestDelegateForJson>g__TryReadBodyAsync|101_0(HttpContext httpContext, Type bodyType, String parameterTypeName, String parameterName, Boolean allowEmptyRequestBody, Boolean throwOnBadRequest, JsonTypeInfo jsonTypeInfo)
+   --- End of inner exception stack trace ---
+   at Microsoft.AspNetCore.Http.RequestDelegateFactory.Log.InvalidJsonRequestBody(HttpContext httpContext, String parameterTypeName, String parameterName, Exception exception, Boolean shouldThrow)
+   at Microsoft.AspNetCore.Http.RequestDelegateFactory.<HandleRequestBodyAndCompileRequestDelegateForJson>g__TryReadBodyAsync|101_0(HttpContext httpContext, Type bodyType, String parameterTypeName, String parameterName, Boolean allowEmptyRequestBody, Boolean throwOnBadRequest, JsonTypeInfo jsonTypeInfo)
+   at Microsoft.AspNetCore.Http.RequestDelegateFactory.<>c__DisplayClass101_2.<<HandleRequestBodyAndCompileRequestDelegateForJson>b__2>d.MoveNext()
+--- End of stack trace from previous location ---
+   at Microsoft.AspNetCore.Routing.EndpointMiddleware.<Invoke>g__AwaitRequestTask|7_0(Endpoint endpoint, Task requestTask, ILogger logger)
+   at Microsoft.AspNetCore.Authorization.AuthorizationMiddleware.Invoke(HttpContext context)
+   at Microsoft.AspNetCore.Authentication.AuthenticationMiddleware.Invoke(HttpContext context)
+   at Microsoft.AspNetCore.Diagnostics.DeveloperExceptionPageMiddlewareImpl.Invoke(HttpContext context)
+2025-07-10 01:22:42.960 +05:00 [INF] Request finished HTTP/2 PUT https://localhost:7046/api/users/users/profile - 400 null text/plain; charset=utf-8 150.4393ms
+2025-07-10 01:23:34.663 +05:00 [INF] Request starting HTTP/2 PUT https://localhost:7046/api/users/users/profile - application/json 81
+2025-07-10 01:23:34.729 +05:00 [INF] Executing endpoint 'HTTP: PUT /api/users/users/profile'
+2025-07-10 01:23:38.417 +05:00 [INF] Executed DbCommand (56ms) [Parameters=[@__userId_0='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[Created], [u].[DateOfBirth], [u].[Email], [u].[EmailConfirmed], [u].[FirstName], [u].[IsActive], [u].[LastModified], [u].[LastName], [u].[PasswordHash], [u].[SecurityStamp], [u].[UserName]
+FROM [app].[Users] AS [u]
+WHERE [u].[Id] = @__userId_0
+2025-07-10 01:23:44.277 +05:00 [INF] Executed DbCommand (6ms) [Parameters=[@p1='?' (DbType = Guid), @p0='?' (DbType = DateTime2)], CommandType='"Text"', CommandTimeout='30']
+SET IMPLICIT_TRANSACTIONS OFF;
+SET NOCOUNT ON;
+UPDATE [app].[Users] SET [DateOfBirth] = @p0
+OUTPUT INSERTED.[LastModified]
+WHERE [Id] = @p1;
+2025-07-10 01:23:44.585 +05:00 [INF] Profile updated for user: amamir
+2025-07-10 01:23:45.858 +05:00 [INF] Setting HTTP status code 200.
+2025-07-10 01:23:45.864 +05:00 [INF] Writing value of type 'Boolean' as Json.
+2025-07-10 01:23:45.873 +05:00 [INF] Executed endpoint 'HTTP: PUT /api/users/users/profile'
+2025-07-10 01:23:45.877 +05:00 [INF] Request finished HTTP/2 PUT https://localhost:7046/api/users/users/profile - 200 null application/json; charset=utf-8 11216.7314ms
+2025-07-10 01:30:22.478 +05:00 [INF] Executed DbCommand (18ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 01:30:22.561 +05:00 [INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+2025-07-10 01:30:22.605 +05:00 [INF] Executed DbCommand (40ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+2025-07-10 01:30:22.685 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+2025-07-10 01:30:22.694 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 01:30:22.696 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2025-07-10 01:30:22.703 +05:00 [INF] Executed DbCommand (4ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2025-07-10 01:30:22.711 +05:00 [INF] Applying migration '20250709203009_WellnessCheckin_Entity_Added'.
+2025-07-10 01:30:22.751 +05:00 [INF] Executed DbCommand (25ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE TABLE [app].[WellnessCheckIns] (
+    [Id] uniqueidentifier NOT NULL,
+    [UserId] uniqueidentifier NOT NULL,
+    [StressLevel] int NOT NULL,
+    [MoodLevel] int NOT NULL,
+    [EnergyLevel] nvarchar(20) NOT NULL,
+    [SpiritualWellness] int NOT NULL,
+    [CheckInDate] datetime2 NOT NULL,
+    [Created] datetimeoffset NOT NULL,
+    [LastModified] datetimeoffset NOT NULL,
+    CONSTRAINT [PK_WellnessCheckIns] PRIMARY KEY ([Id]),
+    CONSTRAINT [FK_WellnessCheckIns_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [app].[Users] ([Id]) ON DELETE CASCADE
+);
+2025-07-10 01:30:22.755 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_WellnessCheckIns_CheckInDate] ON [app].[WellnessCheckIns] ([CheckInDate]);
+2025-07-10 01:30:22.757 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_WellnessCheckIns_UserId] ON [app].[WellnessCheckIns] ([UserId]);
+2025-07-10 01:30:22.760 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES (N'20250709203009_WellnessCheckin_Entity_Added', N'9.0.2');
+2025-07-10 01:30:23.206 +05:00 [INF] Executed DbCommand (10ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-07-10 01:30:23.326 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_releaseapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session';
+SELECT @result
+2025-07-10 01:30:43.957 +05:00 [INF] Executed DbCommand (37ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 01:30:44.119 +05:00 [INF] Executed DbCommand (62ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2025-07-10 01:30:44.696 +05:00 [INF] Executed DbCommand (4ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-07-10 01:30:44.965 +05:00 [INF] User profile is available. Using 'C:\Users\muhammad.aamir2810\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2025-07-10 01:30:45.510 +05:00 [INF] Now listening on: https://localhost:7046
+2025-07-10 01:30:45.513 +05:00 [INF] Now listening on: http://localhost:5000
+2025-07-10 01:30:45.525 +05:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2025-07-10 01:30:45.592 +05:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-07-10 01:30:45.605 +05:00 [INF] Hosting environment: Development
+2025-07-10 01:30:45.619 +05:00 [INF] Content root path: C:\Users\muhammad.aamir2810\source\repos\Simple Web API\Mindflow Web API
+2025-07-10 01:30:45.923 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/v1 - null null
+2025-07-10 01:30:46.343 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 01:30:46.425 +05:00 [INF] Write content with HTTP Response ContentType of text/html
+2025-07-10 01:30:46.452 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 01:30:46.460 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/v1 - 200 null text/html 549.8222ms
+2025-07-10 01:30:46.487 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - null null
+2025-07-10 01:30:46.487 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - null null
+2025-07-10 01:30:46.487 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.js - null null
+2025-07-10 01:30:46.598 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 01:30:46.487 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_vs/browserLink - null null
+2025-07-10 01:30:46.711 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 01:30:46.604 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - 200 16517 application/javascript; charset=utf-8 116.7407ms
+2025-07-10 01:30:46.802 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 01:30:46.800 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 01:30:46.818 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 01:30:46.819 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 01:30:46.822 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.js - 304 null null 334.9325ms
+2025-07-10 01:30:46.833 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - 304 null null 346.3124ms
+2025-07-10 01:30:46.868 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_vs/browserLink - 200 null text/javascript; charset=UTF-8 381.45ms
+2025-07-10 01:30:47.094 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/openapi/v1.json - null null
+2025-07-10 01:30:47.102 +05:00 [INF] Executing endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 01:30:47.319 +05:00 [INF] Executed endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 01:30:47.325 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/openapi/v1.json - 200 null application/json;charset=utf-8 230.8266ms
+2025-07-10 01:31:35.232 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/api/wellness/check-in - null null
+2025-07-10 01:31:35.400 +05:00 [INF] Executing endpoint 'HTTP: GET /api/wellness/check-in'
+2025-07-10 01:31:40.334 +05:00 [INF] Executed DbCommand (40ms) [Parameters=[@__userId_0='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [w].[Id], [w].[CheckInDate], [w].[Created], [w].[EnergyLevel], [w].[LastModified], [w].[MoodLevel], [w].[SpiritualWellness], [w].[StressLevel], [w].[UserId]
+FROM [app].[WellnessCheckIns] AS [w]
+WHERE [w].[UserId] = @__userId_0
+ORDER BY [w].[CheckInDate] DESC
+2025-07-10 01:31:42.422 +05:00 [INF] Setting HTTP status code 404.
+2025-07-10 01:31:42.425 +05:00 [INF] Executed endpoint 'HTTP: GET /api/wellness/check-in'
+2025-07-10 01:31:42.430 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/api/wellness/check-in - 404 0 null 7198.5509ms
+2025-07-10 01:32:05.270 +05:00 [INF] Request starting HTTP/2 POST https://localhost:7046/api/wellness/check-in - application/json 87
+2025-07-10 01:32:05.335 +05:00 [INF] Executing endpoint 'HTTP: POST /api/wellness/check-in'
+2025-07-10 01:32:11.756 +05:00 [INF] Executed endpoint 'HTTP: POST /api/wellness/check-in'
+2025-07-10 01:32:21.683 +05:00 [ERR] An unhandled exception has occurred while executing the request.
+System.ArgumentException: Energy level cannot be null or empty. (Parameter 'energy')
+   at Mindflow_Web_API.Models.WellnessCheckIn.ValidateInputs(Int32 stress, Int32 mood, String energy, Int32 spiritual, DateTime checkInDate) in C:\Users\muhammad.aamir2810\source\repos\Simple Web API\Mindflow Web API\Models\WellnessCheckIn.cs:line 58
+   at Mindflow_Web_API.Models.WellnessCheckIn.Create(Guid userId, Int32 stress, Int32 mood, String energy, Int32 spiritual, DateTime checkInDate) in C:\Users\muhammad.aamir2810\source\repos\Simple Web API\Mindflow Web API\Models\WellnessCheckIn.cs:line 32
+   at Mindflow_Web_API.Services.WellnessCheckInService.SubmitAsync(Guid userId, CreateWellnessCheckInDto command) in C:\Users\muhammad.aamir2810\source\repos\Simple Web API\Mindflow Web API\Services\WellnessCheckInService.cs:line 21
+   at Mindflow_Web_API.EndPoints.WellnessCheckInEndpoints.<>c.<<MapWellnessCheckInEndpoints>b__0_0>d.MoveNext() in C:\Users\muhammad.aamir2810\source\repos\Simple Web API\Mindflow Web API\EndPoints\WellnessCheckInEndpoints.cs:line 19
+--- End of stack trace from previous location ---
+   at Microsoft.AspNetCore.Http.RequestDelegateFactory.ExecuteTaskResult[T](Task`1 task, HttpContext httpContext)
+   at Microsoft.AspNetCore.Http.RequestDelegateFactory.<>c__DisplayClass101_2.<<HandleRequestBodyAndCompileRequestDelegateForJson>b__2>d.MoveNext()
+--- End of stack trace from previous location ---
+   at Microsoft.AspNetCore.Routing.EndpointMiddleware.<Invoke>g__AwaitRequestTask|7_0(Endpoint endpoint, Task requestTask, ILogger logger)
+   at Microsoft.AspNetCore.Authorization.AuthorizationMiddleware.Invoke(HttpContext context)
+   at Microsoft.AspNetCore.Authentication.AuthenticationMiddleware.Invoke(HttpContext context)
+   at Microsoft.AspNetCore.Diagnostics.DeveloperExceptionPageMiddlewareImpl.Invoke(HttpContext context)
+2025-07-10 01:32:21.709 +05:00 [INF] Request finished HTTP/2 POST https://localhost:7046/api/wellness/check-in - 500 null text/plain; charset=utf-8 16440.0435ms
+2025-07-10 01:32:36.588 +05:00 [INF] Request starting HTTP/2 POST https://localhost:7046/api/wellness/check-in - application/json 93
+2025-07-10 01:32:36.611 +05:00 [INF] Executing endpoint 'HTTP: POST /api/wellness/check-in'
+2025-07-10 01:32:40.713 +05:00 [INF] Executed DbCommand (55ms) [Parameters=[@p0='?' (DbType = Guid), @p1='?' (DbType = DateTime2), @p2='?' (DbType = DateTimeOffset), @p3='?' (Size = 20), @p4='?' (DbType = DateTimeOffset), @p5='?' (DbType = Int32), @p6='?' (DbType = Int32), @p7='?' (DbType = Int32), @p8='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SET IMPLICIT_TRANSACTIONS OFF;
+SET NOCOUNT ON;
+INSERT INTO [app].[WellnessCheckIns] ([Id], [CheckInDate], [Created], [EnergyLevel], [LastModified], [MoodLevel], [SpiritualWellness], [StressLevel], [UserId])
+VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8);
+2025-07-10 01:32:41.984 +05:00 [INF] Wellness check-in submitted for user: a6c5b9c2-a008-4159-952a-73e9547ce231
+2025-07-10 01:32:41.988 +05:00 [INF] Setting HTTP status code 200.
+2025-07-10 01:32:41.994 +05:00 [INF] Writing value of type 'WellnessCheckInDto' as Json.
+2025-07-10 01:32:42.005 +05:00 [INF] Executed endpoint 'HTTP: POST /api/wellness/check-in'
+2025-07-10 01:32:42.009 +05:00 [INF] Request finished HTTP/2 POST https://localhost:7046/api/wellness/check-in - 200 null application/json; charset=utf-8 5421.1765ms
+2025-07-10 01:33:17.074 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/api/wellness/check-in - null null
+2025-07-10 01:33:17.090 +05:00 [INF] Executing endpoint 'HTTP: GET /api/wellness/check-in'
+2025-07-10 01:33:19.082 +05:00 [INF] Executed DbCommand (16ms) [Parameters=[@__userId_0='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [w].[Id], [w].[CheckInDate], [w].[Created], [w].[EnergyLevel], [w].[LastModified], [w].[MoodLevel], [w].[SpiritualWellness], [w].[StressLevel], [w].[UserId]
+FROM [app].[WellnessCheckIns] AS [w]
+WHERE [w].[UserId] = @__userId_0
+ORDER BY [w].[CheckInDate] DESC
+2025-07-10 01:33:19.097 +05:00 [INF] Setting HTTP status code 200.
+2025-07-10 01:33:19.103 +05:00 [INF] Writing value of type 'WellnessCheckInDto' as Json.
+2025-07-10 01:33:19.108 +05:00 [INF] Executed endpoint 'HTTP: GET /api/wellness/check-in'
+2025-07-10 01:33:19.113 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/api/wellness/check-in - 200 null application/json; charset=utf-8 2039.1574ms
+2025-07-10 01:37:50.323 +05:00 [INF] Executed DbCommand (50ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 01:37:50.529 +05:00 [INF] Executed DbCommand (89ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2025-07-10 01:37:51.119 +05:00 [INF] Executed DbCommand (12ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-07-10 01:37:51.344 +05:00 [INF] User profile is available. Using 'C:\Users\muhammad.aamir2810\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2025-07-10 01:37:52.052 +05:00 [INF] Now listening on: https://localhost:7046
+2025-07-10 01:37:52.058 +05:00 [INF] Now listening on: http://localhost:5000
+2025-07-10 01:37:52.083 +05:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2025-07-10 01:37:52.215 +05:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-07-10 01:37:52.218 +05:00 [INF] Hosting environment: Development
+2025-07-10 01:37:52.235 +05:00 [INF] Content root path: C:\Users\muhammad.aamir2810\source\repos\Simple Web API\Mindflow Web API
+2025-07-10 01:37:52.731 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/v1 - null null
+2025-07-10 01:37:53.007 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 01:37:53.054 +05:00 [INF] Write content with HTTP Response ContentType of text/html
+2025-07-10 01:37:53.066 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 01:37:53.073 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/v1 - 200 null text/html 354.6214ms
+2025-07-10 01:37:53.093 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.js - null null
+2025-07-10 01:37:53.093 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_vs/browserLink - null null
+2025-07-10 01:37:53.093 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - null null
+2025-07-10 01:37:53.106 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 01:37:53.093 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - null null
+2025-07-10 01:37:53.145 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 01:37:53.160 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 01:37:53.160 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 01:37:53.162 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 01:37:53.164 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 01:37:53.175 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.js - 304 null null 82.2755ms
+2025-07-10 01:37:53.177 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - 200 16517 application/javascript; charset=utf-8 84.6724ms
+2025-07-10 01:37:53.177 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - 304 null null 84.8335ms
+2025-07-10 01:37:53.197 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_vs/browserLink - 200 null text/javascript; charset=UTF-8 103.9692ms
+2025-07-10 01:37:53.385 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/openapi/v1.json - null null
+2025-07-10 01:37:53.393 +05:00 [INF] Executing endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 01:37:53.573 +05:00 [INF] Executed endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 01:37:53.577 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/openapi/v1.json - 200 null application/json;charset=utf-8 192.0391ms
+2025-07-10 01:39:13.746 +05:00 [INF] Request starting HTTP/2 POST https://localhost:7046/api/users/users/google-auth - application/json 1180
+2025-07-10 01:39:13.818 +05:00 [INF] Executing endpoint 'HTTP: POST /api/users/users/google-auth'
+2025-07-10 01:39:30.081 +05:00 [INF] Executed DbCommand (80ms) [Parameters=[@__payload_Email_0='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[Created], [u].[DateOfBirth], [u].[Email], [u].[EmailConfirmed], [u].[FirstName], [u].[IsActive], [u].[LastModified], [u].[LastName], [u].[PasswordHash], [u].[SecurityStamp], [u].[UserName]
+FROM [app].[Users] AS [u]
+WHERE [u].[Email] = @__payload_Email_0
+2025-07-10 01:39:48.165 +05:00 [INF] Setting HTTP status code 200.
+2025-07-10 01:39:48.172 +05:00 [INF] Writing value of type 'ExternalAuthResponseDto' as Json.
+2025-07-10 01:39:48.181 +05:00 [INF] Executed endpoint 'HTTP: POST /api/users/users/google-auth'
+2025-07-10 01:39:48.184 +05:00 [INF] Request finished HTTP/2 POST https://localhost:7046/api/users/users/google-auth - 200 null application/json; charset=utf-8 34438.8115ms
+2025-07-10 01:46:36.375 +05:00 [INF] Executed DbCommand (34ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 01:46:36.566 +05:00 [INF] Executed DbCommand (85ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+
+IF EXISTS
+    (SELECT *
+     FROM [sys].[objects] o
+     WHERE [o].[type] = 'U'
+     AND [o].[is_ms_shipped] = 0
+     AND NOT EXISTS (SELECT *
+         FROM [sys].[extended_properties] AS [ep]
+         WHERE [ep].[major_id] = [o].[object_id]
+             AND [ep].[minor_id] = 0
+             AND [ep].[class] = 1
+             AND [ep].[name] = N'microsoft_database_tools_support'
+    )
+)
+SELECT 1 ELSE SELECT 0
+2025-07-10 01:46:37.036 +05:00 [INF] Executed DbCommand (8ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-07-10 01:46:37.352 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 01:46:37.371 +05:00 [INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+2025-07-10 01:46:37.388 +05:00 [INF] Executed DbCommand (8ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+2025-07-10 01:46:37.537 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+2025-07-10 01:46:37.583 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-07-10 01:46:37.597 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2025-07-10 01:46:37.615 +05:00 [INF] Executed DbCommand (6ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2025-07-10 01:46:37.638 +05:00 [INF] No migrations were applied. The database is already up to date.
+2025-07-10 01:46:37.656 +05:00 [INF] Executed DbCommand (8ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-07-10 01:46:37.677 +05:00 [INF] Executed DbCommand (7ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_releaseapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session';
+SELECT @result
+2025-07-10 01:46:41.568 +05:00 [INF] Executed DbCommand (56ms) [Parameters=[@__adminEmail_0='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [app].[Users] AS [u]
+        WHERE [u].[Email] = @__adminEmail_0) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+2025-07-10 01:46:54.270 +05:00 [INF] Executed DbCommand (63ms) [Parameters=[@p0='?' (DbType = Guid), @p1='?' (DbType = DateTimeOffset), @p2='?' (DbType = DateTime2), @p3='?' (Size = 200), @p4='?' (DbType = Boolean), @p5='?' (Size = 100), @p6='?' (DbType = Boolean), @p7='?' (DbType = DateTimeOffset), @p8='?' (Size = 100), @p9='?' (Size = 4000), @p10='?' (Size = 4000), @p11='?' (Size = 100)], CommandType='"Text"', CommandTimeout='30']
+SET IMPLICIT_TRANSACTIONS OFF;
+SET NOCOUNT ON;
+INSERT INTO [app].[Users] ([Id], [Created], [DateOfBirth], [Email], [EmailConfirmed], [FirstName], [IsActive], [LastModified], [LastName], [PasswordHash], [SecurityStamp], [UserName])
+VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9, @p10, @p11);
+2025-07-10 01:46:54.790 +05:00 [INF] Default admin user seeded successfully
+2025-07-10 01:46:58.959 +05:00 [INF] User profile is available. Using 'C:\Users\muhammad.aamir2810\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2025-07-10 01:46:59.585 +05:00 [INF] Now listening on: https://localhost:7046
+2025-07-10 01:46:59.589 +05:00 [INF] Now listening on: http://localhost:5000
+2025-07-10 01:46:59.607 +05:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2025-07-10 01:46:59.675 +05:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-07-10 01:46:59.679 +05:00 [INF] Hosting environment: Development
+2025-07-10 01:46:59.681 +05:00 [INF] Content root path: C:\Users\muhammad.aamir2810\source\repos\Simple Web API\Mindflow Web API
+2025-07-10 01:47:00.075 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/v1 - null null
+2025-07-10 01:47:00.524 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 01:47:00.606 +05:00 [INF] Write content with HTTP Response ContentType of text/html
+2025-07-10 01:47:00.634 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-07-10 01:47:00.654 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/v1 - 200 null text/html 588.3541ms
+2025-07-10 01:47:00.677 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - null null
+2025-07-10 01:47:00.677 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.js - null null
+2025-07-10 01:47:00.694 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_vs/browserLink - null null
+2025-07-10 01:47:00.678 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - null null
+2025-07-10 01:47:00.747 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - 200 16517 application/javascript; charset=utf-8 70.7951ms
+2025-07-10 01:47:00.743 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 01:47:00.772 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 01:47:00.815 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 01:47:00.815 +05:00 [INF] Setting HTTP status code 304.
+2025-07-10 01:47:00.819 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.js'
+2025-07-10 01:47:00.822 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-07-10 01:47:00.825 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.js - 304 null null 148.5841ms
+2025-07-10 01:47:00.830 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - 304 null null 153.1883ms
+2025-07-10 01:47:00.843 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_vs/browserLink - 200 null text/javascript; charset=UTF-8 149.3788ms
+2025-07-10 01:47:01.187 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/openapi/v1.json - null null
+2025-07-10 01:47:01.195 +05:00 [INF] Executing endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 01:47:01.374 +05:00 [INF] Executed endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-07-10 01:47:01.382 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/openapi/v1.json - 200 null application/json;charset=utf-8 195.1777ms
+2025-07-10 01:47:57.315 +05:00 [INF] Request starting HTTP/2 POST https://localhost:7046/api/users/users/signin - application/json 74
+2025-07-10 01:47:57.385 +05:00 [INF] Executing endpoint 'HTTP: POST /api/users/users/signin'
+2025-07-10 01:48:00.498 +05:00 [INF] Executed DbCommand (22ms) [Parameters=[@__command_UserNameOrEmail_0='?' (Size = 100), @__command_UserNameOrEmail_0_1='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[Created], [u].[DateOfBirth], [u].[Email], [u].[EmailConfirmed], [u].[FirstName], [u].[IsActive], [u].[LastModified], [u].[LastName], [u].[PasswordHash], [u].[SecurityStamp], [u].[UserName]
+FROM [app].[Users] AS [u]
+WHERE [u].[UserName] = @__command_UserNameOrEmail_0 OR [u].[Email] = @__command_UserNameOrEmail_0_1
+2025-07-10 01:48:04.120 +05:00 [INF] User signed in: admin
+2025-07-10 01:48:04.127 +05:00 [INF] Setting HTTP status code 200.
+2025-07-10 01:48:04.137 +05:00 [INF] Writing value of type 'TokenResponseDto' as Json.
+2025-07-10 01:48:04.145 +05:00 [INF] Executed endpoint 'HTTP: POST /api/users/users/signin'
+2025-07-10 01:48:04.150 +05:00 [INF] Request finished HTTP/2 POST https://localhost:7046/api/users/users/signin - 200 null application/json; charset=utf-8 6835.9629ms

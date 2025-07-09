@@ -1,0 +1,64 @@
+2025-03-06 13:25:37.470 +05:00 [INF] Executed DbCommand (71ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE WHEN COUNT(*) = 0 THEN FALSE ELSE TRUE END
+FROM pg_class AS cls
+JOIN pg_namespace AS ns ON ns.oid = cls.relnamespace
+WHERE
+        cls.relkind IN ('r', 'v', 'm', 'f', 'p') AND
+        ns.nspname NOT IN ('pg_catalog', 'information_schema') AND
+        -- Exclude tables which are members of PG extensions
+        NOT EXISTS (
+            SELECT 1 FROM pg_depend WHERE
+                classid=(
+                    SELECT cls.oid
+                    FROM pg_class AS cls
+                             JOIN pg_namespace AS ns ON ns.oid = cls.relnamespace
+                    WHERE relname='pg_class' AND ns.nspname='pg_catalog'
+                ) AND
+                objid=cls.oid AND
+                deptype IN ('e', 'x')
+        )
+2025-03-06 13:25:37.837 +05:00 [INF] Executed DbCommand (7ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT m."Id", m."Created", m."Genre", m."LastModified", m."Rating", m."ReleaseDate", m."Title"
+FROM app."Movies" AS m
+WHERE m."Title" = 'Sonic the Hedgehog 3'
+LIMIT 1
+2025-03-06 13:25:38.254 +05:00 [INF] Now listening on: https://localhost:7046
+2025-03-06 13:25:38.255 +05:00 [INF] Now listening on: http://localhost:5000
+2025-03-06 13:25:38.269 +05:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2025-03-06 13:25:38.422 +05:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-03-06 13:25:38.437 +05:00 [INF] Hosting environment: Development
+2025-03-06 13:25:38.442 +05:00 [INF] Content root path: C:\Users\muhammad.aamir2810\source\repos\Simple Web API\Simple Web API
+2025-03-06 13:25:39.172 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/v1 - null null
+2025-03-06 13:25:39.391 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-03-06 13:25:39.488 +05:00 [INF] Write content with HTTP Response ContentType of text/html
+2025-03-06 13:25:39.505 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/{documentName?}'
+2025-03-06 13:25:39.513 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/v1 - 200 null text/html 352.0952ms
+2025-03-06 13:25:39.531 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.js - null null
+2025-03-06 13:25:39.531 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - null null
+2025-03-06 13:25:39.531 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_vs/browserLink - null null
+2025-03-06 13:25:39.531 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - null null
+2025-03-06 13:25:39.546 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.js'
+2025-03-06 13:25:39.554 +05:00 [INF] Executing endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-03-06 13:25:39.606 +05:00 [INF] Setting HTTP status code 304.
+2025-03-06 13:25:39.606 +05:00 [INF] Setting HTTP status code 304.
+2025-03-06 13:25:39.609 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.js'
+2025-03-06 13:25:39.610 +05:00 [INF] Executed endpoint 'HTTP: GET /scalar/scalar.aspnetcore.js'
+2025-03-06 13:25:39.611 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.js - 304 null null 80.4929ms
+2025-03-06 13:25:39.614 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/scalar/scalar.aspnetcore.js - 304 null null 83.8549ms
+2025-03-06 13:25:39.621 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - 200 16513 application/javascript; charset=utf-8 90.7848ms
+2025-03-06 13:25:39.694 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_vs/browserLink - 200 null text/javascript; charset=UTF-8 162.9278ms
+2025-03-06 13:25:39.896 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/openapi/v1.json - null null
+2025-03-06 13:25:39.907 +05:00 [INF] Executing endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-03-06 13:25:40.078 +05:00 [INF] Executed endpoint 'HTTP: GET /openapi/{documentName}.json'
+2025-03-06 13:25:40.080 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/openapi/v1.json - 200 null application/json;charset=utf-8 184.2542ms
+2025-03-06 13:25:46.712 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/api/movies - null null
+2025-03-06 13:25:46.718 +05:00 [INF] Executing endpoint 'HTTP: GET /api/movies/'
+2025-03-06 13:25:46.721 +05:00 [INF] Retrieving all movies
+2025-03-06 13:25:46.744 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT m."Id", m."Title", m."Genre", m."ReleaseDate", m."Rating"
+FROM app."Movies" AS m
+2025-03-06 13:25:46.750 +05:00 [INF] Retrieved 1 movies
+2025-03-06 13:25:46.751 +05:00 [INF] Setting HTTP status code 200.
+2025-03-06 13:25:46.753 +05:00 [INF] Writing value of type 'List`1' as Json.
+2025-03-06 13:25:46.760 +05:00 [INF] Executed endpoint 'HTTP: GET /api/movies/'
+2025-03-06 13:25:46.761 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/api/movies - 200 null application/json; charset=utf-8 49.8111ms
