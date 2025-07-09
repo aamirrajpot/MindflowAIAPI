@@ -87,8 +87,10 @@ await using (var dbContext = serviceScope.ServiceProvider.GetRequiredService<Min
 // Configure the HTTP request pipeline.
 //if (app.Environment.IsDevelopment())
 //{
+    app.Logger.LogInformation("Scalar UI initializing at /reference");
     app.MapOpenApi();
     app.MapScalarApiReference();
+    app.Logger.LogInformation("Scalar UI initialized at /reference");
 
 //}
 
