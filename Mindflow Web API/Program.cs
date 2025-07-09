@@ -77,8 +77,6 @@ var app = builder.Build();
 await using (var serviceScope = app.Services.CreateAsyncScope())
 await using (var dbContext = serviceScope.ServiceProvider.GetRequiredService<MindflowDbContext>())
 {
-    // Ensure database exists
-    await dbContext.Database.EnsureCreatedAsync();
     // Apply any pending migrations
     await dbContext.Database.MigrateAsync();
     
@@ -87,12 +85,12 @@ await using (var dbContext = serviceScope.ServiceProvider.GetRequiredService<Min
     await adminSeedService.SeedAdminUserAsync();
 }
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
+//if (app.Environment.IsDevelopment())
+//{
     app.MapOpenApi();
     app.MapScalarApiReference();
 
-}
+//}
 
 app.UseHttpsRedirection();
 app.UseAuthentication();
