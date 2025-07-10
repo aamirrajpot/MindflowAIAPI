@@ -53,7 +53,17 @@ namespace Mindflow_Web_API.Services
                 .FirstOrDefaultAsync();
 
             if (checkIn == null)
-                return null;
+                return new WellnessCheckInDto(
+                    Guid.Empty,
+                    Guid.Empty,
+                    0,
+                    0,
+                    string.Empty,
+                    0,
+                    DateTime.MinValue,
+                    DateTimeOffset.MinValue,
+                    DateTimeOffset.MinValue
+                );
 
             return new WellnessCheckInDto(
                 checkIn.Id,
