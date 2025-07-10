@@ -28,7 +28,7 @@ namespace Mindflow_Web_API.EndPoints
                 if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
                     return Results.Unauthorized();
                 var checkIn = await wellnessService.GetAsync(userId);
-                return checkIn is not null ? Results.Ok(checkIn) : Results.NotFound();
+                return Results.Ok(checkIn);
             }).RequireAuthorization();
         }
     }
