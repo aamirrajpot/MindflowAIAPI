@@ -22,7 +22,8 @@ namespace Mindflow_Web_API.Persistence.Configurations
                    .IsRequired();
 
             builder.Property(w => w.MoodLevel)
-                   .IsRequired();
+                   .IsRequired()
+                   .HasMaxLength(10);
 
             builder.Property(w => w.EnergyLevel)
                    .IsRequired()

@@ -57,7 +57,7 @@ namespace Mindflow_Web_API.Services
                     Guid.Empty,
                     Guid.Empty,
                     0,
-                    0,
+                    string.Empty,
                     string.Empty,
                     0,
                     DateTime.MinValue,

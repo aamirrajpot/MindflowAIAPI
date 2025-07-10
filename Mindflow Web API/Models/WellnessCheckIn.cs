@@ -6,7 +6,7 @@ namespace Mindflow_Web_API.Models
     {
         public Guid UserId { get; set; }
         public int StressLevel { get; set; }          // e.g., 1–10
-        public int MoodLevel { get; set; }            // e.g., 1:Sad, 2:Neutral, 3:Happy
+        public string MoodLevel { get; set; }            // 'neutral', 'happy', 'sad'
         public string EnergyLevel { get; set; }       // 1:Low, 2:Medium, 3:High
         public int SpiritualWellness { get; set; }    // 1–10
         public DateTime CheckInDate { get; set; }
@@ -17,7 +17,7 @@ namespace Mindflow_Web_API.Models
             EnergyLevel = string.Empty;
         }
 
-        private WellnessCheckIn(Guid userId, int stress, int mood, string energy, int spiritual, DateTime checkInDate)
+        private WellnessCheckIn(Guid userId, int stress, string mood, string energy, int spiritual, DateTime checkInDate)
         {
             UserId = userId;
             StressLevel = stress;
@@ -27,13 +27,13 @@ namespace Mindflow_Web_API.Models
             CheckInDate = checkInDate;
         }
 
-        public static WellnessCheckIn Create(Guid userId, int stress, int mood, string energy, int spiritual, DateTime checkInDate)
+        public static WellnessCheckIn Create(Guid userId, int stress, string mood, string energy, int spiritual, DateTime checkInDate)
         {
             ValidateInputs(stress, mood, energy, spiritual, checkInDate);
             return new WellnessCheckIn(userId, stress, mood, energy, spiritual, checkInDate);
         }
 
-        public void Update(int stress, int mood, string energy, int spiritual, DateTime checkInDate)
+        public void Update(int stress, string mood, string energy, int spiritual, DateTime checkInDate)
         {
             ValidateInputs(stress, mood, energy, spiritual, checkInDate);
 
@@ -46,13 +46,13 @@ namespace Mindflow_Web_API.Models
             UpdateLastModified();
         }
 
-        private static void ValidateInputs(int stress, int mood, string energy, int spiritual, DateTime checkInDate)
+        private static void ValidateInputs(int stress, string mood, string energy, int spiritual, DateTime checkInDate)
         {
             if (stress < 1 || stress > 10)
                 throw new ArgumentException("Stress level must be between 1 and 10.", nameof(stress));
 
-            if (mood < 1 || mood > 3)
-                throw new ArgumentException("Mood level must be between 1 and 3.", nameof(mood));
+            if (string.IsNullOrWhiteSpace(mood) || (mood != "neutral" && mood != "happy" && mood != "sad"))
+                throw new ArgumentException("Mood level must be one of: 'neutral', 'happy', 'sad'.", nameof(mood));
 
             if (string.IsNullOrWhiteSpace(energy))
                 throw new ArgumentException("Energy level cannot be null or empty.", nameof(energy));
