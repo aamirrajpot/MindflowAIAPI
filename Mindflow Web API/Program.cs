@@ -71,6 +71,17 @@ builder.Services.AddTransient<IExternalAuthService, ExternalAuthService>();
 // Register AdminSeedService
 builder.Services.AddTransient<IAdminSeedService, AdminSeedService>();
 
+// Add CORS policy to allow all
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
+
 var app = builder.Build();
 
 // Seeding configurations.
@@ -95,6 +106,8 @@ await using (var dbContext = serviceScope.ServiceProvider.GetRequiredService<Min
 //}
 
 app.UseHttpsRedirection();
+// Enable CORS for all
+app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseAuthorization();
 
