@@ -7,6 +7,7 @@ using System.Text;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using Mindflow_Web_API.Utilities;
 
 namespace Mindflow_Web_API.Services
 {
@@ -36,7 +37,7 @@ namespace Mindflow_Web_API.Services
                 Email = command.Email,
                 FirstName = command.FirstName,
                 LastName = command.LastName,
-                PasswordHash = HashPassword(command.Password),
+                PasswordHash = PasswordHelper.HashPassword(command.Password),
                 SecurityStamp = Guid.NewGuid().ToString(),
                 EmailConfirmed = false,
                 IsActive = false
@@ -56,7 +57,7 @@ namespace Mindflow_Web_API.Services
         {
             var user = await _dbContext.Users.FirstOrDefaultAsync(u =>
                 u.UserName == command.UserNameOrEmail || u.Email == command.UserNameOrEmail);
-            if (user == null || !VerifyPassword(command.Password, user.PasswordHash))
+            if (user == null || !PasswordHelper.VerifyPassword(command.Password, user.PasswordHash))
             {
                 _logger.LogWarning($"Failed sign-in attempt for: {command.UserNameOrEmail}");
                 return null;
@@ -67,27 +68,10 @@ namespace Mindflow_Web_API.Services
                 throw new InvalidOperationException("Please verify your email and then try to sign in.");
             }
             // Generate JWT token
-            var jwtSettings = _configuration.GetSection("Jwt");
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["Key"]!));
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-            var expiresInMinutes = double.Parse(jwtSettings["ExpiresInMinutes"]!);
-            var expires = DateTime.UtcNow.AddMinutes(expiresInMinutes);
-            var claims = new[]
-            {
-                new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-                new Claim(JwtRegisteredClaimNames.UniqueName, user.UserName),
-                new Claim(JwtRegisteredClaimNames.Email, user.Email)
-            };
-            var token = new JwtSecurityToken(
-                issuer: jwtSettings["Issuer"],
-                audience: jwtSettings["Audience"],
-                claims: claims,
-                expires: expires,
-                signingCredentials: creds
-            );
-            var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
+            int expiresInSeconds;
+            var tokenString = JwtHelper.GenerateJwtToken(user, _configuration, out expiresInSeconds);
             _logger.LogInformation($"User signed in: {user.UserName}");
-            return new TokenResponseDto(tokenString, "Bearer", (int)(expiresInMinutes * 60));
+            return new TokenResponseDto(tokenString, "Bearer", expiresInSeconds);
         }
 
         public async Task<SendOtpResponseDto> SendOtpAsync(string email)
@@ -158,9 +142,9 @@ namespace Mindflow_Web_API.Services
             var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId);
             if (user == null)
                 return false;
-            if (!VerifyPassword(command.CurrentPassword, user.PasswordHash))
+            if (!PasswordHelper.VerifyPassword(command.CurrentPassword, user.PasswordHash))
                 return false;
-            user.PasswordHash = HashPassword(command.NewPassword);
+            user.PasswordHash = PasswordHelper.HashPassword(command.NewPassword);
             user.SecurityStamp = Guid.NewGuid().ToString();
             await _dbContext.SaveChangesAsync();
             _logger.LogInformation($"Password changed for user: {user.UserName}");
@@ -246,24 +230,11 @@ namespace Mindflow_Web_API.Services
                 return false;
 
             otpRecord.IsUsed = true;
-            user.PasswordHash = HashPassword(command.NewPassword);
+            user.PasswordHash = PasswordHelper.HashPassword(command.NewPassword);
             user.SecurityStamp = Guid.NewGuid().ToString();
             await _dbContext.SaveChangesAsync();
             _logger.LogInformation($"Password reset for user: {user.UserName}");
             return true;
-        }
-
-        private static string HashPassword(string password)
-        {
-            using var sha256 = SHA256.Create();
-            var bytes = Encoding.UTF8.GetBytes(password);
-            var hash = sha256.ComputeHash(bytes);
-            return Convert.ToBase64String(hash);
-        }
-
-        private static bool VerifyPassword(string password, string hash)
-        {
-            return HashPassword(password) == hash;
         }
     }
 }

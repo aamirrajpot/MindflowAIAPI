@@ -3,6 +3,7 @@ using Mindflow_Web_API.Models;
 using Mindflow_Web_API.Persistence;
 using System.Security.Cryptography;
 using System.Text;
+using Mindflow_Web_API.Utilities;
 
 namespace Mindflow_Web_API.Services
 {
@@ -35,7 +36,7 @@ namespace Mindflow_Web_API.Services
                     Email = adminEmail,
                     FirstName = "Admin",
                     LastName = "User",
-                    PasswordHash = HashPassword("Admin@123"), // Default password
+                    PasswordHash = PasswordHelper.HashPassword("Admin@123"), // Default password
                     SecurityStamp = Guid.NewGuid().ToString(),
                     EmailConfirmed = true,
                     IsActive = true
@@ -45,14 +46,6 @@ namespace Mindflow_Web_API.Services
                 await _dbContext.SaveChangesAsync();
                 _logger.LogInformation("Default admin user seeded successfully");
             }
-        }
-
-        private static string HashPassword(string password)
-        {
-            using var sha256 = SHA256.Create();
-            var bytes = Encoding.UTF8.GetBytes(password);
-            var hash = sha256.ComputeHash(bytes);
-            return Convert.ToBase64String(hash);
         }
     }
 } 
