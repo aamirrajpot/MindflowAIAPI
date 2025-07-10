@@ -29,13 +29,13 @@ namespace Mindflow_Web_API.Models
 
         public static WellnessCheckIn Create(Guid userId, int stress, int mood, string energy, int spiritual, DateTime checkInDate)
         {
-            //ValidateInputs(stress, mood, energy, spiritual, checkInDate);
+            ValidateInputs(stress, mood, energy, spiritual, checkInDate);
             return new WellnessCheckIn(userId, stress, mood, energy, spiritual, checkInDate);
         }
 
         public void Update(int stress, int mood, string energy, int spiritual, DateTime checkInDate)
         {
-            //ValidateInputs(stress, mood, energy, spiritual, checkInDate);
+            ValidateInputs(stress, mood, energy, spiritual, checkInDate);
 
             StressLevel = stress;
             MoodLevel = mood;
@@ -46,22 +46,22 @@ namespace Mindflow_Web_API.Models
             UpdateLastModified();
         }
 
-        //private static void ValidateInputs(int stress, int mood, string energy, int spiritual, DateTime checkInDate)
-        //{
-        //    if (stress < 1 || stress > 10)
-        //        throw new ArgumentException("Stress level must be between 1 and 10.", nameof(stress));
+        private static void ValidateInputs(int stress, int mood, string energy, int spiritual, DateTime checkInDate)
+        {
+            if (stress < 1 || stress > 10)
+                throw new ArgumentException("Stress level must be between 1 and 10.", nameof(stress));
 
-        //    if (mood < 1 || mood > 3)
-        //        throw new ArgumentException("Mood level must be between 1 and 3.", nameof(mood));
+            if (mood < 1 || mood > 3)
+                throw new ArgumentException("Mood level must be between 1 and 3.", nameof(mood));
 
-        //    if (string.IsNullOrWhiteSpace(energy))
-        //        throw new ArgumentException("Energy level cannot be null or empty.", nameof(energy));
+            if (string.IsNullOrWhiteSpace(energy))
+                throw new ArgumentException("Energy level cannot be null or empty.", nameof(energy));
 
-        //    if (spiritual < 1 || spiritual > 10)
-        //        throw new ArgumentException("Spiritual wellness must be between 1 and 10.", nameof(spiritual));
+            if (spiritual < 1 || spiritual > 10)
+                throw new ArgumentException("Spiritual wellness must be between 1 and 10.", nameof(spiritual));
 
-        //    if (checkInDate > DateTime.UtcNow)
-        //        throw new ArgumentException("Check-in date cannot be in the future.", nameof(checkInDate));
-        //}
+            if (checkInDate > DateTime.UtcNow)
+                throw new ArgumentException("Check-in date cannot be in the future.", nameof(checkInDate));
+        }
     }
 } 
