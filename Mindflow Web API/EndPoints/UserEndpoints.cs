@@ -56,6 +56,8 @@ namespace Mindflow_Web_API.EndPoints
                 return profile is not null ? Results.Ok(profile) : Results.NotFound();
             }).RequireAuthorization();
 
+
+
             usersApi.MapPut("/users/profile", async (UpdateProfileDto dto, IUserService userService, HttpContext context) =>
             {
                 if (!context.User.Identity?.IsAuthenticated ?? true)
