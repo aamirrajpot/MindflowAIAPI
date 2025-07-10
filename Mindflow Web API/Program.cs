@@ -84,6 +84,8 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// Enable static file serving
+app.UseStaticFiles();
 // Seeding configurations.
 await using (var serviceScope = app.Services.CreateAsyncScope())
 await using (var dbContext = serviceScope.ServiceProvider.GetRequiredService<MindflowDbContext>())
@@ -111,6 +113,15 @@ app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseAuthorization();
 
+// Map root URL to static page only in production
+if (app.Environment.IsProduction())
+{
+    app.MapGet("/", context => {
+        context.Response.Redirect("/index.html");
+        return Task.CompletedTask;
+    });
+}
+
 var summaries = new[]
 {
     "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
@@ -134,6 +145,9 @@ app.MapUserEndpoints();
 app.MapWellnessCheckInEndpoints();
 
 app.Run();
+
+// Print a message to indicate the API is running
+Console.WriteLine("Mindflow Web API is running. Access your endpoints at the configured URLs.");
 
 internal record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
 {
