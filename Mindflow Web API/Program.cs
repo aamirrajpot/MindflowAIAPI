@@ -86,20 +86,23 @@ var app = builder.Build();
 
 // Enable static file serving
 app.UseStaticFiles();
-// Seeding configurations.
-await using (var serviceScope = app.Services.CreateAsyncScope())
-await using (var dbContext = serviceScope.ServiceProvider.GetRequiredService<MindflowDbContext>())
-{
-    // Apply any pending migrations
-    await dbContext.Database.MigrateAsync();
-    
-    // Seed admin user
-    var adminSeedService = serviceScope.ServiceProvider.GetRequiredService<IAdminSeedService>();
-    await adminSeedService.SeedAdminUserAsync();
-}
+
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
+    // Seeding configurations.
+    await using (var serviceScope = app.Services.CreateAsyncScope())
+    await using (var dbContext = serviceScope.ServiceProvider.GetRequiredService<MindflowDbContext>())
+    {
+        // Apply any pending migrations
+        await dbContext.Database.MigrateAsync();
+
+        // Seed admin user
+        var adminSeedService = serviceScope.ServiceProvider.GetRequiredService<IAdminSeedService>();
+        await adminSeedService.SeedAdminUserAsync();
+    }
+
     app.MapOpenApi();
     app.MapScalarApiReference();
 
