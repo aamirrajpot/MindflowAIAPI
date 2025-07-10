@@ -98,14 +98,12 @@ await using (var dbContext = serviceScope.ServiceProvider.GetRequiredService<Min
     await adminSeedService.SeedAdminUserAsync();
 }
 // Configure the HTTP request pipeline.
-//if (app.Environment.IsDevelopment())
-//{
-    app.Logger.LogInformation("Scalar UI initializing at /reference");
+if (app.Environment.IsDevelopment())
+{
     app.MapOpenApi();
     app.MapScalarApiReference();
-    app.Logger.LogInformation("Scalar UI initialized at /reference");
 
-//}
+}
 
 app.UseHttpsRedirection();
 // Enable CORS for all
