@@ -1,6 +1,7 @@
 ﻿using Serilog;
 using Mindflow_Web_API.DTOs;
 using Mindflow_Web_API.Services;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Mindflow_Web_API.EndPoints
 {
@@ -10,51 +11,48 @@ namespace Mindflow_Web_API.EndPoints
         {
             var movieApi = routes.MapGroup("/api/movies").WithTags("Movies");
 
-            movieApi.MapPost("/", async (IMovieService service, CreateMovieDto command) =>
+            movieApi.MapPost("/", async (HttpContext context) =>
             {
-                Log.Information("Creating new movie: {@Command}", command);
-                var movie = await service.CreateMovieAsync(command);
-                Log.Information("Movie created successfully with ID: {MovieId}", movie.Id);
-                return TypedResults.Created($"/api/movies/{movie.Id}", movie);
+                var service = context.RequestServices.GetRequiredService<IMovieService>();
+                var command = await context.Request.ReadFromJsonAsync<CreateMovieDto>();
+                if (command is null)
+                    return Results.BadRequest(new ApiResponseDto<MovieDto>(false, "Invalid request body"));
+                var response = await service.CreateMovieAsync(command);
+                return Results.Created($"/api/movies/{response.Data?.Id}", response);
             });
 
-            movieApi.MapGet("/", async (IMovieService service) =>
+            movieApi.MapGet("/", async ([FromServices] IMovieService service) =>
             {
-                Log.Information("Retrieving all movies");
-                var movies = await service.GetAllMoviesAsync();
-                Log.Information("Retrieved {Count} movies", movies.Count());
-                return TypedResults.Ok(movies);
+                var response = await service.GetAllMoviesAsync();
+                return Results.Ok(response);
             });
 
-            movieApi.MapGet("/{id}", async (IMovieService service, Guid id) =>
+            movieApi.MapGet("/{id}", async (Guid id, [FromServices] IMovieService service) =>
             {
-                Log.Information("Retrieving movie with ID: {MovieId}", id);
-                var movie = await service.GetMovieByIdAsync(id);
-
-                if (movie is null)
-                {
-                    Log.Warning("Movie not found with ID: {MovieId}", id);
-                    return (IResult)TypedResults.NotFound(new { Message = $"Movie with ID {id} not found." });
-                }
-
-                Log.Information("Retrieved movie: {@Movie}", movie);
-                return TypedResults.Ok(movie);
+                var response = await service.GetMovieByIdAsync(id);
+                if (!response.Success)
+                    return Results.NotFound(response);
+                return Results.Ok(response);
             });
 
-            movieApi.MapPut("/{id}", async (IMovieService service, Guid id, UpdateMovieDto command) =>
+            movieApi.MapPut("/{id}", async (HttpContext context, Guid id) =>
             {
-                Log.Information("Updating movie with ID: {MovieId}, Command: {@Command}", id, command);
-                await service.UpdateMovieAsync(id, command);
-                Log.Information("Movie updated successfully");
-                return TypedResults.NoContent();
+                var service = context.RequestServices.GetRequiredService<IMovieService>();
+                var command = await context.Request.ReadFromJsonAsync<UpdateMovieDto>();
+                if (command is null)
+                    return Results.BadRequest(new ApiResponseDto<bool>(false, "Invalid request body"));
+                var response = await service.UpdateMovieAsync(id, command);
+                if (!response.Success)
+                    return Results.BadRequest(response);
+                return Results.Ok(response);
             });
 
-            movieApi.MapDelete("/{id}", async (IMovieService service, Guid id) =>
+            movieApi.MapDelete("/{id}", async (Guid id, [FromServices] IMovieService service) =>
             {
-                Log.Information("Deleting movie with ID: {MovieId}", id);
-                await service.DeleteMovieAsync(id);
-                Log.Information("Movie deleted successfully");
-                return TypedResults.NoContent();
+                var response = await service.DeleteMovieAsync(id);
+                if (!response.Success)
+                    return Results.BadRequest(response);
+                return Results.Ok(response);
             });
         }
     }
