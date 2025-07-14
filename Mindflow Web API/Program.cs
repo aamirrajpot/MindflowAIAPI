@@ -62,7 +62,8 @@ builder.Services.AddDbContext<MindflowDbContext>(options =>
     });
 });
 
-builder.Services.AddTransient<IMovieService, MovieService>();
+// Remove MovieService registration
+// builder.Services.AddTransient<IMovieService, MovieService>();
 builder.Services.AddTransient<IOllamaService, OllamaService>();
 
 // Add JWT authentication
@@ -159,25 +160,8 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+// Remove weatherforecast endpoint and summaries array
 
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast = Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
-app.MapMovieEndpoints();
 app.MapUserEndpoints();
 app.MapWellnessCheckInEndpoints();
 
