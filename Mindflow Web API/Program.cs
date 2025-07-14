@@ -145,11 +145,12 @@ if (app.Environment.IsDevelopment())
         await adminSeedService.SeedAdminUserAsync();
     }
 
-    // Enable Swagger in all environments
-    app.UseSwagger();
-    app.UseSwaggerUI();
 
 }
+
+// Enable Swagger in all environments
+app.UseSwagger();
+app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
 // Enable CORS for all
