@@ -13,5 +13,6 @@ namespace Mindflow_Web_API.Models
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
         public DateTime? DateOfBirth { get; set; }
+        public string? ProfilePic { get; set; }
     }
 } 

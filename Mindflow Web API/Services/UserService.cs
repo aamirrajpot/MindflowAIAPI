@@ -50,7 +50,7 @@ namespace Mindflow_Web_API.Services
             // Automatically send OTP after registration
             await SendOtpAsync(user.Email);
 
-            return new UserDto(user.Id, user.UserName, user.Email, user.EmailConfirmed, user.FirstName, user.LastName, user.IsActive, user.DateOfBirth);
+            return new UserDto(user.Id, user.UserName, user.Email, user.EmailConfirmed, user.FirstName, user.LastName, user.IsActive, user.DateOfBirth, user.ProfilePic);
         }
 
         public async Task<TokenResponseDto?> SignInAsync(SignInUserDto command)
@@ -156,7 +156,7 @@ namespace Mindflow_Web_API.Services
             var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId);
             if (user == null)
                 return null;
-            return new UserProfileDto(user.UserName, user.Email, user.FirstName, user.LastName, user.DateOfBirth);
+            return new UserProfileDto(user.UserName, user.Email, user.FirstName, user.LastName, user.DateOfBirth, user.ProfilePic);
         }
 
         public async Task<bool> UpdateProfileAsync(Guid userId, UpdateProfileDto command)
@@ -167,6 +167,8 @@ namespace Mindflow_Web_API.Services
             user.FirstName = command.FirstName;
             user.LastName = command.LastName;
             user.DateOfBirth = command.DateOfBirth;
+            if (command.ProfilePic != null)
+                user.ProfilePic = command.ProfilePic;
             await _dbContext.SaveChangesAsync();
             _logger.LogInformation($"Profile updated for user: {user.UserName}");
             return true;
@@ -235,6 +237,65 @@ namespace Mindflow_Web_API.Services
             await _dbContext.SaveChangesAsync();
             _logger.LogInformation($"Password reset for user: {user.UserName}");
             return true;
+        }
+
+        public async Task<string> UploadProfilePictureAsync(Guid userId, IFormFile file, string baseUrl)
+        {
+            if (file == null || file.Length == 0)
+                throw new ArgumentException("No file uploaded.");
+
+            // Validate file type
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+            var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+            if (!allowedExtensions.Contains(extension))
+                throw new ArgumentException("Invalid file type. Only jpg, jpeg, png, gif, and webp are allowed.");
+
+            // Validate file size (max 2MB)
+            const long maxFileSize = 2 * 1024 * 1024; // 2MB
+            if (file.Length > maxFileSize)
+                throw new ArgumentException("File size exceeds 2MB limit.");
+
+            var uploads = Path.Combine("wwwroot", "profilepics");
+            if (!Directory.Exists(uploads))
+                Directory.CreateDirectory(uploads);
+
+            // Find user and delete old profile pic if exists
+            var user = await _dbContext.Users.FindAsync(userId);
+            if (user != null && !string.IsNullOrEmpty(user.ProfilePic))
+            {
+                try
+                {
+                    var oldPicUrl = user.ProfilePic;
+                    // Only delete if the old pic is in our uploads folder
+                    var uploadsUrl = $"{baseUrl}/profilepics/";
+                    if (oldPicUrl.StartsWith(uploadsUrl))
+                    {
+                        var oldFileName = oldPicUrl.Substring(uploadsUrl.Length);
+                        var oldFilePath = Path.Combine(uploads, oldFileName);
+                        if (File.Exists(oldFilePath))
+                        {
+                            File.Delete(oldFilePath);
+                        }
+                    }
+                }
+                catch { /* Ignore file deletion errors */ }
+            }
+
+            var fileName = $"{Guid.NewGuid()}_{file.FileName}";
+            var filePath = Path.Combine(uploads, fileName);
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+            var profilePicUrl = $"{baseUrl}/profilepics/{fileName}";
+
+            // Save to DB
+            if (user != null)
+            {
+                user.ProfilePic = profilePicUrl;
+                await _dbContext.SaveChangesAsync();
+            }
+            return profilePicUrl;
         }
     }
 }

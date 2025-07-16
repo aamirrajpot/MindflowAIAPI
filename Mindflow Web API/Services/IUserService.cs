@@ -13,5 +13,6 @@ namespace Mindflow_Web_API.Services
         Task<bool> ResetPasswordAsync(ResetPasswordDto command);
         Task<UserProfileDto?> GetProfileAsync(Guid userId);
         Task<bool> UpdateProfileAsync(Guid userId, UpdateProfileDto command);
+        Task<string> UploadProfilePictureAsync(Guid userId, IFormFile file, string baseUrl);
     }
 } 

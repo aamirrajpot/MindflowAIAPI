@@ -20,7 +20,13 @@ namespace Mindflow_Web_API.EndPoints
                 if (checkIn == null)
                     return Results.NotFound();
                 return Results.Ok(checkIn);
-            }).RequireAuthorization();
+            })
+            .RequireAuthorization()
+            .WithOpenApi(op => {
+                op.Summary = "Patch wellness check-in";
+                op.Description = "Partially updates or creates the authenticated user's wellness check-in record. Accepts only the fields to update.";
+                return op;
+            });
 
 
 
@@ -33,7 +39,13 @@ namespace Mindflow_Web_API.EndPoints
                     return Results.Unauthorized();
                 var checkIn = await wellnessService.GetAsync(userId);
                 return Results.Ok(checkIn);
-            }).RequireAuthorization();
+            })
+            .RequireAuthorization()
+            .WithOpenApi(op => {
+                op.Summary = "Get wellness check-in";
+                op.Description = "Retrieves the wellness check-in record for the authenticated user.";
+                return op;
+            });
         }
     }
 } 
