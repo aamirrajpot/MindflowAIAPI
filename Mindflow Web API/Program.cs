@@ -170,7 +170,3 @@ app.Run();
 // Print a message to indicate the API is running
 Console.WriteLine("Mindflow Web API is running. Access your endpoints at the configured URLs.");
 
-internal record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}

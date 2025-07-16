@@ -10,6 +10,10 @@ namespace Mindflow_Web_API.Models
         public string EnergyLevel { get; set; }       // 1:Low, 2:Medium, 3:High
         public int SpiritualWellness { get; set; }    // 1–10
         public DateTime CheckInDate { get; set; }
+        public string? WeekdayFreeTime { get; set; }
+        public string? WeekendFreeTime { get; set; }
+        public bool ReminderEnabled { get; set; }
+        public string? ReminderTime { get; set; }
 
         // Private constructor for ORM frameworks
         private WellnessCheckIn()
@@ -17,7 +21,7 @@ namespace Mindflow_Web_API.Models
             EnergyLevel = string.Empty;
         }
 
-        private WellnessCheckIn(Guid userId, int stress, string mood, string energy, int spiritual, DateTime checkInDate)
+        private WellnessCheckIn(Guid userId, int stress, string mood, string energy, int spiritual, DateTime checkInDate, string? weekdayFreeTime, string? weekendFreeTime, bool reminderEnabled, string? reminderTime)
         {
             UserId = userId;
             StressLevel = stress;
@@ -25,15 +29,19 @@ namespace Mindflow_Web_API.Models
             EnergyLevel = energy;
             SpiritualWellness = spiritual;
             CheckInDate = checkInDate;
+            WeekdayFreeTime = weekdayFreeTime;
+            WeekendFreeTime = weekendFreeTime;
+            ReminderEnabled = reminderEnabled;
+            ReminderTime = reminderTime;
         }
 
-        public static WellnessCheckIn Create(Guid userId, int stress, string mood, string energy, int spiritual, DateTime checkInDate)
+        public static WellnessCheckIn Create(Guid userId, int stress, string mood, string energy, int spiritual, DateTime checkInDate, string? weekdayFreeTime = null, string? weekendFreeTime = null, bool reminderEnabled = false, string? reminderTime = null)
         {
             ValidateInputs(stress, mood, energy, spiritual, checkInDate);
-            return new WellnessCheckIn(userId, stress, mood, energy, spiritual, checkInDate);
+            return new WellnessCheckIn(userId, stress, mood, energy, spiritual, checkInDate, weekdayFreeTime, weekendFreeTime, reminderEnabled, reminderTime);
         }
 
-        public void Update(int stress, string mood, string energy, int spiritual, DateTime checkInDate)
+        public void Update(int stress, string mood, string energy, int spiritual, DateTime checkInDate, string? weekdayFreeTime, string? weekendFreeTime, bool reminderEnabled, string? reminderTime)
         {
             ValidateInputs(stress, mood, energy, spiritual, checkInDate);
 
@@ -42,6 +50,10 @@ namespace Mindflow_Web_API.Models
             EnergyLevel = energy;
             SpiritualWellness = spiritual;
             CheckInDate = checkInDate;
+            WeekdayFreeTime = weekdayFreeTime;
+            WeekendFreeTime = weekendFreeTime;
+            ReminderEnabled = reminderEnabled;
+            ReminderTime = reminderTime;
 
             UpdateLastModified();
         }
