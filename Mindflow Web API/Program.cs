@@ -6,6 +6,7 @@ using Serilog;
 using Mindflow_Web_API.EndPoints;
 using Mindflow_Web_API.Persistence;
 using Mindflow_Web_API.Services;
+using Mindflow_Web_API.Middleware;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
@@ -130,6 +131,8 @@ var app = builder.Build();
 // Enable static file serving
 app.UseStaticFiles();
 
+// Add global exception handler middleware (must be early in pipeline)
+app.UseGlobalExceptionHandler();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

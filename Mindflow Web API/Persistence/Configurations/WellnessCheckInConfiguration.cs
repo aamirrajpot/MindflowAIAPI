@@ -55,6 +55,12 @@ namespace Mindflow_Web_API.Persistence.Configurations
             builder.Property(w => w.ToughDayMessage)
                    .HasMaxLength(500);
 
+            builder.Property(w => w.CopingMechanisms)
+                   .HasColumnType("nvarchar(max)");
+
+            builder.Property(w => w.JoyPeaceSources)
+                   .HasMaxLength(500);
+
             builder.Property(w => w.Created)
                    .IsRequired()
                    .ValueGeneratedOnAdd();

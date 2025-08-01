@@ -19,6 +19,8 @@ namespace Mindflow_Web_API.Models
         public string[]? SupportAreas { get; set; }   // What would help feel supported (max 2)
         public string? SelfCareFrequency { get; set; } // How often they care for themselves
         public string? ToughDayMessage { get; set; }  // Message for tough days (max 500 chars)
+        public string[]? CopingMechanisms { get; set; } // What helps when overwhelmed (multiple selection)
+        public string? JoyPeaceSources { get; set; }  // What gives joy or peace (max 500 chars)
 
         // Private constructor for ORM frameworks
         private WellnessCheckIn()
@@ -26,7 +28,7 @@ namespace Mindflow_Web_API.Models
             MoodLevel = string.Empty;
         }
 
-        private WellnessCheckIn(Guid userId, string mood, DateTime checkInDate, string? weekdayFreeTime, string? weekendFreeTime, bool reminderEnabled, string? reminderTime, string? ageRange, string[]? focusAreas, string? stressNotes, string? thoughtTrackingMethod, string[]? supportAreas, string? selfCareFrequency, string? toughDayMessage)
+        private WellnessCheckIn(Guid userId, string mood, DateTime checkInDate, string? weekdayFreeTime, string? weekendFreeTime, bool reminderEnabled, string? reminderTime, string? ageRange, string[]? focusAreas, string? stressNotes, string? thoughtTrackingMethod, string[]? supportAreas, string? selfCareFrequency, string? toughDayMessage, string[]? copingMechanisms, string? joyPeaceSources)
         {
             UserId = userId;
             MoodLevel = mood;
@@ -42,17 +44,19 @@ namespace Mindflow_Web_API.Models
             SupportAreas = supportAreas;
             SelfCareFrequency = selfCareFrequency;
             ToughDayMessage = toughDayMessage;
+            CopingMechanisms = copingMechanisms;
+            JoyPeaceSources = joyPeaceSources;
         }
 
-        public static WellnessCheckIn Create(Guid userId, string mood, DateTime checkInDate, string? weekdayFreeTime = null, string? weekendFreeTime = null, bool reminderEnabled = false, string? reminderTime = null, string? ageRange = null, string[]? focusAreas = null, string? stressNotes = null, string? thoughtTrackingMethod = null, string[]? supportAreas = null, string? selfCareFrequency = null, string? toughDayMessage = null)
+        public static WellnessCheckIn Create(Guid userId, string mood, DateTime checkInDate, string? weekdayFreeTime = null, string? weekendFreeTime = null, bool reminderEnabled = false, string? reminderTime = null, string? ageRange = null, string[]? focusAreas = null, string? stressNotes = null, string? thoughtTrackingMethod = null, string[]? supportAreas = null, string? selfCareFrequency = null, string? toughDayMessage = null, string[]? copingMechanisms = null, string? joyPeaceSources = null)
         {
-            ValidateInputs(mood, checkInDate, ageRange, focusAreas, stressNotes, thoughtTrackingMethod, supportAreas, selfCareFrequency, toughDayMessage);
-            return new WellnessCheckIn(userId, mood, checkInDate, weekdayFreeTime, weekendFreeTime, reminderEnabled, reminderTime, ageRange, focusAreas, stressNotes, thoughtTrackingMethod, supportAreas, selfCareFrequency, toughDayMessage);
+            ValidateInputs(mood, checkInDate, ageRange, focusAreas, stressNotes, thoughtTrackingMethod, supportAreas, selfCareFrequency, toughDayMessage, copingMechanisms, joyPeaceSources);
+            return new WellnessCheckIn(userId, mood, checkInDate, weekdayFreeTime, weekendFreeTime, reminderEnabled, reminderTime, ageRange, focusAreas, stressNotes, thoughtTrackingMethod, supportAreas, selfCareFrequency, toughDayMessage, copingMechanisms, joyPeaceSources);
         }
 
-        public void Update(string mood, DateTime checkInDate, string? weekdayFreeTime, string? weekendFreeTime, bool reminderEnabled, string? reminderTime, string? ageRange, string[]? focusAreas, string? stressNotes, string? thoughtTrackingMethod, string[]? supportAreas, string? selfCareFrequency, string? toughDayMessage)
+        public void Update(string mood, DateTime checkInDate, string? weekdayFreeTime, string? weekendFreeTime, bool reminderEnabled, string? reminderTime, string? ageRange, string[]? focusAreas, string? stressNotes, string? thoughtTrackingMethod, string[]? supportAreas, string? selfCareFrequency, string? toughDayMessage, string[]? copingMechanisms, string? joyPeaceSources)
         {
-            ValidateInputs(mood, checkInDate, ageRange, focusAreas, stressNotes, thoughtTrackingMethod, supportAreas, selfCareFrequency, toughDayMessage);
+            ValidateInputs(mood, checkInDate, ageRange, focusAreas, stressNotes, thoughtTrackingMethod, supportAreas, selfCareFrequency, toughDayMessage, copingMechanisms, joyPeaceSources);
 
             MoodLevel = mood;
             CheckInDate = checkInDate;
@@ -67,11 +71,13 @@ namespace Mindflow_Web_API.Models
             SupportAreas = supportAreas;
             SelfCareFrequency = selfCareFrequency;
             ToughDayMessage = toughDayMessage;
+            CopingMechanisms = copingMechanisms;
+            JoyPeaceSources = joyPeaceSources;
 
             UpdateLastModified();
         }
 
-        private static void ValidateInputs(string mood, DateTime checkInDate, string? ageRange, string[]? focusAreas, string? stressNotes, string? thoughtTrackingMethod, string[]? supportAreas, string? selfCareFrequency, string? toughDayMessage)
+        private static void ValidateInputs(string mood, DateTime checkInDate, string? ageRange, string[]? focusAreas, string? stressNotes, string? thoughtTrackingMethod, string[]? supportAreas, string? selfCareFrequency, string? toughDayMessage, string[]? copingMechanisms, string? joyPeaceSources)
         {
             if (string.IsNullOrWhiteSpace(mood) || !MoodHelper.IsValidMood(mood))
                 throw new ArgumentException("Mood level must be one of: 'Shopping', 'Okay', 'Stressed', 'Overwhelmed'.", nameof(mood));
@@ -99,6 +105,12 @@ namespace Mindflow_Web_API.Models
 
             if (!string.IsNullOrWhiteSpace(toughDayMessage) && toughDayMessage.Length > 500)
                 throw new ArgumentException("Tough day message cannot exceed 500 characters.", nameof(toughDayMessage));
+
+            if (!CopingMechanismsHelper.IsValidCopingMechanismsList(copingMechanisms))
+                throw new ArgumentException($"Coping mechanisms must be valid and cannot exceed {CopingMechanismsHelper.MaxCopingMechanisms} selections.", nameof(copingMechanisms));
+
+            if (!string.IsNullOrWhiteSpace(joyPeaceSources) && joyPeaceSources.Length > 500)
+                throw new ArgumentException("Joy/peace sources cannot exceed 500 characters.", nameof(joyPeaceSources));
         }
     }
 } 

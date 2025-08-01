@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Mindflow_Web_API.DTOs;
 using Mindflow_Web_API.Models;
 using Mindflow_Web_API.Persistence;
+using Mindflow_Web_API.Exceptions;
 
 namespace Mindflow_Web_API.Services
 {
@@ -18,6 +19,9 @@ namespace Mindflow_Web_API.Services
 
         public async Task<WellnessCheckInDto?> GetAsync(Guid userId)
         {
+            if (userId == Guid.Empty)
+                throw ApiExceptions.ValidationError("Invalid user ID provided.");
+
             var checkIn = await _dbContext.WellnessCheckIns
                 .Where(w => w.UserId == userId)
                 .OrderByDescending(w => w.CheckInDate)
@@ -34,6 +38,8 @@ namespace Mindflow_Web_API.Services
                     null,
                     null,
                     false,
+                    null,
+                    null,
                     null,
                     null,
                     null,
@@ -61,12 +67,20 @@ namespace Mindflow_Web_API.Services
                 checkIn.ThoughtTrackingMethod,
                 checkIn.SupportAreas,
                 checkIn.SelfCareFrequency,
-                checkIn.ToughDayMessage
+                checkIn.ToughDayMessage,
+                checkIn.CopingMechanisms,
+                checkIn.JoyPeaceSources
             );
         }
 
         public async Task<WellnessCheckInDto?> PatchAsync(Guid userId, PatchWellnessCheckInDto patchDto)
         {
+            if (userId == Guid.Empty)
+                throw ApiExceptions.ValidationError("Invalid user ID provided.");
+
+            if (patchDto == null)
+                throw ApiExceptions.ValidationError("Patch data cannot be null.");
+
             var checkIn = await _dbContext.WellnessCheckIns
                 .Where(w => w.UserId == userId)
                 .OrderByDescending(w => w.CheckInDate)
@@ -89,7 +103,9 @@ namespace Mindflow_Web_API.Services
                     patchDto.ThoughtTrackingMethod,
                     patchDto.SupportAreas,
                     patchDto.SelfCareFrequency,
-                    patchDto.ToughDayMessage
+                    patchDto.ToughDayMessage,
+                    patchDto.CopingMechanisms,
+                    patchDto.JoyPeaceSources
                 );
                 checkIn.CheckInDate = DateTime.UtcNow;
                 await _dbContext.WellnessCheckIns.AddAsync(checkIn);
@@ -120,9 +136,22 @@ namespace Mindflow_Web_API.Services
                     checkIn.SelfCareFrequency = patchDto.SelfCareFrequency;
                 if (patchDto.ToughDayMessage != null)
                     checkIn.ToughDayMessage = patchDto.ToughDayMessage;
+                if (patchDto.CopingMechanisms != null)
+                    checkIn.CopingMechanisms = patchDto.CopingMechanisms;
+                if (patchDto.JoyPeaceSources != null)
+                    checkIn.JoyPeaceSources = patchDto.JoyPeaceSources;
                 checkIn.UpdateLastModified();
             }
-            await _dbContext.SaveChangesAsync();
+            
+            try
+            {
+                await _dbContext.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to save wellness check-in for user {UserId}", userId);
+                throw ApiExceptions.InternalServerError("Failed to save wellness check-in data.");
+            }
 
             _logger.LogInformation($"Wellness check-in PATCH upsert for user: {userId}");
 
@@ -143,7 +172,9 @@ namespace Mindflow_Web_API.Services
                 checkIn.ThoughtTrackingMethod,
                 checkIn.SupportAreas,
                 checkIn.SelfCareFrequency,
-                checkIn.ToughDayMessage
+                checkIn.ToughDayMessage,
+                checkIn.CopingMechanisms,
+                checkIn.JoyPeaceSources
             );
         }
     }

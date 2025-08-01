@@ -524,3 +524,398 @@ WHERE [Id] = @p8;
 2025-08-01 16:10:12.994 +05:00 [INF] Writing value of type 'WellnessCheckInDto' as Json.
 2025-08-01 16:10:12.995 +05:00 [INF] Executed endpoint 'HTTP: PATCH /api/wellness/check-in'
 2025-08-01 16:10:12.997 +05:00 [INF] Request finished HTTP/2 PATCH https://localhost:7046/api/wellness/check-in - 200 null application/json; charset=utf-8 84.6989ms
+2025-08-01 16:20:01.516 +05:00 [INF] A transient exception occurred during execution. The operation will be retried after 5000ms.
+Microsoft.Data.SqlClient.SqlException (0x80131904): Database 'MindflowAI' on server 'mindflowadmin.database.windows.net' is not currently available.  Please retry the connection later.  If the problem persists, contact customer support, and provide them the session tracing ID of '{0D0752B3-A42C-44F8-BC6C-7F08A7B36B14}'.
+   at Microsoft.Data.SqlClient.SqlInternalConnection.OnError(SqlException exception, Boolean breakConnection, Action`1 wrapCloseInAction)
+   at Microsoft.Data.SqlClient.TdsParser.ThrowExceptionAndWarning(TdsParserStateObject stateObj, Boolean callerHasConnectionLock, Boolean asyncClose)
+   at Microsoft.Data.SqlClient.TdsParser.TryRun(RunBehavior runBehavior, SqlCommand cmdHandler, SqlDataReader dataStream, BulkCopySimpleResultSet bulkCopyHandler, TdsParserStateObject stateObj, Boolean& dataReady)
+   at Microsoft.Data.SqlClient.TdsParser.Run(RunBehavior runBehavior, SqlCommand cmdHandler, SqlDataReader dataStream, BulkCopySimpleResultSet bulkCopyHandler, TdsParserStateObject stateObj)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.CompleteLogin(Boolean enlistOK)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.AttemptOneLogin(ServerInfo serverInfo, String newPassword, SecureString newSecurePassword, Boolean ignoreSniOpenTimeout, TimeoutTimer timeout, Boolean withFailover)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.LoginNoFailover(ServerInfo serverInfo, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance, SqlConnectionString connectionOptions, SqlCredential credential, TimeoutTimer timeout)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.OpenLoginEnlist(TimeoutTimer timeout, SqlConnectionString connectionOptions, SqlCredential credential, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds..ctor(DbConnectionPoolIdentity identity, SqlConnectionString connectionOptions, SqlCredential credential, Object providerInfo, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance, SqlConnectionString userConnectionOptions, SessionData reconnectSessionData, Boolean applyTransientFaultHandling, String accessToken, DbConnectionPool pool)
+   at Microsoft.Data.SqlClient.SqlConnectionFactory.CreateConnection(DbConnectionOptions options, DbConnectionPoolKey poolKey, Object poolGroupProviderInfo, DbConnectionPool pool, DbConnection owningConnection, DbConnectionOptions userOptions)
+   at Microsoft.Data.ProviderBase.DbConnectionFactory.CreatePooledConnection(DbConnectionPool pool, DbConnection owningObject, DbConnectionOptions options, DbConnectionPoolKey poolKey, DbConnectionOptions userOptions)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.CreateObject(DbConnection owningObject, DbConnectionOptions userOptions, DbConnectionInternal oldConnection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.UserCreateRequest(DbConnection owningObject, DbConnectionOptions userOptions, DbConnectionInternal oldConnection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, UInt32 waitForMultipleObjectsTimeout, Boolean allowCreate, Boolean onlyOneCheckConnection, DbConnectionOptions userOptions, DbConnectionInternal& connection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal& connection)
+   at Microsoft.Data.ProviderBase.DbConnectionFactory.TryGetConnection(DbConnection owningConnection, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal oldConnection, DbConnectionInternal& connection)
+   at Microsoft.Data.ProviderBase.DbConnectionInternal.TryOpenConnectionInternal(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)
+   at Microsoft.Data.ProviderBase.DbConnectionClosed.TryOpenConnection(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)
+   at Microsoft.Data.SqlClient.SqlConnection.TryOpen(TaskCompletionSource`1 retry, SqlConnectionOverrides overrides)
+   at Microsoft.Data.SqlClient.SqlConnection.Open(SqlConnectionOverrides overrides)
+   at Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal.SqlServerConnection.OpenDbConnection(Boolean errorsExpected)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalConnection.OpenInternal(Boolean errorsExpected)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalConnection.Open(Boolean errorsExpected)
+   at Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal.SqlServerDatabaseCreator.<>c__DisplayClass18_0.<Exists>b__0(DateTime giveUp)
+   at Microsoft.EntityFrameworkCore.ExecutionStrategyExtensions.<>c__DisplayClass12_0`2.<Execute>b__0(DbContext _, TState s)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.<>c__DisplayClass28_0`2.<Execute>b__0(DbContext context, TState state)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteImplementation[TState,TResult](Func`3 operation, Func`3 verifySucceeded, TState state)
+ClientConnectionId:f33abc93-b5b6-405a-870e-541a45f842f4
+Error Number:40613,State:1,Class:20
+Microsoft.Data.SqlClient.SqlException (0x80131904): Database 'MindflowAI' on server 'mindflowadmin.database.windows.net' is not currently available.  Please retry the connection later.  If the problem persists, contact customer support, and provide them the session tracing ID of '{0D0752B3-A42C-44F8-BC6C-7F08A7B36B14}'.
+   at Microsoft.Data.SqlClient.SqlInternalConnection.OnError(SqlException exception, Boolean breakConnection, Action`1 wrapCloseInAction)
+   at Microsoft.Data.SqlClient.TdsParser.ThrowExceptionAndWarning(TdsParserStateObject stateObj, Boolean callerHasConnectionLock, Boolean asyncClose)
+   at Microsoft.Data.SqlClient.TdsParser.TryRun(RunBehavior runBehavior, SqlCommand cmdHandler, SqlDataReader dataStream, BulkCopySimpleResultSet bulkCopyHandler, TdsParserStateObject stateObj, Boolean& dataReady)
+   at Microsoft.Data.SqlClient.TdsParser.Run(RunBehavior runBehavior, SqlCommand cmdHandler, SqlDataReader dataStream, BulkCopySimpleResultSet bulkCopyHandler, TdsParserStateObject stateObj)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.CompleteLogin(Boolean enlistOK)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.AttemptOneLogin(ServerInfo serverInfo, String newPassword, SecureString newSecurePassword, Boolean ignoreSniOpenTimeout, TimeoutTimer timeout, Boolean withFailover)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.LoginNoFailover(ServerInfo serverInfo, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance, SqlConnectionString connectionOptions, SqlCredential credential, TimeoutTimer timeout)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.OpenLoginEnlist(TimeoutTimer timeout, SqlConnectionString connectionOptions, SqlCredential credential, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds..ctor(DbConnectionPoolIdentity identity, SqlConnectionString connectionOptions, SqlCredential credential, Object providerInfo, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance, SqlConnectionString userConnectionOptions, SessionData reconnectSessionData, Boolean applyTransientFaultHandling, String accessToken, DbConnectionPool pool)
+   at Microsoft.Data.SqlClient.SqlConnectionFactory.CreateConnection(DbConnectionOptions options, DbConnectionPoolKey poolKey, Object poolGroupProviderInfo, DbConnectionPool pool, DbConnection owningConnection, DbConnectionOptions userOptions)
+   at Microsoft.Data.ProviderBase.DbConnectionFactory.CreatePooledConnection(DbConnectionPool pool, DbConnection owningObject, DbConnectionOptions options, DbConnectionPoolKey poolKey, DbConnectionOptions userOptions)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.CreateObject(DbConnection owningObject, DbConnectionOptions userOptions, DbConnectionInternal oldConnection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.UserCreateRequest(DbConnection owningObject, DbConnectionOptions userOptions, DbConnectionInternal oldConnection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, UInt32 waitForMultipleObjectsTimeout, Boolean allowCreate, Boolean onlyOneCheckConnection, DbConnectionOptions userOptions, DbConnectionInternal& connection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal& connection)
+   at Microsoft.Data.ProviderBase.DbConnectionFactory.TryGetConnection(DbConnection owningConnection, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal oldConnection, DbConnectionInternal& connection)
+   at Microsoft.Data.ProviderBase.DbConnectionInternal.TryOpenConnectionInternal(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)
+   at Microsoft.Data.ProviderBase.DbConnectionClosed.TryOpenConnection(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)
+   at Microsoft.Data.SqlClient.SqlConnection.TryOpen(TaskCompletionSource`1 retry, SqlConnectionOverrides overrides)
+   at Microsoft.Data.SqlClient.SqlConnection.Open(SqlConnectionOverrides overrides)
+   at Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal.SqlServerConnection.OpenDbConnection(Boolean errorsExpected)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalConnection.OpenInternal(Boolean errorsExpected)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalConnection.Open(Boolean errorsExpected)
+   at Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal.SqlServerDatabaseCreator.<>c__DisplayClass18_0.<Exists>b__0(DateTime giveUp)
+   at Microsoft.EntityFrameworkCore.ExecutionStrategyExtensions.<>c__DisplayClass12_0`2.<Execute>b__0(DbContext _, TState s)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.<>c__DisplayClass28_0`2.<Execute>b__0(DbContext context, TState state)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteImplementation[TState,TResult](Func`3 operation, Func`3 verifySucceeded, TState state)
+ClientConnectionId:f33abc93-b5b6-405a-870e-541a45f842f4
+Error Number:40613,State:1,Class:20
+2025-08-01 16:20:24.293 +05:00 [INF] A transient exception occurred during execution. The operation will be retried after 6073ms.
+Microsoft.Data.SqlClient.SqlException (0x80131904): Database 'MindflowAI' on server 'mindflowadmin.database.windows.net' is not currently available.  Please retry the connection later.  If the problem persists, contact customer support, and provide them the session tracing ID of '{EA6D5B8E-B811-4A16-B707-F689A6C00032}'.
+   at Microsoft.Data.SqlClient.SqlInternalConnection.OnError(SqlException exception, Boolean breakConnection, Action`1 wrapCloseInAction)
+   at Microsoft.Data.SqlClient.TdsParser.ThrowExceptionAndWarning(TdsParserStateObject stateObj, Boolean callerHasConnectionLock, Boolean asyncClose)
+   at Microsoft.Data.SqlClient.TdsParser.TryRun(RunBehavior runBehavior, SqlCommand cmdHandler, SqlDataReader dataStream, BulkCopySimpleResultSet bulkCopyHandler, TdsParserStateObject stateObj, Boolean& dataReady)
+   at Microsoft.Data.SqlClient.TdsParser.Run(RunBehavior runBehavior, SqlCommand cmdHandler, SqlDataReader dataStream, BulkCopySimpleResultSet bulkCopyHandler, TdsParserStateObject stateObj)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.CompleteLogin(Boolean enlistOK)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.AttemptOneLogin(ServerInfo serverInfo, String newPassword, SecureString newSecurePassword, Boolean ignoreSniOpenTimeout, TimeoutTimer timeout, Boolean withFailover)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.LoginNoFailover(ServerInfo serverInfo, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance, SqlConnectionString connectionOptions, SqlCredential credential, TimeoutTimer timeout)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.OpenLoginEnlist(TimeoutTimer timeout, SqlConnectionString connectionOptions, SqlCredential credential, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds..ctor(DbConnectionPoolIdentity identity, SqlConnectionString connectionOptions, SqlCredential credential, Object providerInfo, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance, SqlConnectionString userConnectionOptions, SessionData reconnectSessionData, Boolean applyTransientFaultHandling, String accessToken, DbConnectionPool pool)
+   at Microsoft.Data.SqlClient.SqlConnectionFactory.CreateConnection(DbConnectionOptions options, DbConnectionPoolKey poolKey, Object poolGroupProviderInfo, DbConnectionPool pool, DbConnection owningConnection, DbConnectionOptions userOptions)
+   at Microsoft.Data.ProviderBase.DbConnectionFactory.CreatePooledConnection(DbConnectionPool pool, DbConnection owningObject, DbConnectionOptions options, DbConnectionPoolKey poolKey, DbConnectionOptions userOptions)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.CreateObject(DbConnection owningObject, DbConnectionOptions userOptions, DbConnectionInternal oldConnection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.UserCreateRequest(DbConnection owningObject, DbConnectionOptions userOptions, DbConnectionInternal oldConnection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, UInt32 waitForMultipleObjectsTimeout, Boolean allowCreate, Boolean onlyOneCheckConnection, DbConnectionOptions userOptions, DbConnectionInternal& connection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal& connection)
+   at Microsoft.Data.ProviderBase.DbConnectionFactory.TryGetConnection(DbConnection owningConnection, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal oldConnection, DbConnectionInternal& connection)
+   at Microsoft.Data.ProviderBase.DbConnectionInternal.TryOpenConnectionInternal(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)
+   at Microsoft.Data.ProviderBase.DbConnectionClosed.TryOpenConnection(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)
+   at Microsoft.Data.SqlClient.SqlConnection.TryOpen(TaskCompletionSource`1 retry, SqlConnectionOverrides overrides)
+   at Microsoft.Data.SqlClient.SqlConnection.Open(SqlConnectionOverrides overrides)
+   at Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal.SqlServerConnection.OpenDbConnection(Boolean errorsExpected)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalConnection.OpenInternal(Boolean errorsExpected)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalConnection.Open(Boolean errorsExpected)
+   at Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal.SqlServerDatabaseCreator.<>c__DisplayClass18_0.<Exists>b__0(DateTime giveUp)
+   at Microsoft.EntityFrameworkCore.ExecutionStrategyExtensions.<>c__DisplayClass12_0`2.<Execute>b__0(DbContext _, TState s)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.<>c__DisplayClass28_0`2.<Execute>b__0(DbContext context, TState state)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteImplementation[TState,TResult](Func`3 operation, Func`3 verifySucceeded, TState state)
+ClientConnectionId:14884136-fd41-4f2b-ac82-3c23255e2d36
+Error Number:40613,State:1,Class:20
+Microsoft.Data.SqlClient.SqlException (0x80131904): Database 'MindflowAI' on server 'mindflowadmin.database.windows.net' is not currently available.  Please retry the connection later.  If the problem persists, contact customer support, and provide them the session tracing ID of '{EA6D5B8E-B811-4A16-B707-F689A6C00032}'.
+   at Microsoft.Data.SqlClient.SqlInternalConnection.OnError(SqlException exception, Boolean breakConnection, Action`1 wrapCloseInAction)
+   at Microsoft.Data.SqlClient.TdsParser.ThrowExceptionAndWarning(TdsParserStateObject stateObj, Boolean callerHasConnectionLock, Boolean asyncClose)
+   at Microsoft.Data.SqlClient.TdsParser.TryRun(RunBehavior runBehavior, SqlCommand cmdHandler, SqlDataReader dataStream, BulkCopySimpleResultSet bulkCopyHandler, TdsParserStateObject stateObj, Boolean& dataReady)
+   at Microsoft.Data.SqlClient.TdsParser.Run(RunBehavior runBehavior, SqlCommand cmdHandler, SqlDataReader dataStream, BulkCopySimpleResultSet bulkCopyHandler, TdsParserStateObject stateObj)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.CompleteLogin(Boolean enlistOK)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.AttemptOneLogin(ServerInfo serverInfo, String newPassword, SecureString newSecurePassword, Boolean ignoreSniOpenTimeout, TimeoutTimer timeout, Boolean withFailover)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.LoginNoFailover(ServerInfo serverInfo, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance, SqlConnectionString connectionOptions, SqlCredential credential, TimeoutTimer timeout)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.OpenLoginEnlist(TimeoutTimer timeout, SqlConnectionString connectionOptions, SqlCredential credential, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance)
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds..ctor(DbConnectionPoolIdentity identity, SqlConnectionString connectionOptions, SqlCredential credential, Object providerInfo, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance, SqlConnectionString userConnectionOptions, SessionData reconnectSessionData, Boolean applyTransientFaultHandling, String accessToken, DbConnectionPool pool)
+   at Microsoft.Data.SqlClient.SqlConnectionFactory.CreateConnection(DbConnectionOptions options, DbConnectionPoolKey poolKey, Object poolGroupProviderInfo, DbConnectionPool pool, DbConnection owningConnection, DbConnectionOptions userOptions)
+   at Microsoft.Data.ProviderBase.DbConnectionFactory.CreatePooledConnection(DbConnectionPool pool, DbConnection owningObject, DbConnectionOptions options, DbConnectionPoolKey poolKey, DbConnectionOptions userOptions)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.CreateObject(DbConnection owningObject, DbConnectionOptions userOptions, DbConnectionInternal oldConnection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.UserCreateRequest(DbConnection owningObject, DbConnectionOptions userOptions, DbConnectionInternal oldConnection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, UInt32 waitForMultipleObjectsTimeout, Boolean allowCreate, Boolean onlyOneCheckConnection, DbConnectionOptions userOptions, DbConnectionInternal& connection)
+   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal& connection)
+   at Microsoft.Data.ProviderBase.DbConnectionFactory.TryGetConnection(DbConnection owningConnection, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal oldConnection, DbConnectionInternal& connection)
+   at Microsoft.Data.ProviderBase.DbConnectionInternal.TryOpenConnectionInternal(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)
+   at Microsoft.Data.ProviderBase.DbConnectionClosed.TryOpenConnection(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)
+   at Microsoft.Data.SqlClient.SqlConnection.TryOpen(TaskCompletionSource`1 retry, SqlConnectionOverrides overrides)
+   at Microsoft.Data.SqlClient.SqlConnection.Open(SqlConnectionOverrides overrides)
+   at Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal.SqlServerConnection.OpenDbConnection(Boolean errorsExpected)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalConnection.OpenInternal(Boolean errorsExpected)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalConnection.Open(Boolean errorsExpected)
+   at Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal.SqlServerDatabaseCreator.<>c__DisplayClass18_0.<Exists>b__0(DateTime giveUp)
+   at Microsoft.EntityFrameworkCore.ExecutionStrategyExtensions.<>c__DisplayClass12_0`2.<Execute>b__0(DbContext _, TState s)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.<>c__DisplayClass28_0`2.<Execute>b__0(DbContext context, TState state)
+   at Microsoft.EntityFrameworkCore.Storage.ExecutionStrategy.ExecuteImplementation[TState,TResult](Func`3 operation, Func`3 verifySucceeded, TState state)
+ClientConnectionId:14884136-fd41-4f2b-ac82-3c23255e2d36
+Error Number:40613,State:1,Class:20
+2025-08-01 16:21:37.522 +05:00 [INF] Executed DbCommand (279ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-01 16:21:37.553 +05:00 [INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+2025-08-01 16:21:37.832 +05:00 [INF] Executed DbCommand (277ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+2025-08-01 16:21:38.391 +05:00 [INF] Executed DbCommand (260ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+2025-08-01 16:21:39.217 +05:00 [INF] Executed DbCommand (257ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-01 16:21:39.477 +05:00 [INF] Executed DbCommand (259ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2025-08-01 16:21:39.747 +05:00 [INF] Executed DbCommand (268ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2025-08-01 16:21:39.755 +05:00 [INF] Applying migration '20250718122244_AppleSub_Added_UserEntity'.
+2025-08-01 16:21:40.061 +05:00 [INF] Executed DbCommand (295ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+ALTER TABLE [app].[Users] ADD [Sub] nvarchar(max) NULL;
+2025-08-01 16:21:40.323 +05:00 [INF] Executed DbCommand (261ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES (N'20250718122244_AppleSub_Added_UserEntity', N'9.0.2');
+2025-08-01 16:21:40.323 +05:00 [INF] Applying migration '20250801104807_WellnessCheckIn_NewFields_Added'.
+2025-08-01 16:21:40.590 +05:00 [INF] Executed DbCommand (259ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+ALTER TABLE [app].[WellnessCheckIns] ADD [AgeRange] nvarchar(max) NULL;
+2025-08-01 16:21:40.851 +05:00 [INF] Executed DbCommand (261ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+ALTER TABLE [app].[WellnessCheckIns] ADD [FocusAreas] nvarchar(max) NULL;
+2025-08-01 16:21:41.175 +05:00 [INF] Executed DbCommand (324ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+ALTER TABLE [app].[WellnessCheckIns] ADD [SelfCareFrequency] nvarchar(max) NULL;
+2025-08-01 16:21:41.442 +05:00 [INF] Executed DbCommand (266ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+ALTER TABLE [app].[WellnessCheckIns] ADD [StressNotes] nvarchar(max) NULL;
+2025-08-01 16:21:41.703 +05:00 [INF] Executed DbCommand (261ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+ALTER TABLE [app].[WellnessCheckIns] ADD [SupportAreas] nvarchar(max) NULL;
+2025-08-01 16:21:41.966 +05:00 [INF] Executed DbCommand (262ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+ALTER TABLE [app].[WellnessCheckIns] ADD [ThoughtTrackingMethod] nvarchar(max) NULL;
+2025-08-01 16:21:42.225 +05:00 [INF] Executed DbCommand (259ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+ALTER TABLE [app].[WellnessCheckIns] ADD [ToughDayMessage] nvarchar(max) NULL;
+2025-08-01 16:21:42.879 +05:00 [INF] Executed DbCommand (653ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES (N'20250801104807_WellnessCheckIn_NewFields_Added', N'9.0.2');
+2025-08-01 16:21:42.879 +05:00 [INF] Applying migration '20250801110238_Remove_StressLevel_EnergyLevel_SpiritualWellness'.
+2025-08-01 16:21:43.211 +05:00 [INF] Executed DbCommand (318ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @var sysname;
+SELECT @var = [d].[name]
+FROM [sys].[default_constraints] [d]
+INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+WHERE ([d].[parent_object_id] = OBJECT_ID(N'[app].[WellnessCheckIns]') AND [c].[name] = N'EnergyLevel');
+IF @var IS NOT NULL EXEC(N'ALTER TABLE [app].[WellnessCheckIns] DROP CONSTRAINT [' + @var + '];');
+ALTER TABLE [app].[WellnessCheckIns] DROP COLUMN [EnergyLevel];
+2025-08-01 16:21:43.584 +05:00 [INF] Executed DbCommand (372ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @var1 sysname;
+SELECT @var1 = [d].[name]
+FROM [sys].[default_constraints] [d]
+INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+WHERE ([d].[parent_object_id] = OBJECT_ID(N'[app].[WellnessCheckIns]') AND [c].[name] = N'SpiritualWellness');
+IF @var1 IS NOT NULL EXEC(N'ALTER TABLE [app].[WellnessCheckIns] DROP CONSTRAINT [' + @var1 + '];');
+ALTER TABLE [app].[WellnessCheckIns] DROP COLUMN [SpiritualWellness];
+2025-08-01 16:21:43.868 +05:00 [INF] Executed DbCommand (284ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @var2 sysname;
+SELECT @var2 = [d].[name]
+FROM [sys].[default_constraints] [d]
+INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+WHERE ([d].[parent_object_id] = OBJECT_ID(N'[app].[WellnessCheckIns]') AND [c].[name] = N'StressLevel');
+IF @var2 IS NOT NULL EXEC(N'ALTER TABLE [app].[WellnessCheckIns] DROP CONSTRAINT [' + @var2 + '];');
+ALTER TABLE [app].[WellnessCheckIns] DROP COLUMN [StressLevel];
+2025-08-01 16:21:44.213 +05:00 [INF] Executed DbCommand (345ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @var3 sysname;
+SELECT @var3 = [d].[name]
+FROM [sys].[default_constraints] [d]
+INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+WHERE ([d].[parent_object_id] = OBJECT_ID(N'[app].[WellnessCheckIns]') AND [c].[name] = N'WeekendFreeTime');
+IF @var3 IS NOT NULL EXEC(N'ALTER TABLE [app].[WellnessCheckIns] DROP CONSTRAINT [' + @var3 + '];');
+ALTER TABLE [app].[WellnessCheckIns] ALTER COLUMN [WeekendFreeTime] nvarchar(100) NULL;
+2025-08-01 16:21:44.626 +05:00 [INF] Executed DbCommand (413ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @var4 sysname;
+SELECT @var4 = [d].[name]
+FROM [sys].[default_constraints] [d]
+INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+WHERE ([d].[parent_object_id] = OBJECT_ID(N'[app].[WellnessCheckIns]') AND [c].[name] = N'WeekdayFreeTime');
+IF @var4 IS NOT NULL EXEC(N'ALTER TABLE [app].[WellnessCheckIns] DROP CONSTRAINT [' + @var4 + '];');
+ALTER TABLE [app].[WellnessCheckIns] ALTER COLUMN [WeekdayFreeTime] nvarchar(100) NULL;
+2025-08-01 16:21:44.919 +05:00 [INF] Executed DbCommand (292ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @var5 sysname;
+SELECT @var5 = [d].[name]
+FROM [sys].[default_constraints] [d]
+INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+WHERE ([d].[parent_object_id] = OBJECT_ID(N'[app].[WellnessCheckIns]') AND [c].[name] = N'ToughDayMessage');
+IF @var5 IS NOT NULL EXEC(N'ALTER TABLE [app].[WellnessCheckIns] DROP CONSTRAINT [' + @var5 + '];');
+ALTER TABLE [app].[WellnessCheckIns] ALTER COLUMN [ToughDayMessage] nvarchar(500) NULL;
+2025-08-01 16:21:45.236 +05:00 [INF] Executed DbCommand (317ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @var6 sysname;
+SELECT @var6 = [d].[name]
+FROM [sys].[default_constraints] [d]
+INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+WHERE ([d].[parent_object_id] = OBJECT_ID(N'[app].[WellnessCheckIns]') AND [c].[name] = N'ThoughtTrackingMethod');
+IF @var6 IS NOT NULL EXEC(N'ALTER TABLE [app].[WellnessCheckIns] DROP CONSTRAINT [' + @var6 + '];');
+ALTER TABLE [app].[WellnessCheckIns] ALTER COLUMN [ThoughtTrackingMethod] nvarchar(50) NULL;
+2025-08-01 16:21:45.622 +05:00 [INF] Executed DbCommand (386ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @var7 sysname;
+SELECT @var7 = [d].[name]
+FROM [sys].[default_constraints] [d]
+INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+WHERE ([d].[parent_object_id] = OBJECT_ID(N'[app].[WellnessCheckIns]') AND [c].[name] = N'StressNotes');
+IF @var7 IS NOT NULL EXEC(N'ALTER TABLE [app].[WellnessCheckIns] DROP CONSTRAINT [' + @var7 + '];');
+ALTER TABLE [app].[WellnessCheckIns] ALTER COLUMN [StressNotes] nvarchar(500) NULL;
+2025-08-01 16:21:45.910 +05:00 [INF] Executed DbCommand (287ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @var8 sysname;
+SELECT @var8 = [d].[name]
+FROM [sys].[default_constraints] [d]
+INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+WHERE ([d].[parent_object_id] = OBJECT_ID(N'[app].[WellnessCheckIns]') AND [c].[name] = N'SelfCareFrequency');
+IF @var8 IS NOT NULL EXEC(N'ALTER TABLE [app].[WellnessCheckIns] DROP CONSTRAINT [' + @var8 + '];');
+ALTER TABLE [app].[WellnessCheckIns] ALTER COLUMN [SelfCareFrequency] nvarchar(20) NULL;
+2025-08-01 16:21:46.195 +05:00 [INF] Executed DbCommand (285ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @var9 sysname;
+SELECT @var9 = [d].[name]
+FROM [sys].[default_constraints] [d]
+INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+WHERE ([d].[parent_object_id] = OBJECT_ID(N'[app].[WellnessCheckIns]') AND [c].[name] = N'ReminderTime');
+IF @var9 IS NOT NULL EXEC(N'ALTER TABLE [app].[WellnessCheckIns] DROP CONSTRAINT [' + @var9 + '];');
+ALTER TABLE [app].[WellnessCheckIns] ALTER COLUMN [ReminderTime] nvarchar(20) NULL;
+2025-08-01 16:21:46.479 +05:00 [INF] Executed DbCommand (284ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @var10 sysname;
+SELECT @var10 = [d].[name]
+FROM [sys].[default_constraints] [d]
+INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+WHERE ([d].[parent_object_id] = OBJECT_ID(N'[app].[WellnessCheckIns]') AND [c].[name] = N'MoodLevel');
+IF @var10 IS NOT NULL EXEC(N'ALTER TABLE [app].[WellnessCheckIns] DROP CONSTRAINT [' + @var10 + '];');
+ALTER TABLE [app].[WellnessCheckIns] ALTER COLUMN [MoodLevel] nvarchar(50) NOT NULL;
+2025-08-01 16:21:46.769 +05:00 [INF] Executed DbCommand (289ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @var11 sysname;
+SELECT @var11 = [d].[name]
+FROM [sys].[default_constraints] [d]
+INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+WHERE ([d].[parent_object_id] = OBJECT_ID(N'[app].[WellnessCheckIns]') AND [c].[name] = N'AgeRange');
+IF @var11 IS NOT NULL EXEC(N'ALTER TABLE [app].[WellnessCheckIns] DROP CONSTRAINT [' + @var11 + '];');
+ALTER TABLE [app].[WellnessCheckIns] ALTER COLUMN [AgeRange] nvarchar(20) NULL;
+2025-08-01 16:21:47.031 +05:00 [INF] Executed DbCommand (262ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES (N'20250801110238_Remove_StressLevel_EnergyLevel_SpiritualWellness', N'9.0.2');
+2025-08-01 16:21:47.710 +05:00 [INF] Executed DbCommand (513ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-08-01 16:21:48.278 +05:00 [INF] Executed DbCommand (261ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_releaseapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session';
+SELECT @result
+2025-08-01 19:06:53.915 +05:00 [INF] Executed DbCommand (277ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-01 19:06:53.998 +05:00 [INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+2025-08-01 19:06:54.401 +05:00 [INF] Executed DbCommand (397ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+2025-08-01 19:06:55.093 +05:00 [INF] Executed DbCommand (314ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+2025-08-01 19:06:56.103 +05:00 [INF] Executed DbCommand (382ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-01 19:06:56.416 +05:00 [INF] Executed DbCommand (311ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2025-08-01 19:06:56.677 +05:00 [INF] Executed DbCommand (254ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2025-08-01 19:06:56.700 +05:00 [INF] Applying migration '20250801124036_Add_CopingMechanisms_And_JoyPeaceSources_Fields'.
+2025-08-01 19:06:57.137 +05:00 [INF] Executed DbCommand (415ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+ALTER TABLE [app].[WellnessCheckIns] ADD [CopingMechanisms] nvarchar(max) NULL;
+2025-08-01 19:06:57.446 +05:00 [INF] Executed DbCommand (309ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+ALTER TABLE [app].[WellnessCheckIns] ADD [JoyPeaceSources] nvarchar(500) NULL;
+2025-08-01 19:06:57.747 +05:00 [INF] Executed DbCommand (300ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES (N'20250801124036_Add_CopingMechanisms_And_JoyPeaceSources_Fields', N'9.0.2');
+2025-08-01 19:06:58.360 +05:00 [INF] Executed DbCommand (284ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-08-01 19:06:59.078 +05:00 [INF] Executed DbCommand (365ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_releaseapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session';
+SELECT @result
+2025-08-01 19:07:06.658 +05:00 [INF] Executed DbCommand (316ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-01 19:07:06.790 +05:00 [INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+2025-08-01 19:07:07.206 +05:00 [INF] Executed DbCommand (408ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+2025-08-01 19:07:07.988 +05:00 [INF] Executed DbCommand (259ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+2025-08-01 19:07:08.938 +05:00 [INF] Executed DbCommand (345ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-01 19:07:09.211 +05:00 [INF] Executed DbCommand (265ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2025-08-01 19:07:09.529 +05:00 [INF] Executed DbCommand (310ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2025-08-01 19:07:09.570 +05:00 [INF] No migrations were applied. The database is already up to date.
+2025-08-01 19:07:10.291 +05:00 [INF] Executed DbCommand (256ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-08-01 19:07:10.961 +05:00 [INF] Executed DbCommand (300ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_releaseapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session';
+SELECT @result
+2025-08-01 19:07:11.290 +05:00 [INF] Executed DbCommand (283ms) [Parameters=[@__adminEmail_0='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [app].[Users] AS [u]
+        WHERE [u].[Email] = @__adminEmail_0) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+2025-08-01 19:07:11.390 +05:00 [INF] User profile is available. Using 'C:\Users\muhammad.aamir2810\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2025-08-01 19:07:11.763 +05:00 [INF] Now listening on: https://localhost:7046
+2025-08-01 19:07:11.769 +05:00 [INF] Now listening on: http://localhost:5000
+2025-08-01 19:07:11.781 +05:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2025-08-01 19:07:11.974 +05:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-08-01 19:07:11.978 +05:00 [INF] Hosting environment: Development
+2025-08-01 19:07:11.980 +05:00 [INF] Content root path: C:\Users\muhammad.aamir2810\Desktop\Personal\MindflowAIAPI\Mindflow Web API
+2025-08-01 19:07:12.390 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_vs/browserLink - null null
+2025-08-01 19:07:12.390 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - null null
+2025-08-01 19:07:12.455 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - 200 16517 application/javascript; charset=utf-8 70.541ms
+2025-08-01 19:07:12.479 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_vs/browserLink - 200 null text/javascript; charset=UTF-8 96.1803ms
+2025-08-01 19:07:12.564 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/swagger/v1/swagger.json - null null
+2025-08-01 19:07:12.718 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/swagger/v1/swagger.json - 200 null application/json;charset=utf-8 153.4867ms
+2025-08-01 19:07:45.868 +05:00 [INF] Request starting HTTP/2 POST https://localhost:7046/api/users/users/signin - application/json 76
+2025-08-01 19:07:46.018 +05:00 [INF] CORS policy execution successful.
+2025-08-01 19:07:46.218 +05:00 [INF] Executing endpoint 'HTTP: POST /api/users/users/signin'
+2025-08-01 19:07:46.699 +05:00 [INF] Executed DbCommand (324ms) [Parameters=[@__command_UserNameOrEmail_0='?' (Size = 100), @__command_UserNameOrEmail_0_1='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[Created], [u].[DateOfBirth], [u].[Email], [u].[EmailConfirmed], [u].[FirstName], [u].[IsActive], [u].[LastModified], [u].[LastName], [u].[PasswordHash], [u].[ProfilePic], [u].[SecurityStamp], [u].[Sub], [u].[UserName]
+FROM [app].[Users] AS [u]
+WHERE [u].[UserName] = @__command_UserNameOrEmail_0 OR [u].[Email] = @__command_UserNameOrEmail_0_1
+2025-08-01 19:07:46.910 +05:00 [INF] User signed in: aamirrajpot
+2025-08-01 19:07:46.927 +05:00 [INF] Setting HTTP status code 200.
+2025-08-01 19:07:46.940 +05:00 [INF] Writing value of type 'TokenResponseDto' as Json.
+2025-08-01 19:07:46.955 +05:00 [INF] Executed endpoint 'HTTP: POST /api/users/users/signin'
+2025-08-01 19:07:46.965 +05:00 [INF] Request finished HTTP/2 POST https://localhost:7046/api/users/users/signin - 200 null application/json; charset=utf-8 1096.7576ms
+2025-08-01 19:07:57.078 +05:00 [INF] Request starting HTTP/2 POST https://localhost:7046/api/users/users/signin - application/json 79
+2025-08-01 19:07:57.104 +05:00 [INF] CORS policy execution successful.
+2025-08-01 19:07:57.110 +05:00 [INF] Executing endpoint 'HTTP: POST /api/users/users/signin'
+2025-08-01 19:07:57.655 +05:00 [INF] Executed DbCommand (321ms) [Parameters=[@__command_UserNameOrEmail_0='?' (Size = 100), @__command_UserNameOrEmail_0_1='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[Created], [u].[DateOfBirth], [u].[Email], [u].[EmailConfirmed], [u].[FirstName], [u].[IsActive], [u].[LastModified], [u].[LastName], [u].[PasswordHash], [u].[ProfilePic], [u].[SecurityStamp], [u].[Sub], [u].[UserName]
+FROM [app].[Users] AS [u]
+WHERE [u].[UserName] = @__command_UserNameOrEmail_0 OR [u].[Email] = @__command_UserNameOrEmail_0_1
+2025-08-01 19:07:57.665 +05:00 [WRN] Failed sign-in attempt for: aamirrajpot6@gmail.com
+2025-08-01 19:07:57.669 +05:00 [INF] Setting HTTP status code 401.
+2025-08-01 19:07:57.675 +05:00 [INF] Executed endpoint 'HTTP: POST /api/users/users/signin'
+2025-08-01 19:07:57.684 +05:00 [INF] Request finished HTTP/2 POST https://localhost:7046/api/users/users/signin - 401 0 null 606.2148ms
