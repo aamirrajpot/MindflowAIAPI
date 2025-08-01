@@ -2,6 +2,7 @@ using Google.Apis.Auth;
 using Mindflow_Web_API.DTOs;
 using Mindflow_Web_API.Models;
 using Mindflow_Web_API.Persistence;
+using Mindflow_Web_API.Exceptions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -74,7 +75,7 @@ namespace Mindflow_Web_API.Services
             using var httpClient = new HttpClient();
             var keys = await httpClient.GetFromJsonAsync<DTOs.AppleKeys>("https://appleid.apple.com/auth/keys");
             if (keys == null || keys.Keys == null || !keys.Keys.Any())
-                throw new SecurityTokenException("Unable to retrieve Apple public keys.");
+                throw ApiExceptions.InternalServerError("Unable to retrieve Apple public keys.");
 
             var validationParameters = new TokenValidationParameters
             {
@@ -99,21 +100,18 @@ namespace Mindflow_Web_API.Services
             var lastName = jwt2.Claims.FirstOrDefault(c => c.Type == "family_name")?.Value;
             var sub = jwt2.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
 
-            if (string.IsNullOrEmpty(email) && string.IsNullOrEmpty(sub))
-                throw new UnauthorizedAccessException("Invalid token: no email/sub claim found");
+            if (string.IsNullOrEmpty(email))
+                throw ApiExceptions.ValidationError("Invalid Apple ID token: email not found.");
 
             // Check if user exists by email
             var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == email);
-            if (user == null && !string.IsNullOrEmpty(sub))
-            {
-                user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Sub == sub);
-            }
             bool isNewUser = false;
             if (user == null)
             {
+                // Create new user
                 user = User.Create(
-                    userName: email!,
-                    email: email!,
+                    userName: email,
+                    email: email,
                     firstName: firstName ?? string.Empty,
                     lastName: lastName ?? string.Empty,
                     emailConfirmed: true,

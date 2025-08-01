@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Mindflow_Web_API.DTOs;
 using Mindflow_Web_API.Models;
 using Mindflow_Web_API.Persistence;
+using Mindflow_Web_API.Exceptions;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.IdentityModel.Tokens;
@@ -29,7 +30,7 @@ namespace Mindflow_Web_API.Services
         public async Task<UserDto> RegisterAsync(RegisterUserDto command)
         {
             if (await _dbContext.Users.AnyAsync(u => u.UserName == command.UserName || u.Email == command.Email))
-                throw new InvalidOperationException("Username or Email already exists.");
+                throw ApiExceptions.Conflict("Username or Email already exists.");
 
             var user = new User
             {
@@ -65,7 +66,7 @@ namespace Mindflow_Web_API.Services
             if (!user.IsActive || !user.EmailConfirmed)
             {
                 _logger.LogWarning($"Inactive or unconfirmed user tried to sign in: {user.UserName}");
-                throw new InvalidOperationException("Please verify your email and then try to sign in.");
+                throw ApiExceptions.ValidationError("Please verify your email and then try to sign in.");
             }
             // Generate JWT token
             int expiresInSeconds;
@@ -242,18 +243,18 @@ namespace Mindflow_Web_API.Services
         public async Task<string> UploadProfilePictureAsync(Guid userId, IFormFile file, string baseUrl)
         {
             if (file == null || file.Length == 0)
-                throw new ArgumentException("No file uploaded.");
+                throw ApiExceptions.ValidationError("No file uploaded.");
 
             // Validate file type
             var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
             var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
             if (!allowedExtensions.Contains(extension))
-                throw new ArgumentException("Invalid file type. Only jpg, jpeg, png, gif, and webp are allowed.");
+                throw ApiExceptions.ValidationError("Invalid file type. Only jpg, jpeg, png, gif, and webp are allowed.");
 
             // Validate file size (max 2MB)
             const long maxFileSize = 2 * 1024 * 1024; // 2MB
             if (file.Length > maxFileSize)
-                throw new ArgumentException("File size exceeds 2MB limit.");
+                throw ApiExceptions.ValidationError("File size exceeds 2MB limit.");
 
             var uploads = Path.Combine("wwwroot", "profilepics");
             if (!Directory.Exists(uploads))

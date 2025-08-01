@@ -1,5 +1,6 @@
 ﻿using Mindflow_Web_API.DTOs;
 using Mindflow_Web_API.Utilities;
+using Mindflow_Web_API.Exceptions;
 using System.Text.Json.Serialization;
 
 namespace Mindflow_Web_API.Services
@@ -31,15 +32,14 @@ namespace Mindflow_Web_API.Services
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogError("Ollama API failed: {StatusCode}", response.StatusCode);
-                throw new Exception($"StatusCode: {response.StatusCode}");
+                throw ApiExceptions.InternalServerError($"Ollama API failed with status code: {response.StatusCode}");
             } 
 
             var result = await response.Content.ReadFromJsonAsync<OllamaResponse>();
+            if (result?.Response == null)
+                throw ApiExceptions.InternalServerError("Invalid response from Ollama API");
+
             return OllamaResponseParser.Parse(result.Response);
-
         }
-
-        
     }
-
 }
