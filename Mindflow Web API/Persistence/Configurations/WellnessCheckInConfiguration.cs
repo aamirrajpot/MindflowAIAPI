@@ -18,22 +18,42 @@ namespace Mindflow_Web_API.Persistence.Configurations
             builder.Property(w => w.UserId)
                    .IsRequired();
 
-            builder.Property(w => w.StressLevel)
-                   .IsRequired();
-
             builder.Property(w => w.MoodLevel)
                    .IsRequired()
-                   .HasMaxLength(10);
-
-            builder.Property(w => w.EnergyLevel)
-                   .IsRequired()
-                   .HasMaxLength(20);
-
-            builder.Property(w => w.SpiritualWellness)
-                   .IsRequired();
+                   .HasMaxLength(50);
 
             builder.Property(w => w.CheckInDate)
                    .IsRequired();
+
+            builder.Property(w => w.WeekdayFreeTime)
+                   .HasMaxLength(100);
+
+            builder.Property(w => w.WeekendFreeTime)
+                   .HasMaxLength(100);
+
+            builder.Property(w => w.ReminderTime)
+                   .HasMaxLength(20);
+
+            builder.Property(w => w.AgeRange)
+                   .HasMaxLength(20);
+
+            builder.Property(w => w.FocusAreas)
+                   .HasColumnType("nvarchar(max)");
+
+            builder.Property(w => w.StressNotes)
+                   .HasMaxLength(500);
+
+            builder.Property(w => w.ThoughtTrackingMethod)
+                   .HasMaxLength(50);
+
+            builder.Property(w => w.SupportAreas)
+                   .HasColumnType("nvarchar(max)");
+
+            builder.Property(w => w.SelfCareFrequency)
+                   .HasMaxLength(20);
+
+            builder.Property(w => w.ToughDayMessage)
+                   .HasMaxLength(500);
 
             builder.Property(w => w.Created)
                    .IsRequired()

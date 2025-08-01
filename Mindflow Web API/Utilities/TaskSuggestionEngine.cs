@@ -9,10 +9,11 @@ namespace Mindflow_Web_API.Services
         {
             var prompt = $"""
             Based on the following wellness check-in values:
-            - Stress Level: {checkIn.StressLevel} (1–10)
-            - Mood Level: {checkIn.MoodLevel} (1:Sad, 2:Neutral, 3:Happy)
-            - Energy Level: {checkIn.EnergyLevel} (1:Low, 2:Medium, 3:High)
-            - Spiritual Wellness: {checkIn.SpiritualWellness} (1–10)
+            - Mood Level: {checkIn.MoodLevel}
+            - Focus Areas: {string.Join(", ", checkIn.FocusAreas ?? new string[0])}
+            - Support Areas: {string.Join(", ", checkIn.SupportAreas ?? new string[0])}
+            - Self-Care Frequency: {checkIn.SelfCareFrequency}
+            - Stress Notes: {checkIn.StressNotes ?? "None provided"}
 
             Suggest 3 personalized self-care or improvement tasks. Return them in a JSON array of strings.
             """;
@@ -37,7 +38,7 @@ namespace Mindflow_Web_API.Services
             return Task.CompletedTask;
         }
 
-        private static List<string> ExtractTasksFromLlmResponse(string response)
+        private static List<string> ExtractTasksFromLlmResponse(string? response)
         {
             if (string.IsNullOrWhiteSpace(response))
                 return new List<string>();

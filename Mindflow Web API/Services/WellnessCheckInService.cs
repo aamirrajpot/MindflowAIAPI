@@ -27,33 +27,41 @@ namespace Mindflow_Web_API.Services
                 return new WellnessCheckInDto(
                     Guid.Empty,
                     Guid.Empty,
-                    0,
                     string.Empty,
-                    string.Empty,
-                    0,
                     DateTime.MinValue,
                     DateTimeOffset.MinValue,
                     DateTimeOffset.MinValue,
                     null,
                     null,
                     false,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
                     null
                 );
 
             return new WellnessCheckInDto(
                 checkIn.Id,
                 checkIn.UserId,
-                checkIn.StressLevel,
                 checkIn.MoodLevel,
-                checkIn.EnergyLevel,
-                checkIn.SpiritualWellness,
                 checkIn.CheckInDate,
                 checkIn.Created,
                 checkIn.LastModified,
                 checkIn.WeekdayFreeTime,
                 checkIn.WeekendFreeTime,
                 checkIn.ReminderEnabled,
-                checkIn.ReminderTime
+                checkIn.ReminderTime,
+                checkIn.AgeRange,
+                checkIn.FocusAreas,
+                checkIn.StressNotes,
+                checkIn.ThoughtTrackingMethod,
+                checkIn.SupportAreas,
+                checkIn.SelfCareFrequency,
+                checkIn.ToughDayMessage
             );
         }
 
@@ -69,29 +77,27 @@ namespace Mindflow_Web_API.Services
                 // Create new check-in if none exists
                 checkIn = WellnessCheckIn.Create(
                     userId,
-                    patchDto.StressLevel ?? 0,
                     patchDto.MoodLevel ?? string.Empty,
-                    patchDto.EnergyLevel ?? string.Empty,
-                    patchDto.SpiritualWellness ?? 0,
                     DateTime.UtcNow,
                     patchDto.WeekdayFreeTime,
                     patchDto.WeekendFreeTime,
                     patchDto.ReminderEnabled ?? false,
-                    patchDto.ReminderTime
+                    patchDto.ReminderTime,
+                    patchDto.AgeRange,
+                    patchDto.FocusAreas,
+                    patchDto.StressNotes,
+                    patchDto.ThoughtTrackingMethod,
+                    patchDto.SupportAreas,
+                    patchDto.SelfCareFrequency,
+                    patchDto.ToughDayMessage
                 );
                 checkIn.CheckInDate = DateTime.UtcNow;
                 await _dbContext.WellnessCheckIns.AddAsync(checkIn);
             }
             else
             {
-                if (patchDto.StressLevel.HasValue)
-                    checkIn.StressLevel = patchDto.StressLevel.Value;
                 if (!string.IsNullOrEmpty(patchDto.MoodLevel))
                     checkIn.MoodLevel = patchDto.MoodLevel;
-                if (!string.IsNullOrEmpty(patchDto.EnergyLevel))
-                    checkIn.EnergyLevel = patchDto.EnergyLevel;
-                if (patchDto.SpiritualWellness.HasValue)
-                    checkIn.SpiritualWellness = patchDto.SpiritualWellness.Value;
                 if (patchDto.WeekdayFreeTime != null)
                     checkIn.WeekdayFreeTime = patchDto.WeekdayFreeTime;
                 if (patchDto.WeekendFreeTime != null)
@@ -100,6 +106,20 @@ namespace Mindflow_Web_API.Services
                     checkIn.ReminderEnabled = patchDto.ReminderEnabled.Value;
                 if (patchDto.ReminderTime != null)
                     checkIn.ReminderTime = patchDto.ReminderTime;
+                if (patchDto.AgeRange != null)
+                    checkIn.AgeRange = patchDto.AgeRange;
+                if (patchDto.FocusAreas != null)
+                    checkIn.FocusAreas = patchDto.FocusAreas;
+                if (patchDto.StressNotes != null)
+                    checkIn.StressNotes = patchDto.StressNotes;
+                if (patchDto.ThoughtTrackingMethod != null)
+                    checkIn.ThoughtTrackingMethod = patchDto.ThoughtTrackingMethod;
+                if (patchDto.SupportAreas != null)
+                    checkIn.SupportAreas = patchDto.SupportAreas;
+                if (patchDto.SelfCareFrequency != null)
+                    checkIn.SelfCareFrequency = patchDto.SelfCareFrequency;
+                if (patchDto.ToughDayMessage != null)
+                    checkIn.ToughDayMessage = patchDto.ToughDayMessage;
                 checkIn.UpdateLastModified();
             }
             await _dbContext.SaveChangesAsync();
@@ -109,17 +129,21 @@ namespace Mindflow_Web_API.Services
             return new WellnessCheckInDto(
                 checkIn.Id,
                 checkIn.UserId,
-                checkIn.StressLevel,
                 checkIn.MoodLevel,
-                checkIn.EnergyLevel,
-                checkIn.SpiritualWellness,
                 checkIn.CheckInDate,
                 checkIn.Created,
                 checkIn.LastModified,
                 checkIn.WeekdayFreeTime,
                 checkIn.WeekendFreeTime,
                 checkIn.ReminderEnabled,
-                checkIn.ReminderTime
+                checkIn.ReminderTime,
+                checkIn.AgeRange,
+                checkIn.FocusAreas,
+                checkIn.StressNotes,
+                checkIn.ThoughtTrackingMethod,
+                checkIn.SupportAreas,
+                checkIn.SelfCareFrequency,
+                checkIn.ToughDayMessage
             );
         }
     }

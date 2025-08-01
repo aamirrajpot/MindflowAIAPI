@@ -1,6 +1,6 @@
 namespace Mindflow_Web_API.DTOs
 {
-    public record CreateWellnessCheckInDto(int StressLevel, string MoodLevel, string EnergyLevel, int SpiritualWellness, string? WeekdayFreeTime, string? WeekendFreeTime, bool ReminderEnabled, string? ReminderTime);
-    public record WellnessCheckInDto(Guid Id, Guid UserId, int StressLevel, string MoodLevel, string EnergyLevel, int SpiritualWellness, DateTime CheckInDate, DateTimeOffset Created, DateTimeOffset LastModified, string? WeekdayFreeTime, string? WeekendFreeTime, bool ReminderEnabled, string? ReminderTime);
-    public record PatchWellnessCheckInDto(int? StressLevel, string? MoodLevel, string? EnergyLevel, int? SpiritualWellness, string? WeekdayFreeTime, string? WeekendFreeTime, bool? ReminderEnabled, string? ReminderTime);
+    public record CreateWellnessCheckInDto(string MoodLevel, string? WeekdayFreeTime, string? WeekendFreeTime, bool ReminderEnabled, string? ReminderTime, string? AgeRange, string[]? FocusAreas, string? StressNotes, string? ThoughtTrackingMethod, string[]? SupportAreas, string? SelfCareFrequency, string? ToughDayMessage);
+    public record WellnessCheckInDto(Guid Id, Guid UserId, string MoodLevel, DateTime CheckInDate, DateTimeOffset Created, DateTimeOffset LastModified, string? WeekdayFreeTime, string? WeekendFreeTime, bool ReminderEnabled, string? ReminderTime, string? AgeRange, string[]? FocusAreas, string? StressNotes, string? ThoughtTrackingMethod, string[]? SupportAreas, string? SelfCareFrequency, string? ToughDayMessage);
+    public record PatchWellnessCheckInDto(string? MoodLevel, string? WeekdayFreeTime, string? WeekendFreeTime, bool? ReminderEnabled, string? ReminderTime, string? AgeRange, string[]? FocusAreas, string? StressNotes, string? ThoughtTrackingMethod, string[]? SupportAreas, string? SelfCareFrequency, string? ToughDayMessage);
 } 

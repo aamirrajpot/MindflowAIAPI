@@ -45,17 +45,83 @@ namespace Mindflow_Web_API.Services
             if (user == null)
             {
                 // Create new user
-                user = new User
+                user = User.Create(
+                    userName: payload.Email,
+                    email: payload.Email,
+                    firstName: payload.GivenName ?? string.Empty,
+                    lastName: payload.FamilyName ?? string.Empty,
+                    emailConfirmed: true,
+                    isActive: true,
+                    passwordHash: string.Empty, // No password for external
+                    securityStamp: Guid.NewGuid().ToString(),
+                    sub: null
+                );
+                await _dbContext.Users.AddAsync(user);
+                await _dbContext.SaveChangesAsync();
+                isNewUser = true;
+            }
+
+            // Generate JWT
+            int expiresInSeconds;
+            var tokenString = JwtHelper.GenerateJwtToken(user, _configuration, out expiresInSeconds);
+            return new ExternalAuthResponseDto(tokenString, "Bearer", expiresInSeconds, isNewUser);
+        }
+        public async Task<ExternalAuthResponseDto?> AppleAuthenticateAsync(AppleAuthDto command)
+        {
+            var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
+            var jwt = handler.ReadJwtToken(command.IdToken);
+
+            using var httpClient = new HttpClient();
+            var keys = await httpClient.GetFromJsonAsync<DTOs.AppleKeys>("https://appleid.apple.com/auth/keys");
+            if (keys == null || keys.Keys == null || !keys.Keys.Any())
+                throw new SecurityTokenException("Unable to retrieve Apple public keys.");
+
+            var validationParameters = new TokenValidationParameters
+            {
+                ValidIssuer = "https://appleid.apple.com",
+                ValidAudience = _configuration["Apple:ClientId"] ?? "", // Set your Apple client ID here
+                IssuerSigningKeys = keys.Keys.Select(k => new RsaSecurityKey(new System.Security.Cryptography.RSAParameters
                 {
-                    UserName = payload.Email,
-                    Email = payload.Email,
-                    FirstName = payload.GivenName ?? string.Empty,
-                    LastName = payload.FamilyName ?? string.Empty,
-                    EmailConfirmed = true,
-                    IsActive = true,
-                    PasswordHash = string.Empty, // No password for external
-                    SecurityStamp = Guid.NewGuid().ToString()
-                };
+                    Modulus = Microsoft.IdentityModel.Tokens.Base64UrlEncoder.DecodeBytes(k.N),
+                    Exponent = Microsoft.IdentityModel.Tokens.Base64UrlEncoder.DecodeBytes(k.E)
+                })),
+                ValidateIssuerSigningKey = true,
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true
+            };
+
+            handler.ValidateToken(command.IdToken, validationParameters, out var validatedToken);
+            var jwt2 = (System.IdentityModel.Tokens.Jwt.JwtSecurityToken)validatedToken;
+
+            var email = jwt2.Claims.FirstOrDefault(c => c.Type == "email")?.Value;
+            var firstName = jwt2.Claims.FirstOrDefault(c => c.Type == "given_name")?.Value;
+            var lastName = jwt2.Claims.FirstOrDefault(c => c.Type == "family_name")?.Value;
+            var sub = jwt2.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
+
+            if (string.IsNullOrEmpty(email) && string.IsNullOrEmpty(sub))
+                throw new UnauthorizedAccessException("Invalid token: no email/sub claim found");
+
+            // Check if user exists by email
+            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == email);
+            if (user == null && !string.IsNullOrEmpty(sub))
+            {
+                user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Sub == sub);
+            }
+            bool isNewUser = false;
+            if (user == null)
+            {
+                user = User.Create(
+                    userName: email!,
+                    email: email!,
+                    firstName: firstName ?? string.Empty,
+                    lastName: lastName ?? string.Empty,
+                    emailConfirmed: true,
+                    isActive: true,
+                    passwordHash: string.Empty, // No password for external
+                    securityStamp: Guid.NewGuid().ToString(),
+                    sub: sub
+                );
                 await _dbContext.Users.AddAsync(user);
                 await _dbContext.SaveChangesAsync();
                 isNewUser = true;

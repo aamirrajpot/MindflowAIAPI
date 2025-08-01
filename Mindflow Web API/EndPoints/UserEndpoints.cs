@@ -116,6 +116,17 @@ namespace Mindflow_Web_API.EndPoints
                 return op;
             });
 
+            usersApi.MapPost("/users/apple-auth", async (AppleAuthDto dto, IExternalAuthService externalAuthService) =>
+            {
+                var result = await externalAuthService.AppleAuthenticateAsync(dto);
+                return result is not null ? Results.Ok(result) : Results.Unauthorized();
+            })
+            .WithOpenApi(op => {
+                op.Summary = "Apple authentication";
+                op.Description = "Authenticates a user using Apple Sign In and returns a JWT token if successful.";
+                return op;
+            });
+
             usersApi.MapPost("/users/forgot-password", async (ForgotPasswordDto dto, IUserService userService) =>
             {
                 var result = await userService.ForgotPasswordAsync(dto);

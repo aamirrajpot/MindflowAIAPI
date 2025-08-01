@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Mindflow_Web_API.Persistence;
 
@@ -11,9 +12,11 @@ using Mindflow_Web_API.Persistence;
 namespace Mindflow_Web_API.Migrations
 {
     [DbContext(typeof(MindflowDbContext))]
-    partial class MindflowDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250718122244_AppleSub_Added_UserEntity")]
+    partial class AppleSub_Added_UserEntity
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -156,10 +159,6 @@ namespace Mindflow_Web_API.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("AgeRange")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
                     b.Property<DateTime>("CheckInDate")
                         .HasColumnType("datetime2");
 
@@ -167,8 +166,10 @@ namespace Mindflow_Web_API.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetimeoffset");
 
-                    b.PrimitiveCollection<string>("FocusAreas")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<string>("EnergyLevel")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<DateTimeOffset>("LastModified")
                         .ValueGeneratedOnUpdate()
@@ -176,45 +177,29 @@ namespace Mindflow_Web_API.Migrations
 
                     b.Property<string>("MoodLevel")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
 
                     b.Property<bool>("ReminderEnabled")
                         .HasColumnType("bit");
 
                     b.Property<string>("ReminderTime")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("SelfCareFrequency")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("StressNotes")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.PrimitiveCollection<string>("SupportAreas")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("ThoughtTrackingMethod")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                    b.Property<int>("SpiritualWellness")
+                        .HasColumnType("int");
 
-                    b.Property<string>("ToughDayMessage")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                    b.Property<int>("StressLevel")
+                        .HasColumnType("int");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("WeekdayFreeTime")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("WeekendFreeTime")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 

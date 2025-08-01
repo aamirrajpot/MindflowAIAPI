@@ -28,8 +28,6 @@ namespace Mindflow_Web_API.EndPoints
                 return op;
             });
 
-
-
             wellnessApi.MapGet("/check-in", async (IWellnessCheckInService wellnessService, HttpContext context) =>
             {
                 if (!context.User.Identity?.IsAuthenticated ?? true)
