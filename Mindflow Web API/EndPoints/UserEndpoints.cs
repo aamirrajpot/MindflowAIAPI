@@ -1,5 +1,6 @@
 using Mindflow_Web_API.DTOs;
 using Mindflow_Web_API.Services;
+using Mindflow_Web_API.Exceptions;
 
 namespace Mindflow_Web_API.EndPoints
 {
@@ -23,7 +24,7 @@ namespace Mindflow_Web_API.EndPoints
             {
                 var tokenResponse = await userService.SignInAsync(dto);
                 if (tokenResponse == null)
-                    return Results.Unauthorized();
+                    throw ApiExceptions.Unauthorized("Invalid credentials");
                 return Results.Ok(tokenResponse);
             })
             .WithOpenApi(op => {
@@ -46,7 +47,9 @@ namespace Mindflow_Web_API.EndPoints
             usersApi.MapPost("/users/verify-otp", async (VerifyOtpDto dto, IUserService userService) =>
             {
                 var success = await userService.VerifyOtpAsync(dto);
-                return success ? Results.Ok() : Results.BadRequest("Invalid or expired OTP.");
+                if (!success)
+                    throw ApiExceptions.ValidationError("Invalid or expired OTP.");
+                return Results.Ok();
             })
             .WithOpenApi(op => {
                 op.Summary = "Verify OTP";
@@ -57,12 +60,16 @@ namespace Mindflow_Web_API.EndPoints
             usersApi.MapPost("/users/change-password", async (ChangePasswordDto dto, IUserService userService, HttpContext context) =>
             {
                 if (!context.User.Identity?.IsAuthenticated ?? true)
-                    return Results.Unauthorized();
+                    throw ApiExceptions.Unauthorized("User is not authenticated");
+                
                 var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
                 if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
-                    return Results.Unauthorized();
+                    throw ApiExceptions.Unauthorized("Invalid user token");
+                
                 var success = await userService.ChangePasswordAsync(userId, dto);
-                return success ? Results.Ok(success) : Results.BadRequest("Invalid credentials or user not found.");
+                if (!success)
+                    throw ApiExceptions.ValidationError("Invalid credentials or user not found.");
+                return Results.Ok(success);
             })
             .RequireAuthorization()
             .WithOpenApi(op => {
@@ -74,12 +81,16 @@ namespace Mindflow_Web_API.EndPoints
             usersApi.MapGet("/users/profile", async (IUserService userService, HttpContext context) =>
             {
                 if (!context.User.Identity?.IsAuthenticated ?? true)
-                    return Results.Unauthorized();
+                    throw ApiExceptions.Unauthorized("User is not authenticated");
+                
                 var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
                 if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
-                    return Results.Unauthorized();
+                    throw ApiExceptions.Unauthorized("Invalid user token");
+                
                 var profile = await userService.GetProfileAsync(userId);
-                return profile is not null ? Results.Ok(profile) : Results.NotFound();
+                if (profile is null)
+                    throw ApiExceptions.NotFound("User profile not found");
+                return Results.Ok(profile);
             })
             .RequireAuthorization()
             .WithOpenApi(op => {
@@ -91,12 +102,16 @@ namespace Mindflow_Web_API.EndPoints
             usersApi.MapPut("/users/profile", async (UpdateProfileDto dto, IUserService userService, HttpContext context) =>
             {
                 if (!context.User.Identity?.IsAuthenticated ?? true)
-                    return Results.Unauthorized();
+                    throw ApiExceptions.Unauthorized("User is not authenticated");
+                
                 var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
                 if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
-                    return Results.Unauthorized();
+                    throw ApiExceptions.Unauthorized("Invalid user token");
+                
                 var success = await userService.UpdateProfileAsync(userId, dto);
-                return success ? Results.Ok(success) : Results.BadRequest("Profile update failed.");
+                if (!success)
+                    throw ApiExceptions.ValidationError("Profile update failed.");
+                return Results.Ok(success);
             })
             .RequireAuthorization()
             .WithOpenApi(op => {
@@ -108,7 +123,9 @@ namespace Mindflow_Web_API.EndPoints
             usersApi.MapPost("/users/google-auth", async (GoogleAuthDto dto, IExternalAuthService externalAuthService) =>
             {
                 var result = await externalAuthService.GoogleAuthenticateAsync(dto);
-                return result is not null ? Results.Ok(result) : Results.Unauthorized();
+                if (result is null)
+                    throw ApiExceptions.Unauthorized("Google authentication failed");
+                return Results.Ok(result);
             })
             .WithOpenApi(op => {
                 op.Summary = "Google authentication";
@@ -119,7 +136,9 @@ namespace Mindflow_Web_API.EndPoints
             usersApi.MapPost("/users/apple-auth", async (AppleAuthDto dto, IExternalAuthService externalAuthService) =>
             {
                 var result = await externalAuthService.AppleAuthenticateAsync(dto);
-                return result is not null ? Results.Ok(result) : Results.Unauthorized();
+                if (result is null)
+                    throw ApiExceptions.Unauthorized("Apple authentication failed");
+                return Results.Ok(result);
             })
             .WithOpenApi(op => {
                 op.Summary = "Apple authentication";
@@ -141,7 +160,9 @@ namespace Mindflow_Web_API.EndPoints
             usersApi.MapPost("/users/reset-password", async (ResetPasswordDto dto, IUserService userService) =>
             {
                 var success = await userService.ResetPasswordAsync(dto);
-                return success ? Results.Ok("Password reset successfully.") : Results.BadRequest("Invalid OTP or user not found.");
+                if (!success)
+                    throw ApiExceptions.ValidationError("Invalid OTP or user not found.");
+                return Results.Ok("Password reset successfully.");
             })
             .WithOpenApi(op => {
                 op.Summary = "Reset password";
@@ -152,24 +173,15 @@ namespace Mindflow_Web_API.EndPoints
             usersApi.MapPost("/users/upload-profile-pic", async (HttpContext context, IFormFile file, IUserService userService) =>
             {
                 if (!context.User.Identity?.IsAuthenticated ?? true)
-                    return Results.Unauthorized();
+                    throw ApiExceptions.Unauthorized("User is not authenticated");
+                
                 var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
                 if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
-                    return Results.Unauthorized();
-                try
-                {
-                    var baseUrl = $"{context.Request.Scheme}://{context.Request.Host}";
-                    var profilePicUrl = await userService.UploadProfilePictureAsync(userId, file, baseUrl);
-                    return Results.Ok(new { profilePicUrl });
-                }
-                catch (ArgumentException ex)
-                {
-                    return Results.BadRequest(new { message = ex.Message });
-                }
-                catch (Exception)
-                {
-                    return Results.StatusCode(500);
-                }
+                    throw ApiExceptions.Unauthorized("Invalid user token");
+                
+                var baseUrl = $"{context.Request.Scheme}://{context.Request.Host}";
+                var profilePicUrl = await userService.UploadProfilePictureAsync(userId, file, baseUrl);
+                return Results.Ok(new { profilePicUrl });
             })
             .RequireAuthorization()
             .Accepts<IFormFile>("multipart/form-data", "file")

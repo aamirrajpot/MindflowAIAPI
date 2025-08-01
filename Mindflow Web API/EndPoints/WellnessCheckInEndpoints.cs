@@ -1,5 +1,6 @@
 using Mindflow_Web_API.DTOs;
 using Mindflow_Web_API.Services;
+using Mindflow_Web_API.Exceptions;
 
 namespace Mindflow_Web_API.EndPoints
 {
@@ -12,13 +13,16 @@ namespace Mindflow_Web_API.EndPoints
             wellnessApi.MapPatch("/check-in", async (PatchWellnessCheckInDto dto, IWellnessCheckInService wellnessService, HttpContext context) =>
             {
                 if (!context.User.Identity?.IsAuthenticated ?? true)
-                    return Results.Unauthorized();
+                    throw ApiExceptions.Unauthorized("User is not authenticated");
+                
                 var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
                 if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
-                    return Results.Unauthorized();
+                    throw ApiExceptions.Unauthorized("Invalid user token");
+                
                 var checkIn = await wellnessService.PatchAsync(userId, dto);
                 if (checkIn == null)
-                    return Results.NotFound();
+                    throw ApiExceptions.NotFound("Wellness check-in not found");
+                
                 return Results.Ok(checkIn);
             })
             .RequireAuthorization()
@@ -31,10 +35,12 @@ namespace Mindflow_Web_API.EndPoints
             wellnessApi.MapGet("/check-in", async (IWellnessCheckInService wellnessService, HttpContext context) =>
             {
                 if (!context.User.Identity?.IsAuthenticated ?? true)
-                    return Results.Unauthorized();
+                    throw ApiExceptions.Unauthorized("User is not authenticated");
+                
                 var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
                 if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
-                    return Results.Unauthorized();
+                    throw ApiExceptions.Unauthorized("Invalid user token");
+                
                 var checkIn = await wellnessService.GetAsync(userId);
                 return Results.Ok(checkIn);
             })
