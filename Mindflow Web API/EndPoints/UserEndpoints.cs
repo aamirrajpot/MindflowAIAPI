@@ -231,6 +231,25 @@ namespace Mindflow_Web_API.EndPoints
                 op.Description = "Downloads and uploads a profile picture from a URL. Only jpg, jpeg, png, gif, and webp formats are allowed. Max size: 2MB.";
                 return op;
             });
+
+            // Test endpoint to generate sample base64 image
+            usersApi.MapGet("/users/test-base64-image", () =>
+            {
+                // This is a 1x1 pixel red JPEG image
+                var sampleBase64 = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=";
+                
+                return Results.Ok(new { 
+                    sampleBase64Image = sampleBase64,
+                    fileName = "test-image.jpg",
+                    description = "This is a 1x1 pixel red JPEG image for testing base64 upload",
+                    usage = "Copy the sampleBase64Image value and use it in the base64 upload endpoint"
+                });
+            })
+            .WithOpenApi(op => {
+                op.Summary = "Get test base64 image";
+                op.Description = "Returns a sample base64 encoded image for testing the base64 upload endpoint.";
+                return op;
+            });
         }
     }
 } 
