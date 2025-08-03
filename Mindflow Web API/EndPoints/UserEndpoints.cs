@@ -191,6 +191,46 @@ namespace Mindflow_Web_API.EndPoints
                 return op;
             })
             .DisableAntiforgery();
+
+            usersApi.MapPost("/users/upload-profile-pic-base64", async (UploadProfilePictureBase64Dto dto, IUserService userService, HttpContext context) =>
+            {
+                if (!context.User.Identity?.IsAuthenticated ?? true)
+                    throw ApiExceptions.Unauthorized("User is not authenticated");
+                
+                var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
+                if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+                    throw ApiExceptions.Unauthorized("Invalid user token");
+                
+                var baseUrl = $"{context.Request.Scheme}://{context.Request.Host}";
+                var profilePicUrl = await userService.UploadProfilePictureBase64Async(userId, dto.Base64Image, dto.FileName, baseUrl);
+                return Results.Ok(new { profilePicUrl });
+            })
+            .RequireAuthorization()
+            .WithOpenApi(op => {
+                op.Summary = "Upload profile picture (Base64)";
+                op.Description = "Uploads a profile picture using base64 encoded image data. Only jpg, jpeg, png, gif, and webp formats are allowed. Max size: 2MB.";
+                return op;
+            });
+
+            usersApi.MapPost("/users/upload-profile-pic-url", async (UploadProfilePictureUrlDto dto, IUserService userService, HttpContext context) =>
+            {
+                if (!context.User.Identity?.IsAuthenticated ?? true)
+                    throw ApiExceptions.Unauthorized("User is not authenticated");
+                
+                var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
+                if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+                    throw ApiExceptions.Unauthorized("Invalid user token");
+                
+                var baseUrl = $"{context.Request.Scheme}://{context.Request.Host}";
+                var profilePicUrl = await userService.UploadProfilePictureFromUrlAsync(userId, dto.ImageUrl, baseUrl);
+                return Results.Ok(new { profilePicUrl });
+            })
+            .RequireAuthorization()
+            .WithOpenApi(op => {
+                op.Summary = "Upload profile picture (URL)";
+                op.Description = "Downloads and uploads a profile picture from a URL. Only jpg, jpeg, png, gif, and webp formats are allowed. Max size: 2MB.";
+                return op;
+            });
         }
     }
 } 

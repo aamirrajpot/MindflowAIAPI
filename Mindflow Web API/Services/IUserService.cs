@@ -14,5 +14,7 @@ namespace Mindflow_Web_API.Services
         Task<UserProfileDto?> GetProfileAsync(Guid userId);
         Task<bool> UpdateProfileAsync(Guid userId, UpdateProfileDto command);
         Task<string> UploadProfilePictureAsync(Guid userId, IFormFile file, string baseUrl);
+        Task<string> UploadProfilePictureBase64Async(Guid userId, string base64Image, string fileName, string baseUrl);
+        Task<string> UploadProfilePictureFromUrlAsync(Guid userId, string imageUrl, string baseUrl);
     }
 } 

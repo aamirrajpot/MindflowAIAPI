@@ -1,4 +1,5 @@
 ﻿using Mindflow_Web_API.Models;
+using Mindflow_Web_API.Utilities;
 using System.Text.Json;
 
 namespace Mindflow_Web_API.Services
@@ -7,16 +8,7 @@ namespace Mindflow_Web_API.Services
     {
         public static async Task<List<string>> SuggestTasksAsync(WellnessCheckIn checkIn, HttpClient client)
         {
-            var prompt = $"""
-            Based on the following wellness check-in values:
-            - Mood Level: {checkIn.MoodLevel}
-            - Focus Areas: {string.Join(", ", checkIn.FocusAreas ?? new string[0])}
-            - Support Areas: {string.Join(", ", checkIn.SupportAreas ?? new string[0])}
-            - Self-Care Frequency: {checkIn.SelfCareFrequency}
-            - Stress Notes: {checkIn.StressNotes ?? "None provided"}
-
-            Suggest 3 personalized self-care or improvement tasks. Return them in a JSON array of strings.
-            """;
+            var prompt = LlamaPromptBuilder.BuildTaskSuggestionPrompt(checkIn);
 
             var requestBody = new
             {
@@ -30,6 +22,42 @@ namespace Mindflow_Web_API.Services
 
             var content = await response.Content.ReadFromJsonAsync<OllamaResponse>();
             return ExtractTasksFromLlmResponse(content?.Response);
+        }
+
+        public static async Task<WellnessAnalysisResult> AnalyzeWellnessAsync(WellnessCheckIn checkIn, HttpClient client)
+        {
+            var prompt = LlamaPromptBuilder.BuildWellnessPrompt(checkIn);
+
+            var requestBody = new
+            {
+                model = "llama2",
+                prompt = prompt,
+                stream = false
+            };
+
+            var response = await client.PostAsJsonAsync("/api/generate", requestBody);
+            response.EnsureSuccessStatusCode();
+
+            var content = await response.Content.ReadFromJsonAsync<OllamaResponse>();
+            return ParseWellnessAnalysis(content?.Response);
+        }
+
+        public static async Task<UrgencyAssessment> AssessUrgencyAsync(WellnessCheckIn checkIn, HttpClient client)
+        {
+            var prompt = LlamaPromptBuilder.BuildUrgencyAssessmentPrompt(checkIn);
+
+            var requestBody = new
+            {
+                model = "llama2",
+                prompt = prompt,
+                stream = false
+            };
+
+            var response = await client.PostAsJsonAsync("/api/generate", requestBody);
+            response.EnsureSuccessStatusCode();
+
+            var content = await response.Content.ReadFromJsonAsync<OllamaResponse>();
+            return ParseUrgencyAssessment(content?.Response);
         }
 
         public static Task SuggestUrgentSupportAsync(Guid userId)
@@ -57,9 +85,68 @@ namespace Mindflow_Web_API.Services
             }
         }
 
+        private static WellnessAnalysisResult ParseWellnessAnalysis(string? response)
+        {
+            if (string.IsNullOrWhiteSpace(response))
+                return new WellnessAnalysisResult();
+
+            try
+            {
+                return JsonSerializer.Deserialize<WellnessAnalysisResult>(response) ?? new WellnessAnalysisResult();
+            }
+            catch
+            {
+                return new WellnessAnalysisResult
+                {
+                    MoodAssessment = "Unable to parse analysis",
+                    UrgencyLevel = 5
+                };
+            }
+        }
+
+        private static UrgencyAssessment ParseUrgencyAssessment(string? response)
+        {
+            if (string.IsNullOrWhiteSpace(response))
+                return new UrgencyAssessment();
+
+            try
+            {
+                return JsonSerializer.Deserialize<UrgencyAssessment>(response) ?? new UrgencyAssessment();
+            }
+            catch
+            {
+                return new UrgencyAssessment
+                {
+                    UrgencyLevel = 5,
+                    Reasoning = "Unable to parse urgency assessment",
+                    ImmediateAction = "Please review manually"
+                };
+            }
+        }
+
         private class OllamaResponse
         {
             public string Response { get; set; } = string.Empty;
         }
+    }
+
+    public class WellnessAnalysisResult
+    {
+        public string MoodAssessment { get; set; } = string.Empty;
+        public string StressLevel { get; set; } = string.Empty;
+        public List<string> SupportNeeds { get; set; } = new();
+        public List<string> CopingStrategies { get; set; } = new();
+        public List<string> SelfCareSuggestions { get; set; } = new();
+        public string ProgressTracking { get; set; } = string.Empty;
+        public int UrgencyLevel { get; set; } = 5;
+        public List<string> ImmediateActions { get; set; } = new();
+        public List<string> LongTermGoals { get; set; } = new();
+    }
+
+    public class UrgencyAssessment
+    {
+        public int UrgencyLevel { get; set; } = 5;
+        public string Reasoning { get; set; } = string.Empty;
+        public string ImmediateAction { get; set; } = string.Empty;
     }
 }

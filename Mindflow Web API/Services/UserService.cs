@@ -298,5 +298,162 @@ namespace Mindflow_Web_API.Services
             }
             return profilePicUrl;
         }
+
+        public async Task<string> UploadProfilePictureBase64Async(Guid userId, string base64Image, string fileName, string baseUrl)
+        {
+            if (string.IsNullOrEmpty(base64Image))
+                throw ApiExceptions.ValidationError("No image data provided.");
+
+            // Remove data URL prefix if present
+            var imageData = base64Image;
+            if (base64Image.StartsWith("data:image/"))
+            {
+                var commaIndex = base64Image.IndexOf(',');
+                if (commaIndex > 0)
+                {
+                    imageData = base64Image.Substring(commaIndex + 1);
+                }
+            }
+
+            // Validate base64 string
+            try
+            {
+                Convert.FromBase64String(imageData);
+            }
+            catch
+            {
+                throw ApiExceptions.ValidationError("Invalid base64 image data.");
+            }
+
+            // Validate file type from base64 header or filename
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+            var extension = Path.GetExtension(fileName).ToLowerInvariant();
+            if (!allowedExtensions.Contains(extension))
+                throw ApiExceptions.ValidationError("Invalid file type. Only jpg, jpeg, png, gif, and webp are allowed.");
+
+            // Validate file size (max 2MB)
+            const long maxFileSize = 2 * 1024 * 1024; // 2MB
+            var imageBytes = Convert.FromBase64String(imageData);
+            if (imageBytes.Length > maxFileSize)
+                throw ApiExceptions.ValidationError("File size exceeds 2MB limit.");
+
+            var uploads = Path.Combine("wwwroot", "profilepics");
+            if (!Directory.Exists(uploads))
+                Directory.CreateDirectory(uploads);
+
+            // Find user and delete old profile pic if exists
+            var user = await _dbContext.Users.FindAsync(userId);
+            if (user != null && !string.IsNullOrEmpty(user.ProfilePic))
+            {
+                try
+                {
+                    var oldPicUrl = user.ProfilePic;
+                    var uploadsUrl = $"{baseUrl}/profilepics/";
+                    if (oldPicUrl.StartsWith(uploadsUrl))
+                    {
+                        var oldFileName = oldPicUrl.Substring(uploadsUrl.Length);
+                        var oldFilePath = Path.Combine(uploads, oldFileName);
+                        if (File.Exists(oldFilePath))
+                        {
+                            File.Delete(oldFilePath);
+                        }
+                    }
+                }
+                catch { /* Ignore file deletion errors */ }
+            }
+
+            var newFileName = $"{Guid.NewGuid()}_{fileName}";
+            var filePath = Path.Combine(uploads, newFileName);
+            await File.WriteAllBytesAsync(filePath, imageBytes);
+            
+            var profilePicUrl = $"{baseUrl}/profilepics/{newFileName}";
+
+            // Save to DB
+            if (user != null)
+            {
+                user.ProfilePic = profilePicUrl;
+                await _dbContext.SaveChangesAsync();
+            }
+            return profilePicUrl;
+        }
+
+        public async Task<string> UploadProfilePictureFromUrlAsync(Guid userId, string imageUrl, string baseUrl)
+        {
+            if (string.IsNullOrEmpty(imageUrl))
+                throw ApiExceptions.ValidationError("No image URL provided.");
+
+            // Validate URL
+            if (!Uri.TryCreate(imageUrl, UriKind.Absolute, out var uri))
+                throw ApiExceptions.ValidationError("Invalid image URL.");
+
+            var uploads = Path.Combine("wwwroot", "profilepics");
+            if (!Directory.Exists(uploads))
+                Directory.CreateDirectory(uploads);
+
+            // Find user and delete old profile pic if exists
+            var user = await _dbContext.Users.FindAsync(userId);
+            if (user != null && !string.IsNullOrEmpty(user.ProfilePic))
+            {
+                try
+                {
+                    var oldPicUrl = user.ProfilePic;
+                    var uploadsUrl = $"{baseUrl}/profilepics/";
+                    if (oldPicUrl.StartsWith(uploadsUrl))
+                    {
+                        var oldFileName = oldPicUrl.Substring(uploadsUrl.Length);
+                        var oldFilePath = Path.Combine(uploads, oldFileName);
+                        if (File.Exists(oldFilePath))
+                        {
+                            File.Delete(oldFilePath);
+                        }
+                    }
+                }
+                catch { /* Ignore file deletion errors */ }
+            }
+
+            // Download image from URL
+            using var httpClient = new HttpClient();
+            var imageBytes = await httpClient.GetByteArrayAsync(imageUrl);
+            
+            // Validate file size (max 2MB)
+            const long maxFileSize = 2 * 1024 * 1024; // 2MB
+            if (imageBytes.Length > maxFileSize)
+                throw ApiExceptions.ValidationError("File size exceeds 2MB limit.");
+
+            // Determine file extension from URL or content type
+            var extension = Path.GetExtension(uri.AbsolutePath).ToLowerInvariant();
+            if (string.IsNullOrEmpty(extension))
+            {
+                // Try to get from content type
+                var response = await httpClient.GetAsync(imageUrl, HttpCompletionOption.ResponseHeadersRead);
+                var contentType = response.Content.Headers.ContentType?.MediaType;
+                extension = contentType switch
+                {
+                    "image/jpeg" => ".jpg",
+                    "image/png" => ".png",
+                    "image/gif" => ".gif",
+                    "image/webp" => ".webp",
+                    _ => ".jpg" // Default
+                };
+            }
+
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+            if (!allowedExtensions.Contains(extension))
+                throw ApiExceptions.ValidationError("Invalid file type. Only jpg, jpeg, png, gif, and webp are allowed.");
+
+            var fileName = $"{Guid.NewGuid()}{extension}";
+            var filePath = Path.Combine(uploads, fileName);
+            await File.WriteAllBytesAsync(filePath, imageBytes);
+            
+            var profilePicUrl = $"{baseUrl}/profilepics/{fileName}";
+
+            // Save to DB
+            if (user != null)
+            {
+                user.ProfilePic = profilePicUrl;
+                await _dbContext.SaveChangesAsync();
+            }
+            return profilePicUrl;
+        }
     }
 }

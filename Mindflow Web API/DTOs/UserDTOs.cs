@@ -11,4 +11,6 @@ namespace Mindflow_Web_API.DTOs
     public record TokenResponseDto(string access_token, string token_type, int expires_in);
     public record UserProfileDto(string UserName, string Email, string? FirstName, string? LastName, DateTime? DateOfBirth, string? ProfilePic);
     public record UpdateProfileDto(string? FirstName, string? LastName, DateTime? DateOfBirth, string? ProfilePic);
+    public record UploadProfilePictureBase64Dto(string Base64Image, string FileName);
+    public record UploadProfilePictureUrlDto(string ImageUrl);
 } 
