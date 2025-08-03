@@ -192,7 +192,7 @@ namespace Mindflow_Web_API.EndPoints
             })
             .DisableAntiforgery();
 
-            usersApi.MapPost("/users/upload-profile-pic-base64", async (UploadProfilePictureBase64Dto dto, IUserService userService, HttpContext context) =>
+            usersApi.MapPost("/upload-profile-pic-base64", async (UploadProfilePictureBase64Dto dto, IUserService userService, HttpContext context) =>
             {
                 if (!context.User.Identity?.IsAuthenticated ?? true)
                     throw ApiExceptions.Unauthorized("User is not authenticated");
@@ -213,7 +213,7 @@ namespace Mindflow_Web_API.EndPoints
                 return op;
             });
 
-            usersApi.MapPost("/users/upload-profile-pic-url", async (UploadProfilePictureUrlDto dto, IUserService userService, HttpContext context) =>
+            usersApi.MapPost("/upload-profile-pic-url", async (UploadProfilePictureUrlDto dto, IUserService userService, HttpContext context) =>
             {
                 if (!context.User.Identity?.IsAuthenticated ?? true)
                     throw ApiExceptions.Unauthorized("User is not authenticated");
@@ -235,7 +235,7 @@ namespace Mindflow_Web_API.EndPoints
             });
 
             // Test endpoint to generate sample base64 image
-            usersApi.MapGet("/users/test-base64-image", () =>
+            usersApi.MapGet("/test-base64-image", () =>
             {
                 // This is a 1x1 pixel red JPEG image
                 var sampleBase64 = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=";

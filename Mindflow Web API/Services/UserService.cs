@@ -282,7 +282,8 @@ namespace Mindflow_Web_API.Services
                 catch { /* Ignore file deletion errors */ }
             }
 
-            var fileName = $"{Guid.NewGuid()}_{file.FileName}";
+            var sanitizedFileName = SanitizeFileName(file.FileName);
+            var fileName = $"{Guid.NewGuid()}_{sanitizedFileName}";
             var filePath = Path.Combine(uploads, fileName);
             using (var stream = new FileStream(filePath, FileMode.Create))
             {
@@ -362,7 +363,8 @@ namespace Mindflow_Web_API.Services
                 catch { /* Ignore file deletion errors */ }
             }
 
-            var newFileName = $"{Guid.NewGuid()}_{fileName}";
+            var sanitizedFileName = SanitizeFileName(fileName);
+            var newFileName = $"{Guid.NewGuid()}_{sanitizedFileName}";
             var filePath = Path.Combine(uploads, newFileName);
             await File.WriteAllBytesAsync(filePath, imageBytes);
             
@@ -454,6 +456,64 @@ namespace Mindflow_Web_API.Services
                 await _dbContext.SaveChangesAsync();
             }
             return profilePicUrl;
+        }
+
+        private static string SanitizeFileName(string fileName)
+        {
+            if (string.IsNullOrEmpty(fileName))
+                return "image.jpg";
+
+            // Remove or replace problematic characters
+            var sanitized = fileName
+                .Replace(" ", "_")           // Replace spaces with underscores
+                .Replace("(", "")            // Remove parentheses
+                .Replace(")", "")
+                .Replace("[", "")
+                .Replace("]", "")
+                .Replace("{", "")
+                .Replace("}", "")
+                .Replace("<", "")
+                .Replace(">", "")
+                .Replace("|", "")
+                .Replace("\\", "")
+                .Replace("/", "")
+                .Replace(":", "")
+                .Replace("*", "")
+                .Replace("?", "")
+                .Replace("\"", "")
+                .Replace("'", "")
+                .Replace("&", "and")
+                .Replace("+", "plus")
+                .Replace("=", "equals")
+                .Replace(";", "")
+                .Replace(",", "")
+                .Replace("!", "")
+                .Replace("@", "at")
+                .Replace("#", "hash")
+                .Replace("$", "")
+                .Replace("%", "percent")
+                .Replace("^", "")
+                .Replace("~", "")
+                .Replace("`", "")
+                .Replace("'", "")
+                .Replace("\"", "");
+
+            // Ensure it has a valid extension
+            var extension = Path.GetExtension(sanitized).ToLowerInvariant();
+            if (string.IsNullOrEmpty(extension))
+            {
+                sanitized += ".jpg"; // Default extension
+            }
+
+            // Limit length to avoid filesystem issues
+            if (sanitized.Length > 100)
+            {
+                var nameWithoutExt = Path.GetFileNameWithoutExtension(sanitized);
+                var ext = Path.GetExtension(sanitized);
+                sanitized = nameWithoutExt.Substring(0, 100 - ext.Length) + ext;
+            }
+
+            return sanitized;
         }
     }
 }
