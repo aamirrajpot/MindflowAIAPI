@@ -206,6 +206,7 @@ namespace Mindflow_Web_API.EndPoints
                 return Results.Ok(new { profilePicUrl });
             })
             .RequireAuthorization()
+            .Accepts<UploadProfilePictureBase64Dto>("application/json")
             .WithOpenApi(op => {
                 op.Summary = "Upload profile picture (Base64)";
                 op.Description = "Uploads a profile picture using base64 encoded image data. Only jpg, jpeg, png, gif, and webp formats are allowed. Max size: 2MB.";
@@ -226,6 +227,7 @@ namespace Mindflow_Web_API.EndPoints
                 return Results.Ok(new { profilePicUrl });
             })
             .RequireAuthorization()
+            .Accepts<UploadProfilePictureUrlDto>("application/json")
             .WithOpenApi(op => {
                 op.Summary = "Upload profile picture (URL)";
                 op.Description = "Downloads and uploads a profile picture from a URL. Only jpg, jpeg, png, gif, and webp formats are allowed. Max size: 2MB.";
