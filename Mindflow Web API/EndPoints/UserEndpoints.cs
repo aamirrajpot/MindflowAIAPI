@@ -9,7 +9,7 @@ namespace Mindflow_Web_API.EndPoints
         public static void MapUserEndpoints(this IEndpointRouteBuilder app)
         {
             var usersApi = app.MapGroup("/api/users").WithTags("Users");
-            usersApi.MapPost("/users/register", async (RegisterUserDto dto, IUserService userService) =>
+            usersApi.MapPost("/register", async (RegisterUserDto dto, IUserService userService) =>
             {
                 var user = await userService.RegisterAsync(dto);
                 return Results.Ok(user);
@@ -20,7 +20,7 @@ namespace Mindflow_Web_API.EndPoints
                 return op;
             });
 
-            usersApi.MapPost("/users/signin", async (SignInUserDto dto, IUserService userService) =>
+            usersApi.MapPost("/signin", async (SignInUserDto dto, IUserService userService) =>
             {
                 var tokenResponse = await userService.SignInAsync(dto);
                 if (tokenResponse == null)
@@ -33,7 +33,7 @@ namespace Mindflow_Web_API.EndPoints
                 return op;
             });
 
-            usersApi.MapPost("/users/send-otp", async (string email, IUserService userService) =>
+            usersApi.MapPost("/send-otp", async (string email, IUserService userService) =>
             {
                 var result = await userService.SendOtpAsync(email);
                 return result.Sent ? Results.Ok(result) : Results.BadRequest(result);
@@ -44,7 +44,7 @@ namespace Mindflow_Web_API.EndPoints
                 return op;
             });
 
-            usersApi.MapPost("/users/verify-otp", async (VerifyOtpDto dto, IUserService userService) =>
+            usersApi.MapPost("/verify-otp", async (VerifyOtpDto dto, IUserService userService) =>
             {
                 var success = await userService.VerifyOtpAsync(dto);
                 if (!success)
@@ -57,7 +57,7 @@ namespace Mindflow_Web_API.EndPoints
                 return op;
             });
 
-            usersApi.MapPost("/users/change-password", async (ChangePasswordDto dto, IUserService userService, HttpContext context) =>
+            usersApi.MapPost("/change-password", async (ChangePasswordDto dto, IUserService userService, HttpContext context) =>
             {
                 if (!context.User.Identity?.IsAuthenticated ?? true)
                     throw ApiExceptions.Unauthorized("User is not authenticated");
@@ -78,7 +78,7 @@ namespace Mindflow_Web_API.EndPoints
                 return op;
             });
 
-            usersApi.MapGet("/users/profile", async (IUserService userService, HttpContext context) =>
+            usersApi.MapGet("/profile", async (IUserService userService, HttpContext context) =>
             {
                 if (!context.User.Identity?.IsAuthenticated ?? true)
                     throw ApiExceptions.Unauthorized("User is not authenticated");
@@ -99,7 +99,7 @@ namespace Mindflow_Web_API.EndPoints
                 return op;
             });
 
-            usersApi.MapPut("/users/profile", async (UpdateProfileDto dto, IUserService userService, HttpContext context) =>
+            usersApi.MapPut("/profile", async (UpdateProfileDto dto, IUserService userService, HttpContext context) =>
             {
                 if (!context.User.Identity?.IsAuthenticated ?? true)
                     throw ApiExceptions.Unauthorized("User is not authenticated");
@@ -120,7 +120,7 @@ namespace Mindflow_Web_API.EndPoints
                 return op;
             });
 
-            usersApi.MapPost("/users/google-auth", async (GoogleAuthDto dto, IExternalAuthService externalAuthService) =>
+            usersApi.MapPost("/google-auth", async (GoogleAuthDto dto, IExternalAuthService externalAuthService) =>
             {
                 var result = await externalAuthService.GoogleAuthenticateAsync(dto);
                 if (result is null)
@@ -133,7 +133,7 @@ namespace Mindflow_Web_API.EndPoints
                 return op;
             });
 
-            usersApi.MapPost("/users/apple-auth", async (AppleAuthDto dto, IExternalAuthService externalAuthService) =>
+            usersApi.MapPost("/apple-auth", async (AppleAuthDto dto, IExternalAuthService externalAuthService) =>
             {
                 var result = await externalAuthService.AppleAuthenticateAsync(dto);
                 if (result is null)
@@ -146,7 +146,7 @@ namespace Mindflow_Web_API.EndPoints
                 return op;
             });
 
-            usersApi.MapPost("/users/forgot-password", async (ForgotPasswordDto dto, IUserService userService) =>
+            usersApi.MapPost("/forgot-password", async (ForgotPasswordDto dto, IUserService userService) =>
             {
                 var result = await userService.ForgotPasswordAsync(dto);
                 return result.Sent ? Results.Ok(result) : Results.BadRequest(result);
@@ -157,7 +157,7 @@ namespace Mindflow_Web_API.EndPoints
                 return op;
             });
 
-            usersApi.MapPost("/users/reset-password", async (ResetPasswordDto dto, IUserService userService) =>
+            usersApi.MapPost("/reset-password", async (ResetPasswordDto dto, IUserService userService) =>
             {
                 var success = await userService.ResetPasswordAsync(dto);
                 if (!success)
@@ -170,7 +170,7 @@ namespace Mindflow_Web_API.EndPoints
                 return op;
             });
 
-            usersApi.MapPost("/users/upload-profile-pic", async (HttpContext context, IFormFile file, IUserService userService) =>
+            usersApi.MapPost("/upload-profile-pic", async (HttpContext context, IFormFile file, IUserService userService) =>
             {
                 if (!context.User.Identity?.IsAuthenticated ?? true)
                     throw ApiExceptions.Unauthorized("User is not authenticated");
@@ -192,17 +192,35 @@ namespace Mindflow_Web_API.EndPoints
             })
             .DisableAntiforgery();
 
-            usersApi.MapPost("/upload-profile-pic-base64", async (UploadProfilePictureBase64Dto dto, IUserService userService, HttpContext context) =>
+            usersApi.MapPost("/upload-profile-pic-base64", async (UploadProfilePictureBase64Dto dto, IUserService userService, HttpContext context, ILogger<Program> logger) =>
             {
+                logger.LogInformation("🔍 Base64 upload endpoint hit - Request Path: {Path}", context.Request.Path);
+                logger.LogInformation("🔍 Request Method: {Method}", context.Request.Method);
+                logger.LogInformation("🔍 Content-Type: {ContentType}", context.Request.ContentType);
+                
                 if (!context.User.Identity?.IsAuthenticated ?? true)
+                {
+                    logger.LogWarning("❌ User not authenticated");
                     throw ApiExceptions.Unauthorized("User is not authenticated");
+                }
                 
                 var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
                 if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+                {
+                    logger.LogWarning("❌ Invalid user token - UserId: {UserId}", userIdClaim?.Value);
                     throw ApiExceptions.Unauthorized("Invalid user token");
+                }
+                
+                logger.LogInformation("✅ User authenticated - UserId: {UserId}", userId);
+                logger.LogInformation("📁 DTO received - FileName: {FileName}, ImageLength: {ImageLength}", 
+                    dto.FileName, dto.Base64Image?.Length ?? 0);
                 
                 var baseUrl = $"{context.Request.Scheme}://{context.Request.Host}";
+                logger.LogInformation("🌐 Base URL constructed: {BaseUrl}", baseUrl);
+                
                 var profilePicUrl = await userService.UploadProfilePictureBase64Async(userId, dto.Base64Image, dto.FileName, baseUrl);
+                logger.LogInformation("✅ Upload successful - ProfilePicUrl: {ProfilePicUrl}", profilePicUrl);
+                
                 return Results.Ok(new { profilePicUrl });
             })
             .RequireAuthorization()
@@ -213,17 +231,34 @@ namespace Mindflow_Web_API.EndPoints
                 return op;
             });
 
-            usersApi.MapPost("/upload-profile-pic-url", async (UploadProfilePictureUrlDto dto, IUserService userService, HttpContext context) =>
+            usersApi.MapPost("/upload-profile-pic-url", async (UploadProfilePictureUrlDto dto, IUserService userService, HttpContext context, ILogger<Program> logger) =>
             {
+                logger.LogInformation("🔍 URL upload endpoint hit - Request Path: {Path}", context.Request.Path);
+                logger.LogInformation("🔍 Request Method: {Method}", context.Request.Method);
+                logger.LogInformation("🔍 Content-Type: {ContentType}", context.Request.ContentType);
+                
                 if (!context.User.Identity?.IsAuthenticated ?? true)
+                {
+                    logger.LogWarning("❌ User not authenticated");
                     throw ApiExceptions.Unauthorized("User is not authenticated");
+                }
                 
                 var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
                 if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+                {
+                    logger.LogWarning("❌ Invalid user token - UserId: {UserId}", userIdClaim?.Value);
                     throw ApiExceptions.Unauthorized("Invalid user token");
+                }
+                
+                logger.LogInformation("✅ User authenticated - UserId: {UserId}", userId);
+                logger.LogInformation("📁 DTO received - ImageUrl: {ImageUrl}", dto.ImageUrl);
                 
                 var baseUrl = $"{context.Request.Scheme}://{context.Request.Host}";
+                logger.LogInformation("🌐 Base URL constructed: {BaseUrl}", baseUrl);
+                
                 var profilePicUrl = await userService.UploadProfilePictureFromUrlAsync(userId, dto.ImageUrl, baseUrl);
+                logger.LogInformation("✅ Upload successful - ProfilePicUrl: {ProfilePicUrl}", profilePicUrl);
+                
                 return Results.Ok(new { profilePicUrl });
             })
             .RequireAuthorization()
@@ -250,6 +285,26 @@ namespace Mindflow_Web_API.EndPoints
             .WithOpenApi(op => {
                 op.Summary = "Get test base64 image";
                 op.Description = "Returns a sample base64 encoded image for testing the base64 upload endpoint.";
+                return op;
+            });
+
+            // Simple test endpoint to verify routing
+            usersApi.MapGet("/test-routing", (ILogger<Program> logger) =>
+            {
+                logger.LogInformation("🎯 Test routing endpoint hit successfully!");
+                return Results.Ok(new { 
+                    message = "Routing is working!",
+                    timestamp = DateTime.UtcNow,
+                    endpoints = new[] {
+                        "/api/users/upload-profile-pic-base64",
+                        "/api/users/upload-profile-pic-url",
+                        "/api/users/upload-profile-pic"
+                    }
+                });
+            })
+            .WithOpenApi(op => {
+                op.Summary = "Test routing";
+                op.Description = "Simple endpoint to verify that routing is working correctly.";
                 return op;
             });
         }

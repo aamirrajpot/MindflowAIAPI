@@ -1,0 +1,252 @@
+2025-08-06 15:49:15.556 +05:00 [INF] Executed DbCommand (283ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-06 15:49:15.609 +05:00 [INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+2025-08-06 15:49:15.935 +05:00 [INF] Executed DbCommand (317ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+2025-08-06 15:49:16.519 +05:00 [INF] Executed DbCommand (250ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+2025-08-06 15:49:17.295 +05:00 [INF] Executed DbCommand (249ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-06 15:49:17.554 +05:00 [INF] Executed DbCommand (251ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2025-08-06 15:49:17.825 +05:00 [INF] Executed DbCommand (262ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2025-08-06 15:49:17.838 +05:00 [INF] No migrations were applied. The database is already up to date.
+2025-08-06 15:49:18.372 +05:00 [INF] Executed DbCommand (259ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-08-06 15:49:18.943 +05:00 [INF] Executed DbCommand (260ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_releaseapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session';
+SELECT @result
+2025-08-06 15:49:19.244 +05:00 [INF] Executed DbCommand (274ms) [Parameters=[@__adminEmail_0='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [app].[Users] AS [u]
+        WHERE [u].[Email] = @__adminEmail_0) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+2025-08-06 15:49:19.290 +05:00 [INF] User profile is available. Using 'C:\Users\muhammad.aamir2810\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2025-08-06 15:49:19.448 +05:00 [INF] Now listening on: http://localhost:5000
+2025-08-06 15:49:19.452 +05:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-08-06 15:49:19.454 +05:00 [INF] Hosting environment: Development
+2025-08-06 15:49:19.455 +05:00 [INF] Content root path: C:\Users\muhammad.aamir2810\Desktop\Personal\MindflowAIAPI\Mindflow Web API
+2025-08-06 15:49:35.021 +05:00 [INF] Request starting HTTP/1.1 POST http://localhost:5000/users/send-otp - application/json 16
+2025-08-06 15:49:35.073 +05:00 [WRN] Failed to determine the https port for redirect.
+2025-08-06 15:49:35.113 +05:00 [INF] Request finished HTTP/1.1 POST http://localhost:5000/users/send-otp - 404 0 null 91.8285ms
+2025-08-06 15:49:35.124 +05:00 [INF] Request reached the end of the middleware pipeline without being handled by application code. Request path: POST http://localhost:5000/users/send-otp, Response status code: 404
+2025-08-06 15:49:45.875 +05:00 [INF] Request starting HTTP/1.1 POST http://localhost:5000/users/send-otp - application/json 1
+2025-08-06 15:49:45.882 +05:00 [INF] Request finished HTTP/1.1 POST http://localhost:5000/users/send-otp - 404 0 null 7.7158ms
+2025-08-06 15:49:45.886 +05:00 [INF] Request reached the end of the middleware pipeline without being handled by application code. Request path: POST http://localhost:5000/users/send-otp, Response status code: 404
+2025-08-06 16:16:05.437 +05:00 [INF] Request starting HTTP/1.1 GET http://localhost:5000/ - null null
+2025-08-06 16:16:05.454 +05:00 [INF] Request finished HTTP/1.1 GET http://localhost:5000/ - 404 0 null 17.0425ms
+2025-08-06 16:16:05.458 +05:00 [INF] Request reached the end of the middleware pipeline without being handled by application code. Request path: GET http://localhost:5000/, Response status code: 404
+2025-08-06 16:16:13.015 +05:00 [INF] Request starting HTTP/1.1 GET http://localhost:5000/swagger - null null
+2025-08-06 16:16:13.021 +05:00 [INF] Request finished HTTP/1.1 GET http://localhost:5000/swagger - 301 0 null 5.6728ms
+2025-08-06 16:16:13.026 +05:00 [INF] Request starting HTTP/1.1 GET http://localhost:5000/swagger/index.html - null null
+2025-08-06 16:16:13.116 +05:00 [INF] Request finished HTTP/1.1 GET http://localhost:5000/swagger/index.html - 200 null text/html;charset=utf-8 90.0411ms
+2025-08-06 16:16:13.143 +05:00 [INF] Request starting HTTP/1.1 GET http://localhost:5000/swagger/swagger-ui.css - null null
+2025-08-06 16:16:13.145 +05:00 [INF] Request starting HTTP/1.1 GET http://localhost:5000/swagger/index.css - null null
+2025-08-06 16:16:13.147 +05:00 [INF] Request starting HTTP/1.1 GET http://localhost:5000/swagger/index.js - null null
+2025-08-06 16:16:13.147 +05:00 [INF] Request starting HTTP/1.1 GET http://localhost:5000/swagger/swagger-ui-standalone-preset.js - null null
+2025-08-06 16:16:13.147 +05:00 [INF] Request starting HTTP/1.1 GET http://localhost:5000/swagger/swagger-ui-bundle.js - null null
+2025-08-06 16:16:13.158 +05:00 [INF] Request finished HTTP/1.1 GET http://localhost:5000/swagger/index.css - 200 202 text/css 12.6489ms
+2025-08-06 16:16:13.158 +05:00 [INF] Request finished HTTP/1.1 GET http://localhost:5000/swagger/index.js - 200 null application/javascript;charset=utf-8 11.1889ms
+2025-08-06 16:16:13.170 +05:00 [INF] Request finished HTTP/1.1 GET http://localhost:5000/swagger/swagger-ui-standalone-preset.js - 200 229223 text/javascript 22.7525ms
+2025-08-06 16:16:13.170 +05:00 [INF] Request finished HTTP/1.1 GET http://localhost:5000/swagger/swagger-ui.css - 200 155175 text/css 26.974ms
+2025-08-06 16:16:13.185 +05:00 [INF] Request finished HTTP/1.1 GET http://localhost:5000/swagger/swagger-ui-bundle.js - 200 1485750 text/javascript 37.8789ms
+2025-08-06 16:16:13.323 +05:00 [INF] Request starting HTTP/1.1 GET http://localhost:5000/swagger/v1/swagger.json - null null
+2025-08-06 16:16:13.339 +05:00 [INF] Request starting HTTP/1.1 GET http://localhost:5000/swagger/favicon-32x32.png - null null
+2025-08-06 16:16:13.341 +05:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2025-08-06 16:16:13.345 +05:00 [INF] Request finished HTTP/1.1 GET http://localhost:5000/swagger/favicon-32x32.png - 200 628 image/png 5.4812ms
+2025-08-06 16:16:13.429 +05:00 [INF] Request finished HTTP/1.1 GET http://localhost:5000/swagger/v1/swagger.json - 200 null application/json;charset=utf-8 106.5478ms
+2025-08-06 16:16:39.332 +05:00 [INF] Request starting HTTP/1.1 POST http://localhost:5000/api/users/users/upload-profile-pic-url - application/json 2
+2025-08-06 16:16:39.347 +05:00 [INF] Failed to validate the token.
+Microsoft.IdentityModel.Tokens.SecurityTokenMalformedException: IDX14100: JWT is not well formed, there are no dots (.).
+The token needs to be in JWS or JWE Compact Serialization Format. (JWS): 'EncodedHeader.EncodedPayload.EncodedSignature'. (JWE): 'EncodedProtectedHeader.EncodedEncryptedKey.EncodedInitializationVector.EncodedCiphertext.EncodedAuthenticationTag'.
+   at Microsoft.IdentityModel.JsonWebTokens.JsonWebToken.ReadToken(ReadOnlyMemory`1 encodedTokenMemory)
+   at Microsoft.IdentityModel.JsonWebTokens.JsonWebToken..ctor(String jwtEncodedString)
+   at Microsoft.IdentityModel.JsonWebTokens.JsonWebTokenHandler.ReadToken(String token, TokenValidationParameters validationParameters)
+2025-08-06 16:16:39.356 +05:00 [INF] Bearer was not authenticated. Failure message: IDX14100: JWT is not well formed, there are no dots (.).
+The token needs to be in JWS or JWE Compact Serialization Format. (JWS): 'EncodedHeader.EncodedPayload.EncodedSignature'. (JWE): 'EncodedProtectedHeader.EncodedEncryptedKey.EncodedInitializationVector.EncodedCiphertext.EncodedAuthenticationTag'.
+2025-08-06 16:16:39.362 +05:00 [INF] Authorization failed. These requirements were not met:
+DenyAnonymousAuthorizationRequirement: Requires an authenticated user.
+2025-08-06 16:16:39.365 +05:00 [INF] AuthenticationScheme: Bearer was challenged.
+2025-08-06 16:16:39.366 +05:00 [INF] Request finished HTTP/1.1 POST http://localhost:5000/api/users/users/upload-profile-pic-url - 401 0 null 33.8709ms
+2025-08-06 16:17:09.796 +05:00 [INF] Request starting HTTP/1.1 GET http://localhost:5000/swagger/v1/swagger.json - null null
+2025-08-06 16:17:09.809 +05:00 [INF] Request finished HTTP/1.1 GET http://localhost:5000/swagger/v1/swagger.json - 200 null application/json;charset=utf-8 13.255ms
+2025-08-06 16:17:23.054 +05:00 [INF] Request starting HTTP/1.1 POST http://localhost:5000/api/users/users/signin - application/json 76
+2025-08-06 16:17:23.075 +05:00 [INF] CORS policy execution successful.
+2025-08-06 16:17:23.077 +05:00 [INF] Executing endpoint 'HTTP: POST /api/users/users/signin'
+2025-08-06 16:17:25.248 +05:00 [INF] Executed DbCommand (290ms) [Parameters=[@__command_UserNameOrEmail_0='?' (Size = 100), @__command_UserNameOrEmail_0_1='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[Created], [u].[DateOfBirth], [u].[Email], [u].[EmailConfirmed], [u].[FirstName], [u].[IsActive], [u].[LastModified], [u].[LastName], [u].[PasswordHash], [u].[ProfilePic], [u].[SecurityStamp], [u].[Sub], [u].[UserName]
+FROM [app].[Users] AS [u]
+WHERE [u].[UserName] = @__command_UserNameOrEmail_0 OR [u].[Email] = @__command_UserNameOrEmail_0_1
+2025-08-06 16:17:25.384 +05:00 [INF] User signed in: aamirrajpot
+2025-08-06 16:17:25.392 +05:00 [INF] Setting HTTP status code 200.
+2025-08-06 16:17:25.400 +05:00 [INF] Writing value of type 'TokenResponseDto' as Json.
+2025-08-06 16:17:25.404 +05:00 [INF] Executed endpoint 'HTTP: POST /api/users/users/signin'
+2025-08-06 16:17:25.407 +05:00 [INF] Request finished HTTP/1.1 POST http://localhost:5000/api/users/users/signin - 200 null application/json; charset=utf-8 2353.066ms
+2025-08-06 16:17:51.512 +05:00 [INF] Request starting HTTP/1.1 POST http://localhost:5000/api/users/users/upload-profile-pic-url - application/json 45
+2025-08-06 16:17:51.537 +05:00 [INF] Executing endpoint 'HTTP: POST /api/users/users/upload-profile-pic-url'
+2025-08-06 16:17:51.545 +05:00 [INF] 🔍 URL upload endpoint hit - Request Path: /api/users/users/upload-profile-pic-url
+2025-08-06 16:17:51.547 +05:00 [INF] 🔍 Request Method: POST
+2025-08-06 16:17:51.547 +05:00 [INF] 🔍 Content-Type: application/json
+2025-08-06 16:17:51.548 +05:00 [INF] ✅ User authenticated - UserId: "32691932-22b4-463b-ad9e-f81b469dcb64"
+2025-08-06 16:17:51.549 +05:00 [INF] 📁 DTO received - ImageUrl: https://example.com/image.jpg
+2025-08-06 16:17:51.550 +05:00 [INF] 🌐 Base URL constructed: http://localhost:5000
+2025-08-06 16:17:51.911 +05:00 [INF] Executed DbCommand (269ms) [Parameters=[@__p_0='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[Created], [u].[DateOfBirth], [u].[Email], [u].[EmailConfirmed], [u].[FirstName], [u].[IsActive], [u].[LastModified], [u].[LastName], [u].[PasswordHash], [u].[ProfilePic], [u].[SecurityStamp], [u].[Sub], [u].[UserName]
+FROM [app].[Users] AS [u]
+WHERE [u].[Id] = @__p_0
+2025-08-06 16:17:53.169 +05:00 [INF] Executed endpoint 'HTTP: POST /api/users/users/upload-profile-pic-url'
+2025-08-06 16:17:53.174 +05:00 [ERR] An unhandled exception occurred: Response status code does not indicate success: 404 (Not Found).
+System.Net.Http.HttpRequestException: Response status code does not indicate success: 404 (Not Found).
+   at System.Net.Http.HttpResponseMessage.EnsureSuccessStatusCode()
+   at System.Net.Http.HttpClient.GetByteArrayAsyncCore(HttpRequestMessage request, CancellationToken cancellationToken)
+   at Mindflow_Web_API.Services.UserService.UploadProfilePictureFromUrlAsync(Guid userId, String imageUrl, String baseUrl) in C:\Users\muhammad.aamir2810\Desktop\Personal\MindflowAIAPI\Mindflow Web API\Services\UserService.cs:line 452
+   at Mindflow_Web_API.EndPoints.UserEndpoints.<>c.<<MapUserEndpoints>b__0_26>d.MoveNext() in C:\Users\muhammad.aamir2810\Desktop\Personal\MindflowAIAPI\Mindflow Web API\EndPoints\UserEndpoints.cs:line 259
+--- End of stack trace from previous location ---
+   at Microsoft.AspNetCore.Http.RequestDelegateFactory.ExecuteTaskResult[T](Task`1 task, HttpContext httpContext)
+   at Microsoft.AspNetCore.Http.RequestDelegateFactory.<>c__DisplayClass101_2.<<HandleRequestBodyAndCompileRequestDelegateForJson>b__2>d.MoveNext()
+--- End of stack trace from previous location ---
+   at Microsoft.AspNetCore.Routing.EndpointMiddleware.<Invoke>g__AwaitRequestTask|7_0(Endpoint endpoint, Task requestTask, ILogger logger)
+   at Microsoft.AspNetCore.Authorization.AuthorizationMiddleware.Invoke(HttpContext context)
+   at Microsoft.AspNetCore.Authentication.AuthenticationMiddleware.Invoke(HttpContext context)
+   at Swashbuckle.AspNetCore.SwaggerUI.SwaggerUIMiddleware.Invoke(HttpContext httpContext)
+   at Swashbuckle.AspNetCore.Swagger.SwaggerMiddleware.Invoke(HttpContext httpContext, ISwaggerProvider swaggerProvider)
+   at Mindflow_Web_API.Middleware.GlobalExceptionHandler.InvokeAsync(HttpContext context) in C:\Users\muhammad.aamir2810\Desktop\Personal\MindflowAIAPI\Mindflow Web API\Middleware\GlobalExceptionHandler.cs:line 24
+2025-08-06 16:17:53.211 +05:00 [INF] Request finished HTTP/1.1 POST http://localhost:5000/api/users/users/upload-profile-pic-url - 500 null application/json 1698.6366ms
+2025-08-06 16:18:05.613 +05:00 [INF] Request starting HTTP/1.1 POST http://localhost:5000/api/users/users/upload-profile-pic-url - application/json 45
+2025-08-06 16:18:05.616 +05:00 [INF] Executing endpoint 'HTTP: POST /api/users/users/upload-profile-pic-url'
+2025-08-06 16:18:05.619 +05:00 [INF] 🔍 URL upload endpoint hit - Request Path: /api/users/users/upload-profile-pic-url
+2025-08-06 16:18:05.620 +05:00 [INF] 🔍 Request Method: POST
+2025-08-06 16:18:05.621 +05:00 [INF] 🔍 Content-Type: application/json
+2025-08-06 16:18:05.624 +05:00 [INF] ✅ User authenticated - UserId: "32691932-22b4-463b-ad9e-f81b469dcb64"
+2025-08-06 16:18:05.625 +05:00 [INF] 📁 DTO received - ImageUrl: https://picsum.photos/200/200
+2025-08-06 16:18:05.626 +05:00 [INF] 🌐 Base URL constructed: http://localhost:5000
+2025-08-06 16:18:05.899 +05:00 [INF] Executed DbCommand (270ms) [Parameters=[@__p_0='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[Created], [u].[DateOfBirth], [u].[Email], [u].[EmailConfirmed], [u].[FirstName], [u].[IsActive], [u].[LastModified], [u].[LastName], [u].[PasswordHash], [u].[ProfilePic], [u].[SecurityStamp], [u].[Sub], [u].[UserName]
+FROM [app].[Users] AS [u]
+WHERE [u].[Id] = @__p_0
+2025-08-06 16:18:15.147 +05:00 [INF] Executed DbCommand (291ms) [Parameters=[@p1='?' (DbType = Guid), @p0='?' (Size = 4000)], CommandType='"Text"', CommandTimeout='30']
+SET IMPLICIT_TRANSACTIONS OFF;
+SET NOCOUNT ON;
+UPDATE [app].[Users] SET [ProfilePic] = @p0
+OUTPUT INSERTED.[LastModified]
+WHERE [Id] = @p1;
+2025-08-06 16:18:15.167 +05:00 [INF] ✅ Upload successful - ProfilePicUrl: http://localhost:5000/profilepics/a42f42bf-9e3c-4e08-95e2-aa8615acd542.jpg
+2025-08-06 16:18:15.171 +05:00 [INF] Setting HTTP status code 200.
+2025-08-06 16:18:15.175 +05:00 [INF] Writing value of type '<>f__AnonymousType0`1' as Json.
+2025-08-06 16:18:15.178 +05:00 [INF] Executed endpoint 'HTTP: POST /api/users/users/upload-profile-pic-url'
+2025-08-06 16:18:15.179 +05:00 [INF] Request finished HTTP/1.1 POST http://localhost:5000/api/users/users/upload-profile-pic-url - 200 null application/json; charset=utf-8 9566.1375ms
+2025-08-06 16:19:13.662 +05:00 [INF] Request starting HTTP/1.1 POST http://localhost:5000/api/users/users/upload-profile-pic-base64 - application/json 456
+2025-08-06 16:19:13.666 +05:00 [INF] Executing endpoint 'HTTP: POST /api/users/users/upload-profile-pic-base64'
+2025-08-06 16:19:13.671 +05:00 [INF] 🔍 Base64 upload endpoint hit - Request Path: /api/users/users/upload-profile-pic-base64
+2025-08-06 16:19:13.673 +05:00 [INF] 🔍 Request Method: POST
+2025-08-06 16:19:13.675 +05:00 [INF] 🔍 Content-Type: application/json
+2025-08-06 16:19:13.676 +05:00 [INF] ✅ User authenticated - UserId: "32691932-22b4-463b-ad9e-f81b469dcb64"
+2025-08-06 16:19:13.677 +05:00 [INF] 📁 DTO received - FileName: test-image.jpg, ImageLength: 407
+2025-08-06 16:19:13.677 +05:00 [INF] 🌐 Base URL constructed: http://localhost:5000
+2025-08-06 16:19:13.679 +05:00 [INF] 🚀 Starting base64 upload - UserId: "32691932-22b4-463b-ad9e-f81b469dcb64", FileName: test-image.jpg
+2025-08-06 16:19:13.680 +05:00 [INF] 📝 Processing base64 data - Length: 407
+2025-08-06 16:19:13.681 +05:00 [INF] 🔧 Removed data URL prefix - New length: 384
+2025-08-06 16:19:13.682 +05:00 [INF] ✅ Base64 validation passed
+2025-08-06 16:19:13.682 +05:00 [INF] ✅ File type validation passed - Extension: .jpg
+2025-08-06 16:19:13.683 +05:00 [INF] ✅ File size validation passed - Size: 287 bytes
+2025-08-06 16:19:13.940 +05:00 [INF] Executed DbCommand (253ms) [Parameters=[@__p_0='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[Created], [u].[DateOfBirth], [u].[Email], [u].[EmailConfirmed], [u].[FirstName], [u].[IsActive], [u].[LastModified], [u].[LastName], [u].[PasswordHash], [u].[ProfilePic], [u].[SecurityStamp], [u].[Sub], [u].[UserName]
+FROM [app].[Users] AS [u]
+WHERE [u].[Id] = @__p_0
+2025-08-06 16:19:13.945 +05:00 [INF] 🗑️ Deleted old profile picture: wwwroot\profilepics\a42f42bf-9e3c-4e08-95e2-aa8615acd542.jpg
+2025-08-06 16:19:13.948 +05:00 [INF] 💾 Saving file - Path: wwwroot\profilepics\7e61e025-396f-41dd-aa95-a7a31ec9be2d_test-image.jpg, FileName: 7e61e025-396f-41dd-aa95-a7a31ec9be2d_test-image.jpg
+2025-08-06 16:19:13.952 +05:00 [INF] 🔗 Generated profile pic URL: http://localhost:5000/profilepics/7e61e025-396f-41dd-aa95-a7a31ec9be2d_test-image.jpg
+2025-08-06 16:19:14.212 +05:00 [INF] Executed DbCommand (258ms) [Parameters=[@p1='?' (DbType = Guid), @p0='?' (Size = 4000)], CommandType='"Text"', CommandTimeout='30']
+SET IMPLICIT_TRANSACTIONS OFF;
+SET NOCOUNT ON;
+UPDATE [app].[Users] SET [ProfilePic] = @p0
+OUTPUT INSERTED.[LastModified]
+WHERE [Id] = @p1;
+2025-08-06 16:19:14.216 +05:00 [INF] 💾 Updated user profile in database - UserId: "32691932-22b4-463b-ad9e-f81b469dcb64"
+2025-08-06 16:19:14.217 +05:00 [INF] ✅ Base64 upload completed successfully
+2025-08-06 16:19:14.219 +05:00 [INF] ✅ Upload successful - ProfilePicUrl: http://localhost:5000/profilepics/7e61e025-396f-41dd-aa95-a7a31ec9be2d_test-image.jpg
+2025-08-06 16:19:14.221 +05:00 [INF] Setting HTTP status code 200.
+2025-08-06 16:19:14.223 +05:00 [INF] Writing value of type '<>f__AnonymousType0`1' as Json.
+2025-08-06 16:19:14.225 +05:00 [INF] Executed endpoint 'HTTP: POST /api/users/users/upload-profile-pic-base64'
+2025-08-06 16:19:14.226 +05:00 [INF] Request finished HTTP/1.1 POST http://localhost:5000/api/users/users/upload-profile-pic-base64 - 200 null application/json; charset=utf-8 564.4357ms
+2025-08-06 16:32:18.363 +05:00 [INF] Executed DbCommand (307ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-06 16:32:18.407 +05:00 [INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+2025-08-06 16:32:18.687 +05:00 [INF] Executed DbCommand (274ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+2025-08-06 16:32:19.311 +05:00 [INF] Executed DbCommand (309ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+2025-08-06 16:32:20.140 +05:00 [INF] Executed DbCommand (268ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-06 16:32:20.409 +05:00 [INF] Executed DbCommand (260ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2025-08-06 16:32:20.687 +05:00 [INF] Executed DbCommand (271ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2025-08-06 16:32:20.700 +05:00 [INF] No migrations were applied. The database is already up to date.
+2025-08-06 16:32:21.160 +05:00 [INF] Executed DbCommand (255ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-08-06 16:32:21.740 +05:00 [INF] Executed DbCommand (268ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_releaseapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session';
+SELECT @result
+2025-08-06 16:32:22.069 +05:00 [INF] Executed DbCommand (301ms) [Parameters=[@__adminEmail_0='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [app].[Users] AS [u]
+        WHERE [u].[Email] = @__adminEmail_0) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+2025-08-06 16:32:22.096 +05:00 [INF] User profile is available. Using 'C:\Users\muhammad.aamir2810\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2025-08-06 16:32:22.195 +05:00 [INF] Now listening on: http://localhost:5000
+2025-08-06 16:32:22.199 +05:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-08-06 16:32:22.200 +05:00 [INF] Hosting environment: Development
+2025-08-06 16:32:22.201 +05:00 [INF] Content root path: C:\Users\muhammad.aamir2810\Desktop\Personal\MindflowAIAPI\Mindflow Web API
+2025-08-06 16:32:47.086 +05:00 [INF] Request starting HTTP/1.1 GET http://localhost:5000/api/users/test-routing - null null
+2025-08-06 16:32:47.145 +05:00 [WRN] Failed to determine the https port for redirect.
+2025-08-06 16:32:47.166 +05:00 [INF] Executing endpoint 'HTTP: GET /api/users/test-routing'
+2025-08-06 16:32:47.169 +05:00 [INF] 🎯 Test routing endpoint hit successfully!
+2025-08-06 16:32:47.172 +05:00 [INF] Setting HTTP status code 200.
+2025-08-06 16:32:47.180 +05:00 [INF] Writing value of type '<>f__AnonymousType2`3' as Json.
+2025-08-06 16:32:47.185 +05:00 [INF] Executed endpoint 'HTTP: GET /api/users/test-routing'
+2025-08-06 16:32:47.188 +05:00 [INF] Request finished HTTP/1.1 GET http://localhost:5000/api/users/test-routing - 200 null application/json; charset=utf-8 103.0856ms
+2025-08-06 16:32:53.456 +05:00 [INF] Request starting HTTP/1.1 GET http://localhost:5000/swagger/index.html - null null
+2025-08-06 16:32:53.514 +05:00 [INF] Request finished HTTP/1.1 GET http://localhost:5000/swagger/index.html - 200 null text/html;charset=utf-8 58.06ms
+2025-08-06 16:32:53.571 +05:00 [INF] Request starting HTTP/1.1 GET http://localhost:5000/swagger/v1/swagger.json - null null
+2025-08-06 16:32:53.585 +05:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2025-08-06 16:32:53.652 +05:00 [INF] Request finished HTTP/1.1 GET http://localhost:5000/swagger/v1/swagger.json - 200 null application/json;charset=utf-8 80.8708ms
+2025-08-06 16:32:54.268 +05:00 [INF] Request starting HTTP/1.1 GET http://localhost:5000/swagger/index.html - null null
+2025-08-06 16:32:54.273 +05:00 [INF] Request finished HTTP/1.1 GET http://localhost:5000/swagger/index.html - 200 null text/html;charset=utf-8 4.9287ms
+2025-08-06 16:32:54.332 +05:00 [INF] Request starting HTTP/1.1 GET http://localhost:5000/swagger/v1/swagger.json - null null
+2025-08-06 16:32:54.354 +05:00 [INF] Request finished HTTP/1.1 GET http://localhost:5000/swagger/v1/swagger.json - 200 null application/json;charset=utf-8 21.8248ms

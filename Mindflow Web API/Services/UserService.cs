@@ -302,8 +302,15 @@ namespace Mindflow_Web_API.Services
 
         public async Task<string> UploadProfilePictureBase64Async(Guid userId, string base64Image, string fileName, string baseUrl)
         {
+            _logger.LogInformation("🚀 Starting base64 upload - UserId: {UserId}, FileName: {FileName}", userId, fileName);
+            
             if (string.IsNullOrEmpty(base64Image))
+            {
+                _logger.LogError("❌ No image data provided");
                 throw ApiExceptions.ValidationError("No image data provided.");
+            }
+
+            _logger.LogInformation("📝 Processing base64 data - Length: {Length}", base64Image.Length);
 
             // Remove data URL prefix if present
             var imageData = base64Image;
@@ -313,6 +320,7 @@ namespace Mindflow_Web_API.Services
                 if (commaIndex > 0)
                 {
                     imageData = base64Image.Substring(commaIndex + 1);
+                    _logger.LogInformation("🔧 Removed data URL prefix - New length: {Length}", imageData.Length);
                 }
             }
 
@@ -320,9 +328,11 @@ namespace Mindflow_Web_API.Services
             try
             {
                 Convert.FromBase64String(imageData);
+                _logger.LogInformation("✅ Base64 validation passed");
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogError("❌ Invalid base64 image data: {Error}", ex.Message);
                 throw ApiExceptions.ValidationError("Invalid base64 image data.");
             }
 
@@ -330,17 +340,30 @@ namespace Mindflow_Web_API.Services
             var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
             var extension = Path.GetExtension(fileName).ToLowerInvariant();
             if (!allowedExtensions.Contains(extension))
+            {
+                _logger.LogError("❌ Invalid file type: {Extension}", extension);
                 throw ApiExceptions.ValidationError("Invalid file type. Only jpg, jpeg, png, gif, and webp are allowed.");
+            }
+
+            _logger.LogInformation("✅ File type validation passed - Extension: {Extension}", extension);
 
             // Validate file size (max 2MB)
             const long maxFileSize = 2 * 1024 * 1024; // 2MB
             var imageBytes = Convert.FromBase64String(imageData);
             if (imageBytes.Length > maxFileSize)
+            {
+                _logger.LogError("❌ File size exceeds limit - Size: {Size} bytes, Max: {MaxSize} bytes", imageBytes.Length, maxFileSize);
                 throw ApiExceptions.ValidationError("File size exceeds 2MB limit.");
+            }
+
+            _logger.LogInformation("✅ File size validation passed - Size: {Size} bytes", imageBytes.Length);
 
             var uploads = Path.Combine("wwwroot", "profilepics");
             if (!Directory.Exists(uploads))
+            {
                 Directory.CreateDirectory(uploads);
+                _logger.LogInformation("📁 Created uploads directory: {Directory}", uploads);
+            }
 
             // Find user and delete old profile pic if exists
             var user = await _dbContext.Users.FindAsync(userId);
@@ -357,25 +380,36 @@ namespace Mindflow_Web_API.Services
                         if (File.Exists(oldFilePath))
                         {
                             File.Delete(oldFilePath);
+                            _logger.LogInformation("🗑️ Deleted old profile picture: {FilePath}", oldFilePath);
                         }
                     }
                 }
-                catch { /* Ignore file deletion errors */ }
+                catch (Exception ex) 
+                { 
+                    _logger.LogWarning("⚠️ Failed to delete old profile picture: {Error}", ex.Message);
+                }
             }
 
             var sanitizedFileName = SanitizeFileName(fileName);
             var newFileName = $"{Guid.NewGuid()}_{sanitizedFileName}";
             var filePath = Path.Combine(uploads, newFileName);
+            
+            _logger.LogInformation("💾 Saving file - Path: {FilePath}, FileName: {FileName}", filePath, newFileName);
+            
             await File.WriteAllBytesAsync(filePath, imageBytes);
             
             var profilePicUrl = $"{baseUrl}/profilepics/{newFileName}";
+            _logger.LogInformation("🔗 Generated profile pic URL: {Url}", profilePicUrl);
 
             // Save to DB
             if (user != null)
             {
                 user.ProfilePic = profilePicUrl;
                 await _dbContext.SaveChangesAsync();
+                _logger.LogInformation("💾 Updated user profile in database - UserId: {UserId}", userId);
             }
+            
+            _logger.LogInformation("✅ Base64 upload completed successfully");
             return profilePicUrl;
         }
 
