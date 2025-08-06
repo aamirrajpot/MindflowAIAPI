@@ -8,8 +8,6 @@ namespace Mindflow_Web_API.Models
         public Guid UserId { get; set; }
         public string MoodLevel { get; set; }            // 'neutral', 'happy', 'sad'
         public DateTime CheckInDate { get; set; }
-        public string? WeekdayFreeTime { get; set; }
-        public string? WeekendFreeTime { get; set; }
         public bool ReminderEnabled { get; set; }
         public string? ReminderTime { get; set; }
         public string? AgeRange { get; set; }         // 'Under 18', '18-24', '25-34', '35-44', '45-54', '55+'
@@ -21,6 +19,18 @@ namespace Mindflow_Web_API.Models
         public string? ToughDayMessage { get; set; }  // Message for tough days (max 500 chars)
         public string[]? CopingMechanisms { get; set; } // What helps when overwhelmed (multiple selection)
         public string? JoyPeaceSources { get; set; }  // What gives joy or peace (max 500 chars)
+        
+        // 4 fields for WeekdayFreeTime (replacing WeekdayFreeTime)
+        public string? WeekdayStartTime { get; set; }      // Weekday start time (e.g., "09:30")
+        public string? WeekdayStartShift { get; set; }     // Weekday start AM/PM
+        public string? WeekdayEndTime { get; set; }        // Weekday end time (e.g., "17:30")
+        public string? WeekdayEndShift { get; set; }       // Weekday end AM/PM
+        
+        // 4 fields for WeekendFreeTime (replacing WeekendFreeTime)
+        public string? WeekendStartTime { get; set; }      // Weekend start time (e.g., "10:00")
+        public string? WeekendStartShift { get; set; }     // Weekend start AM/PM
+        public string? WeekendEndTime { get; set; }        // Weekend end time (e.g., "18:00")
+        public string? WeekendEndShift { get; set; }       // Weekend end AM/PM
 
         // Private constructor for ORM frameworks
         private WellnessCheckIn()
@@ -28,13 +38,11 @@ namespace Mindflow_Web_API.Models
             MoodLevel = string.Empty;
         }
 
-        private WellnessCheckIn(Guid userId, string mood, DateTime checkInDate, string? weekdayFreeTime, string? weekendFreeTime, bool reminderEnabled, string? reminderTime, string? ageRange, string[]? focusAreas, string? stressNotes, string? thoughtTrackingMethod, string[]? supportAreas, string? selfCareFrequency, string? toughDayMessage, string[]? copingMechanisms, string? joyPeaceSources)
+        private WellnessCheckIn(Guid userId, string mood, DateTime checkInDate, bool reminderEnabled, string? reminderTime, string? ageRange, string[]? focusAreas, string? stressNotes, string? thoughtTrackingMethod, string[]? supportAreas, string? selfCareFrequency, string? toughDayMessage, string[]? copingMechanisms, string? joyPeaceSources, string? weekdayStartTime, string? weekdayStartShift, string? weekdayEndTime, string? weekdayEndShift, string? weekendStartTime, string? weekendStartShift, string? weekendEndTime, string? weekendEndShift)
         {
             UserId = userId;
             MoodLevel = mood;
             CheckInDate = checkInDate;
-            WeekdayFreeTime = weekdayFreeTime;
-            WeekendFreeTime = weekendFreeTime;
             ReminderEnabled = reminderEnabled;
             ReminderTime = reminderTime;
             AgeRange = ageRange;
@@ -46,22 +54,28 @@ namespace Mindflow_Web_API.Models
             ToughDayMessage = toughDayMessage;
             CopingMechanisms = copingMechanisms;
             JoyPeaceSources = joyPeaceSources;
+            WeekdayStartTime = weekdayStartTime;
+            WeekdayStartShift = weekdayStartShift;
+            WeekdayEndTime = weekdayEndTime;
+            WeekdayEndShift = weekdayEndShift;
+            WeekendStartTime = weekendStartTime;
+            WeekendStartShift = weekendStartShift;
+            WeekendEndTime = weekendEndTime;
+            WeekendEndShift = weekendEndShift;
         }
 
-        public static WellnessCheckIn Create(Guid userId, string mood, DateTime checkInDate, string? weekdayFreeTime = null, string? weekendFreeTime = null, bool reminderEnabled = false, string? reminderTime = null, string? ageRange = null, string[]? focusAreas = null, string? stressNotes = null, string? thoughtTrackingMethod = null, string[]? supportAreas = null, string? selfCareFrequency = null, string? toughDayMessage = null, string[]? copingMechanisms = null, string? joyPeaceSources = null)
+        public static WellnessCheckIn Create(Guid userId, string mood, DateTime checkInDate, bool reminderEnabled = false, string? reminderTime = null, string? ageRange = null, string[]? focusAreas = null, string? stressNotes = null, string? thoughtTrackingMethod = null, string[]? supportAreas = null, string? selfCareFrequency = null, string? toughDayMessage = null, string[]? copingMechanisms = null, string? joyPeaceSources = null, string? weekdayStartTime = null, string? weekdayStartShift = null, string? weekdayEndTime = null, string? weekdayEndShift = null, string? weekendStartTime = null, string? weekendStartShift = null, string? weekendEndTime = null, string? weekendEndShift = null)
         {
-            ValidateInputs(mood, checkInDate, ageRange, focusAreas, stressNotes, thoughtTrackingMethod, supportAreas, selfCareFrequency, toughDayMessage, copingMechanisms, joyPeaceSources);
-            return new WellnessCheckIn(userId, mood, checkInDate, weekdayFreeTime, weekendFreeTime, reminderEnabled, reminderTime, ageRange, focusAreas, stressNotes, thoughtTrackingMethod, supportAreas, selfCareFrequency, toughDayMessage, copingMechanisms, joyPeaceSources);
+            ValidateInputs(mood, checkInDate, ageRange, focusAreas, stressNotes, thoughtTrackingMethod, supportAreas, selfCareFrequency, toughDayMessage, copingMechanisms, joyPeaceSources, weekdayStartTime, weekdayStartShift, weekdayEndTime, weekdayEndShift, weekendStartTime, weekendStartShift, weekendEndTime, weekendEndShift);
+            return new WellnessCheckIn(userId, mood, checkInDate, reminderEnabled, reminderTime, ageRange, focusAreas, stressNotes, thoughtTrackingMethod, supportAreas, selfCareFrequency, toughDayMessage, copingMechanisms, joyPeaceSources, weekdayStartTime, weekdayStartShift, weekdayEndTime, weekdayEndShift, weekendStartTime, weekendStartShift, weekendEndTime, weekendEndShift);
         }
 
-        public void Update(string mood, DateTime checkInDate, string? weekdayFreeTime, string? weekendFreeTime, bool reminderEnabled, string? reminderTime, string? ageRange, string[]? focusAreas, string? stressNotes, string? thoughtTrackingMethod, string[]? supportAreas, string? selfCareFrequency, string? toughDayMessage, string[]? copingMechanisms, string? joyPeaceSources)
+        public void Update(string mood, DateTime checkInDate, bool reminderEnabled, string? reminderTime, string? ageRange, string[]? focusAreas, string? stressNotes, string? thoughtTrackingMethod, string[]? supportAreas, string? selfCareFrequency, string? toughDayMessage, string[]? copingMechanisms, string? joyPeaceSources, string? weekdayStartTime, string? weekdayStartShift, string? weekdayEndTime, string? weekdayEndShift, string? weekendStartTime, string? weekendStartShift, string? weekendEndTime, string? weekendEndShift)
         {
-            ValidateInputs(mood, checkInDate, ageRange, focusAreas, stressNotes, thoughtTrackingMethod, supportAreas, selfCareFrequency, toughDayMessage, copingMechanisms, joyPeaceSources);
+            ValidateInputs(mood, checkInDate, ageRange, focusAreas, stressNotes, thoughtTrackingMethod, supportAreas, selfCareFrequency, toughDayMessage, copingMechanisms, joyPeaceSources, weekdayStartTime, weekdayStartShift, weekdayEndTime, weekdayEndShift, weekendStartTime, weekendStartShift, weekendEndTime, weekendEndShift);
 
             MoodLevel = mood;
             CheckInDate = checkInDate;
-            WeekdayFreeTime = weekdayFreeTime;
-            WeekendFreeTime = weekendFreeTime;
             ReminderEnabled = reminderEnabled;
             ReminderTime = reminderTime;
             AgeRange = ageRange;
@@ -73,11 +87,19 @@ namespace Mindflow_Web_API.Models
             ToughDayMessage = toughDayMessage;
             CopingMechanisms = copingMechanisms;
             JoyPeaceSources = joyPeaceSources;
+            WeekdayStartTime = weekdayStartTime;
+            WeekdayStartShift = weekdayStartShift;
+            WeekdayEndTime = weekdayEndTime;
+            WeekdayEndShift = weekdayEndShift;
+            WeekendStartTime = weekendStartTime;
+            WeekendStartShift = weekendStartShift;
+            WeekendEndTime = weekendEndTime;
+            WeekendEndShift = weekendEndShift;
 
             UpdateLastModified();
         }
 
-        private static void ValidateInputs(string mood, DateTime checkInDate, string? ageRange, string[]? focusAreas, string? stressNotes, string? thoughtTrackingMethod, string[]? supportAreas, string? selfCareFrequency, string? toughDayMessage, string[]? copingMechanisms, string? joyPeaceSources)
+        private static void ValidateInputs(string mood, DateTime checkInDate, string? ageRange, string[]? focusAreas, string? stressNotes, string? thoughtTrackingMethod, string[]? supportAreas, string? selfCareFrequency, string? toughDayMessage, string[]? copingMechanisms, string? joyPeaceSources, string? weekdayStartTime, string? weekdayStartShift, string? weekdayEndTime, string? weekdayEndShift, string? weekendStartTime, string? weekendStartShift, string? weekendEndTime, string? weekendEndShift)
         {
             if (string.IsNullOrWhiteSpace(mood) || !MoodHelper.IsValidMood(mood))
                 throw new ArgumentException("Mood level must be one of: 'Shopping', 'Okay', 'Stressed', 'Overwhelmed'.", nameof(mood));
@@ -111,6 +133,32 @@ namespace Mindflow_Web_API.Models
 
             if (!string.IsNullOrWhiteSpace(joyPeaceSources) && joyPeaceSources.Length > 500)
                 throw new ArgumentException("Joy/peace sources cannot exceed 500 characters.", nameof(joyPeaceSources));
+
+            // Validate time fields
+            ValidateTimeField(weekdayStartTime, weekdayStartShift, weekdayEndTime, weekdayEndShift, "Weekday");
+            ValidateTimeField(weekendStartTime, weekendStartShift, weekendEndTime, weekendEndShift, "Weekend");
+        }
+
+        private static void ValidateTimeField(string? startTime, string? startShift, string? endTime, string? endShift, string timeType)
+        {
+            if (!string.IsNullOrWhiteSpace(startShift) && startShift != "AM" && startShift != "PM")
+                throw new ArgumentException($"{timeType} start time shift must be either 'AM' or 'PM'.", nameof(startShift));
+
+            if (!string.IsNullOrWhiteSpace(endShift) && endShift != "AM" && endShift != "PM")
+                throw new ArgumentException($"{timeType} end time shift must be either 'AM' or 'PM'.", nameof(endShift));
+
+            if (!string.IsNullOrWhiteSpace(startTime) && !IsValidTimeFormat(startTime))
+                throw new ArgumentException($"{timeType} start time must be in HH:MM format (e.g., '09:30').", nameof(startTime));
+
+            if (!string.IsNullOrWhiteSpace(endTime) && !IsValidTimeFormat(endTime))
+                throw new ArgumentException($"{timeType} end time must be in HH:MM format (e.g., '17:30').", nameof(endTime));
+        }
+
+        private static bool IsValidTimeFormat(string time)
+        {
+            if (string.IsNullOrWhiteSpace(time)) return true;
+            
+            return System.Text.RegularExpressions.Regex.IsMatch(time, @"^([01]?[0-9]|2[0-3]):[0-5][0-9]$");
         }
     }
 } 

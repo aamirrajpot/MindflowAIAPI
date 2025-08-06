@@ -25,11 +25,29 @@ namespace Mindflow_Web_API.Persistence.Configurations
             builder.Property(w => w.CheckInDate)
                    .IsRequired();
 
-            builder.Property(w => w.WeekdayFreeTime)
-                   .HasMaxLength(100);
+            builder.Property(w => w.WeekdayStartTime)
+                   .HasMaxLength(10);
 
-            builder.Property(w => w.WeekendFreeTime)
-                   .HasMaxLength(100);
+            builder.Property(w => w.WeekdayStartShift)
+                   .HasMaxLength(2);
+
+            builder.Property(w => w.WeekdayEndTime)
+                   .HasMaxLength(10);
+
+            builder.Property(w => w.WeekdayEndShift)
+                   .HasMaxLength(2);
+
+            builder.Property(w => w.WeekendStartTime)
+                   .HasMaxLength(10);
+
+            builder.Property(w => w.WeekendStartShift)
+                   .HasMaxLength(2);
+
+            builder.Property(w => w.WeekendEndTime)
+                   .HasMaxLength(10);
+
+            builder.Property(w => w.WeekendEndShift)
+                   .HasMaxLength(2);
 
             builder.Property(w => w.ReminderTime)
                    .HasMaxLength(20);

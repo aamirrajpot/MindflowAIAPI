@@ -58,8 +58,8 @@ namespace Mindflow_Web_API.Utilities
                 - Tough Day Message: {checkIn.ToughDayMessage ?? "None provided"}
 
                 **Time & Preferences:**
-                - Weekday Free Time: {checkIn.WeekdayFreeTime ?? "Not specified"}
-                - Weekend Free Time: {checkIn.WeekendFreeTime ?? "Not specified"}
+                - Weekday Time: {checkIn.WeekdayStartTime ?? "Not specified"} {checkIn.WeekdayStartShift ?? ""} - {checkIn.WeekdayEndTime ?? "Not specified"} {checkIn.WeekdayEndShift ?? ""}
+                - Weekend Time: {checkIn.WeekendStartTime ?? "Not specified"} {checkIn.WeekendStartShift ?? ""} - {checkIn.WeekendEndTime ?? "Not specified"} {checkIn.WeekendEndShift ?? ""}
                 - Reminder Enabled: {checkIn.ReminderEnabled}
                 - Reminder Time: {checkIn.ReminderTime ?? "Not set"}
 
@@ -96,7 +96,7 @@ namespace Mindflow_Web_API.Utilities
                 **Available Resources:**
                 - Coping Mechanisms: {string.Join(", ", checkIn.CopingMechanisms ?? new string[0])}
                 - Joy Sources: {checkIn.JoyPeaceSources ?? "None specified"}
-                - Free Time: Weekdays - {checkIn.WeekdayFreeTime ?? "Not specified"}, Weekends - {checkIn.WeekendFreeTime ?? "Not specified"}
+                - Free Time: Weekdays - {checkIn.WeekdayStartTime ?? "Not specified"} {checkIn.WeekdayStartShift ?? ""} to {checkIn.WeekdayEndTime ?? "Not specified"} {checkIn.WeekdayEndShift ?? ""}, Weekends - {checkIn.WeekendStartTime ?? "Not specified"} {checkIn.WeekendStartShift ?? ""} to {checkIn.WeekendEndTime ?? "Not specified"} {checkIn.WeekendEndShift ?? ""}
 
                 **Task Requirements:**
                 1. Consider the user's current mood and stress level

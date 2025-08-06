@@ -35,9 +35,15 @@ namespace Mindflow_Web_API.Services
                     DateTime.MinValue,
                     DateTimeOffset.MinValue,
                     DateTimeOffset.MinValue,
-                    null,
-                    null,
                     false,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
                     null,
                     null,
                     null,
@@ -57,8 +63,6 @@ namespace Mindflow_Web_API.Services
                 checkIn.CheckInDate,
                 checkIn.Created,
                 checkIn.LastModified,
-                checkIn.WeekdayFreeTime,
-                checkIn.WeekendFreeTime,
                 checkIn.ReminderEnabled,
                 checkIn.ReminderTime,
                 checkIn.AgeRange,
@@ -69,7 +73,15 @@ namespace Mindflow_Web_API.Services
                 checkIn.SelfCareFrequency,
                 checkIn.ToughDayMessage,
                 checkIn.CopingMechanisms,
-                checkIn.JoyPeaceSources
+                checkIn.JoyPeaceSources,
+                checkIn.WeekdayStartTime,
+                checkIn.WeekdayStartShift,
+                checkIn.WeekdayEndTime,
+                checkIn.WeekdayEndShift,
+                checkIn.WeekendStartTime,
+                checkIn.WeekendStartShift,
+                checkIn.WeekendEndTime,
+                checkIn.WeekendEndShift
             );
         }
 
@@ -93,8 +105,6 @@ namespace Mindflow_Web_API.Services
                     userId,
                     patchDto.MoodLevel ?? string.Empty,
                     DateTime.UtcNow,
-                    patchDto.WeekdayFreeTime,
-                    patchDto.WeekendFreeTime,
                     patchDto.ReminderEnabled ?? false,
                     patchDto.ReminderTime,
                     patchDto.AgeRange,
@@ -105,7 +115,15 @@ namespace Mindflow_Web_API.Services
                     patchDto.SelfCareFrequency,
                     patchDto.ToughDayMessage,
                     patchDto.CopingMechanisms,
-                    patchDto.JoyPeaceSources
+                    patchDto.JoyPeaceSources,
+                    patchDto.WeekdayStartTime,
+                    patchDto.WeekdayStartShift,
+                    patchDto.WeekdayEndTime,
+                    patchDto.WeekdayEndShift,
+                    patchDto.WeekendStartTime,
+                    patchDto.WeekendStartShift,
+                    patchDto.WeekendEndTime,
+                    patchDto.WeekendEndShift
                 );
                 checkIn.CheckInDate = DateTime.UtcNow;
                 await _dbContext.WellnessCheckIns.AddAsync(checkIn);
@@ -114,10 +132,6 @@ namespace Mindflow_Web_API.Services
             {
                 if (!string.IsNullOrEmpty(patchDto.MoodLevel))
                     checkIn.MoodLevel = patchDto.MoodLevel;
-                if (patchDto.WeekdayFreeTime != null)
-                    checkIn.WeekdayFreeTime = patchDto.WeekdayFreeTime;
-                if (patchDto.WeekendFreeTime != null)
-                    checkIn.WeekendFreeTime = patchDto.WeekendFreeTime;
                 if (patchDto.ReminderEnabled.HasValue)
                     checkIn.ReminderEnabled = patchDto.ReminderEnabled.Value;
                 if (patchDto.ReminderTime != null)
@@ -140,6 +154,22 @@ namespace Mindflow_Web_API.Services
                     checkIn.CopingMechanisms = patchDto.CopingMechanisms;
                 if (patchDto.JoyPeaceSources != null)
                     checkIn.JoyPeaceSources = patchDto.JoyPeaceSources;
+                if (patchDto.WeekdayStartTime != null)
+                    checkIn.WeekdayStartTime = patchDto.WeekdayStartTime;
+                if (patchDto.WeekdayStartShift != null)
+                    checkIn.WeekdayStartShift = patchDto.WeekdayStartShift;
+                if (patchDto.WeekdayEndTime != null)
+                    checkIn.WeekdayEndTime = patchDto.WeekdayEndTime;
+                if (patchDto.WeekdayEndShift != null)
+                    checkIn.WeekdayEndShift = patchDto.WeekdayEndShift;
+                if (patchDto.WeekendStartTime != null)
+                    checkIn.WeekendStartTime = patchDto.WeekendStartTime;
+                if (patchDto.WeekendStartShift != null)
+                    checkIn.WeekendStartShift = patchDto.WeekendStartShift;
+                if (patchDto.WeekendEndTime != null)
+                    checkIn.WeekendEndTime = patchDto.WeekendEndTime;
+                if (patchDto.WeekendEndShift != null)
+                    checkIn.WeekendEndShift = patchDto.WeekendEndShift;
                 checkIn.UpdateLastModified();
             }
             
@@ -162,8 +192,6 @@ namespace Mindflow_Web_API.Services
                 checkIn.CheckInDate,
                 checkIn.Created,
                 checkIn.LastModified,
-                checkIn.WeekdayFreeTime,
-                checkIn.WeekendFreeTime,
                 checkIn.ReminderEnabled,
                 checkIn.ReminderTime,
                 checkIn.AgeRange,
@@ -174,7 +202,15 @@ namespace Mindflow_Web_API.Services
                 checkIn.SelfCareFrequency,
                 checkIn.ToughDayMessage,
                 checkIn.CopingMechanisms,
-                checkIn.JoyPeaceSources
+                checkIn.JoyPeaceSources,
+                checkIn.WeekdayStartTime,
+                checkIn.WeekdayStartShift,
+                checkIn.WeekdayEndTime,
+                checkIn.WeekdayEndShift,
+                checkIn.WeekendStartTime,
+                checkIn.WeekendStartShift,
+                checkIn.WeekendEndTime,
+                checkIn.WeekendEndShift
             );
         }
     }
