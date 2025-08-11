@@ -12,7 +12,8 @@ namespace Mindflow_Web_API.DTOs
         string? TimeShift,
         int DurationMinutes,
         bool ReminderEnabled,
-        RepeatType RepeatType
+        RepeatType RepeatType,
+        Mindflow_Web_API.Models.TaskStatus Status
     );
 
     public record UpdateTaskItemDto(
@@ -26,7 +27,8 @@ namespace Mindflow_Web_API.DTOs
         int? DurationMinutes,
         bool? ReminderEnabled,
         RepeatType? RepeatType,
-        bool? IsApproved
+        bool? IsApproved,
+        Mindflow_Web_API.Models.TaskStatus? Status
     );
 
     public record TaskItemDto(
@@ -43,7 +45,9 @@ namespace Mindflow_Web_API.DTOs
         bool ReminderEnabled,
         RepeatType RepeatType,
         bool CreatedBySuggestionEngine,
-        bool IsApproved
+        bool IsApproved,
+        Mindflow_Web_API.Models.TaskStatus Status
     );
+    public record StatusUpdateDto(Mindflow_Web_API.Models.TaskStatus Status);
 
 }

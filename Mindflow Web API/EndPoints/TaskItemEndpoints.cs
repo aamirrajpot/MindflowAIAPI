@@ -34,13 +34,17 @@ namespace Mindflow_Web_API.EndPoints
                 var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
                 if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
                     throw ApiExceptions.Unauthorized("Invalid user token");
-                var tasks = await taskService.GetAllAsync(userId);
+                var dateStr = context.Request.Query["date"].FirstOrDefault();
+                DateTime? date = null;
+                if (!string.IsNullOrEmpty(dateStr) && DateTime.TryParse(dateStr, out var parsedDate))
+                    date = parsedDate.Date;
+                var tasks = await taskService.GetAllAsync(userId, date);
                 return Results.Ok(tasks);
             })
             .RequireAuthorization()
             .WithOpenApi(op => {
                 op.Summary = "Get all tasks";
-                op.Description = "Retrieves all tasks for the authenticated user.";
+                op.Description = "Retrieves all tasks for the authenticated user. Optionally filter by date (yyyy-MM-dd).";
                 return op;
             });
 
@@ -100,6 +104,26 @@ namespace Mindflow_Web_API.EndPoints
                 op.Description = "Deletes a specific task for the authenticated user.";
                 return op;
             });
+
+            tasksApi.MapPatch("/{taskId:guid}/status", async (Guid taskId, StatusUpdateDto dto, ITaskItemService taskService, HttpContext context) =>
+            {
+                if (!context.User.Identity?.IsAuthenticated ?? true)
+                    throw ApiExceptions.Unauthorized("User is not authenticated");
+                var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
+                if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+                    throw ApiExceptions.Unauthorized("Invalid user token");
+                var updated = await taskService.UpdateStatusAsync(userId, taskId, dto.Status);
+                if (updated == null)
+                    throw ApiExceptions.NotFound("Task not found");
+                return Results.Ok(updated);
+            })
+            .RequireAuthorization()
+            .WithOpenApi(op => {
+                op.Summary = "Update task status";
+                op.Description = "Updates the status of a specific task for the authenticated user.";
+                return op;
+            });
         }
     }
+
 }

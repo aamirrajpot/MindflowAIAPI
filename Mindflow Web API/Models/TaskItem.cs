@@ -17,5 +17,14 @@ namespace Mindflow_Web_API.Models
         public RepeatType RepeatType { get; set; } = RepeatType.Never;
         public bool CreatedBySuggestionEngine { get; set; }
         public bool IsApproved { get; set; }
+        public TaskStatus Status { get; set; } = TaskStatus.Pending;
+    }
+
+    public enum TaskStatus
+    {
+        Pending,
+        Completed,
+        Skipped,
+        Cancelled
     }
 }

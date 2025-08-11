@@ -650,3 +650,41 @@ WHERE [m].[Title] = N'Sonic the Hedgehog 3'
 DECLARE @result int;
 EXEC @result = sp_releaseapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session';
 SELECT @result
+2025-08-11 19:32:15.616 +05:00 [INF] Executed DbCommand (290ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-11 19:32:15.733 +05:00 [INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+2025-08-11 19:32:16.028 +05:00 [INF] Executed DbCommand (284ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+2025-08-11 19:32:16.868 +05:00 [INF] Executed DbCommand (322ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+2025-08-11 19:32:17.689 +05:00 [INF] Executed DbCommand (303ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-11 19:32:17.949 +05:00 [INF] Executed DbCommand (253ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2025-08-11 19:32:18.216 +05:00 [INF] Executed DbCommand (258ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2025-08-11 19:32:18.227 +05:00 [INF] Applying migration '20250811142906_AddTaskItemStatus'.
+2025-08-11 19:32:18.504 +05:00 [INF] Executed DbCommand (259ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+ALTER TABLE [app].[Tasks] ADD [Status] int NOT NULL DEFAULT 0;
+2025-08-11 19:32:18.759 +05:00 [INF] Executed DbCommand (253ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES (N'20250811142906_AddTaskItemStatus', N'9.0.2');
+2025-08-11 19:32:19.261 +05:00 [INF] Executed DbCommand (255ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-08-11 19:32:19.938 +05:00 [INF] Executed DbCommand (291ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_releaseapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session';
+SELECT @result

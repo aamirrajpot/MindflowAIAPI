@@ -33,7 +33,8 @@ namespace Mindflow_Web_API.Services
                 ReminderEnabled = dto.ReminderEnabled,
                 RepeatType = dto.RepeatType,
                 CreatedBySuggestionEngine = false,
-                IsApproved = true
+                IsApproved = true,
+                Status = dto.Status
             };
             await _dbContext.Tasks.AddAsync(task);
             await _dbContext.SaveChangesAsync();
@@ -48,7 +49,17 @@ namespace Mindflow_Web_API.Services
 
         public async Task<IEnumerable<TaskItemDto>> GetAllAsync(Guid userId)
         {
-            var tasks = await _dbContext.Tasks.Where(t => t.UserId == userId).ToListAsync();
+            return await GetAllAsync(userId, null);
+        }
+
+        public async Task<IEnumerable<TaskItemDto>> GetAllAsync(Guid userId, DateTime? date = null)
+        {
+            var query = _dbContext.Tasks.Where(t => t.UserId == userId);
+            if (date.HasValue)
+            {
+                query = query.Where(t => t.Date.Date == date.Value.Date);
+            }
+            var tasks = await query.ToListAsync();
             return tasks.Select(ToDto);
         }
 
@@ -67,6 +78,16 @@ namespace Mindflow_Web_API.Services
             if (dto.ReminderEnabled.HasValue) task.ReminderEnabled = dto.ReminderEnabled.Value;
             if (dto.RepeatType.HasValue) task.RepeatType = dto.RepeatType.Value;
             if (dto.IsApproved.HasValue) task.IsApproved = dto.IsApproved.Value;
+            if (dto.Status.HasValue) task.Status = dto.Status.Value;
+            await _dbContext.SaveChangesAsync();
+            return ToDto(task);
+        }
+
+        public async Task<TaskItemDto?> UpdateStatusAsync(Guid userId, Guid taskId, Mindflow_Web_API.Models.TaskStatus status)
+        {
+            var task = await _dbContext.Tasks.FirstOrDefaultAsync(t => t.Id == taskId && t.UserId == userId);
+            if (task == null) return null;
+            task.Status = status;
             await _dbContext.SaveChangesAsync();
             return ToDto(task);
         }
@@ -94,7 +115,8 @@ namespace Mindflow_Web_API.Services
             task.ReminderEnabled,
             task.RepeatType,
             task.CreatedBySuggestionEngine,
-            task.IsApproved
+            task.IsApproved,
+            task.Status
         );
     }
 }
