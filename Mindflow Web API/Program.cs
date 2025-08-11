@@ -109,6 +109,9 @@ builder.Services.AddTransient<IExternalAuthService, ExternalAuthService>();
 // Register AdminSeedService
 builder.Services.AddTransient<IAdminSeedService, AdminSeedService>();
 
+// Register TaskItem Service
+builder.Services.AddTransient<ITaskItemService, TaskItemService>();
+
 // Register OllamaService
 builder.Services.AddHttpClient<IOllamaService, OllamaService>(client =>
 {
@@ -167,6 +170,7 @@ app.UseAuthorization();
 
 app.MapUserEndpoints();
 app.MapWellnessCheckInEndpoints();
+app.MapTaskItemEndpoints();
 
 app.Run();
 

@@ -9,6 +9,7 @@ namespace Mindflow_Web_API.Persistence
         public DbSet<User> Users => Set<User>();
         public DbSet<UserOtp> UserOtps => Set<UserOtp>();
         public DbSet<WellnessCheckIn> WellnessCheckIns => Set<WellnessCheckIn>();
+        public DbSet<TaskItem> Tasks => Set<TaskItem>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
