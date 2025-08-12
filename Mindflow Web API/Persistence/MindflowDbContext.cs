@@ -10,6 +10,12 @@ namespace Mindflow_Web_API.Persistence
         public DbSet<UserOtp> UserOtps => Set<UserOtp>();
         public DbSet<WellnessCheckIn> WellnessCheckIns => Set<WellnessCheckIn>();
         public DbSet<TaskItem> Tasks => Set<TaskItem>();
+        public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
+        public DbSet<SubscriptionFeature> SubscriptionFeatures => Set<SubscriptionFeature>();
+        public DbSet<PlanFeature> PlanFeatures => Set<PlanFeature>();
+        public DbSet<UserSubscription> UserSubscriptions => Set<UserSubscription>();
+        public DbSet<PaymentCard> PaymentCards => Set<PaymentCard>();
+        public DbSet<PaymentHistory> PaymentHistory => Set<PaymentHistory>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

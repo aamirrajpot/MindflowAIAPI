@@ -46,6 +46,11 @@ namespace Mindflow_Web_API.Persistence.Configurations
             builder.Property(u => u.DateOfBirth)
                    .IsRequired(false);
 
+            builder.Property(u => u.Role)
+                   .HasConversion<string>()
+                   .HasMaxLength(20)
+                   .IsRequired();
+
             builder.Property(u => u.Created)
                    .IsRequired()
                    .ValueGeneratedOnAdd();
@@ -57,6 +62,7 @@ namespace Mindflow_Web_API.Persistence.Configurations
             // Indexes for performance
             builder.HasIndex(u => u.Email);
             builder.HasIndex(u => u.UserName);
+            builder.HasIndex(u => u.Role);
         }
     }
 } 

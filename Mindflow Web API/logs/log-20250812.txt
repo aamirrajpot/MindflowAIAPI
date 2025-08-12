@@ -1,0 +1,1459 @@
+2025-08-12 17:42:23.349 +05:00 [INF] Executed DbCommand (17ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-12 17:42:23.402 +05:00 [INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+2025-08-12 17:42:23.444 +05:00 [INF] Executed DbCommand (33ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+2025-08-12 17:42:23.550 +05:00 [INF] Executed DbCommand (7ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+2025-08-12 17:42:23.566 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-12 17:42:23.570 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2025-08-12 17:42:23.593 +05:00 [INF] Executed DbCommand (18ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2025-08-12 17:42:23.608 +05:00 [INF] Applying migration '20250811142906_AddTaskItemStatus'.
+2025-08-12 17:42:23.658 +05:00 [INF] Executed DbCommand (29ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+ALTER TABLE [app].[Tasks] ADD [Status] int NOT NULL DEFAULT 0;
+2025-08-12 17:42:23.668 +05:00 [INF] Executed DbCommand (6ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES (N'20250811142906_AddTaskItemStatus', N'9.0.2');
+2025-08-12 17:42:23.671 +05:00 [INF] Applying migration '20250812124048_AddPaymentEntities'.
+2025-08-12 17:42:23.740 +05:00 [INF] Executed DbCommand (11ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE TABLE [app].[PaymentCards] (
+    [Id] uniqueidentifier NOT NULL,
+    [UserId] uniqueidentifier NOT NULL,
+    [CardNumber] nvarchar(50) NOT NULL,
+    [CardholderName] nvarchar(100) NOT NULL,
+    [ExpiryMonth] nvarchar(2) NOT NULL,
+    [ExpiryYear] nvarchar(2) NOT NULL,
+    [CardType] nvarchar(50) NOT NULL,
+    [IsDefault] bit NOT NULL,
+    [IsActive] bit NOT NULL,
+    [LastFourDigits] nvarchar(4) NULL,
+    [Created] datetimeoffset NOT NULL,
+    [LastModified] datetimeoffset NOT NULL,
+    CONSTRAINT [PK_PaymentCards] PRIMARY KEY ([Id]),
+    CONSTRAINT [FK_PaymentCards_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [app].[Users] ([Id]) ON DELETE CASCADE
+);
+2025-08-12 17:42:23.749 +05:00 [INF] Executed DbCommand (4ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE TABLE [app].[SubscriptionFeatures] (
+    [Id] uniqueidentifier NOT NULL,
+    [Name] nvarchar(100) NOT NULL,
+    [Description] nvarchar(500) NOT NULL,
+    [IsActive] bit NOT NULL,
+    [SortOrder] int NOT NULL,
+    [Icon] nvarchar(100) NOT NULL,
+    [Created] datetimeoffset NOT NULL,
+    [LastModified] datetimeoffset NOT NULL,
+    CONSTRAINT [PK_SubscriptionFeatures] PRIMARY KEY ([Id])
+);
+2025-08-12 17:42:23.756 +05:00 [INF] Executed DbCommand (4ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE TABLE [app].[SubscriptionPlans] (
+    [Id] uniqueidentifier NOT NULL,
+    [Name] nvarchar(100) NOT NULL,
+    [Description] nvarchar(500) NOT NULL,
+    [Price] decimal(18,2) NOT NULL,
+    [BillingCycle] nvarchar(50) NOT NULL,
+    [IsActive] bit NOT NULL,
+    [SortOrder] int NOT NULL,
+    [OriginalPrice] nvarchar(50) NULL,
+    [IsPopular] bit NOT NULL,
+    [Created] datetimeoffset NOT NULL,
+    [LastModified] datetimeoffset NOT NULL,
+    CONSTRAINT [PK_SubscriptionPlans] PRIMARY KEY ([Id])
+);
+2025-08-12 17:42:23.790 +05:00 [ERR] Failed executing DbCommand (26ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE TABLE [app].[PaymentHistory] (
+    [Id] uniqueidentifier NOT NULL,
+    [UserId] uniqueidentifier NOT NULL,
+    [PaymentCardId] uniqueidentifier NULL,
+    [SubscriptionPlanId] uniqueidentifier NULL,
+    [Amount] decimal(18,2) NOT NULL,
+    [Currency] nvarchar(3) NOT NULL,
+    [Description] nvarchar(200) NOT NULL,
+    [Status] nvarchar(450) NOT NULL,
+    [TransactionId] nvarchar(100) NULL,
+    [PaymentMethod] nvarchar(50) NULL,
+    [FailureReason] nvarchar(500) NULL,
+    [TransactionDate] datetime2 NOT NULL,
+    [Created] datetimeoffset NOT NULL,
+    [LastModified] datetimeoffset NOT NULL,
+    CONSTRAINT [PK_PaymentHistory] PRIMARY KEY ([Id]),
+    CONSTRAINT [FK_PaymentHistory_PaymentCards_PaymentCardId] FOREIGN KEY ([PaymentCardId]) REFERENCES [app].[PaymentCards] ([Id]) ON DELETE SET NULL,
+    CONSTRAINT [FK_PaymentHistory_SubscriptionPlans_SubscriptionPlanId] FOREIGN KEY ([SubscriptionPlanId]) REFERENCES [app].[SubscriptionPlans] ([Id]) ON DELETE SET NULL,
+    CONSTRAINT [FK_PaymentHistory_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [app].[Users] ([Id]) ON DELETE CASCADE
+);
+2025-08-12 17:43:19.022 +05:00 [INF] Executed DbCommand (20ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-12 17:43:19.096 +05:00 [INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+2025-08-12 17:43:19.128 +05:00 [INF] Executed DbCommand (28ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+2025-08-12 17:43:19.547 +05:00 [INF] Executed DbCommand (4ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+2025-08-12 17:43:19.565 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-12 17:43:19.570 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2025-08-12 17:43:19.595 +05:00 [INF] Executed DbCommand (16ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2025-08-12 17:43:19.616 +05:00 [INF] Applying migration '20250811142906_AddTaskItemStatus'.
+2025-08-12 17:43:19.677 +05:00 [INF] Executed DbCommand (31ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+ALTER TABLE [app].[Tasks] ADD [Status] int NOT NULL DEFAULT 0;
+2025-08-12 17:43:19.683 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES (N'20250811142906_AddTaskItemStatus', N'9.0.2');
+2025-08-12 17:43:19.687 +05:00 [INF] Applying migration '20250812124048_AddPaymentEntities'.
+2025-08-12 17:43:19.774 +05:00 [INF] Executed DbCommand (15ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE TABLE [app].[PaymentCards] (
+    [Id] uniqueidentifier NOT NULL,
+    [UserId] uniqueidentifier NOT NULL,
+    [CardNumber] nvarchar(50) NOT NULL,
+    [CardholderName] nvarchar(100) NOT NULL,
+    [ExpiryMonth] nvarchar(2) NOT NULL,
+    [ExpiryYear] nvarchar(2) NOT NULL,
+    [CardType] nvarchar(50) NOT NULL,
+    [IsDefault] bit NOT NULL,
+    [IsActive] bit NOT NULL,
+    [LastFourDigits] nvarchar(4) NULL,
+    [Created] datetimeoffset NOT NULL,
+    [LastModified] datetimeoffset NOT NULL,
+    CONSTRAINT [PK_PaymentCards] PRIMARY KEY ([Id]),
+    CONSTRAINT [FK_PaymentCards_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [app].[Users] ([Id]) ON DELETE CASCADE
+);
+2025-08-12 17:43:19.783 +05:00 [INF] Executed DbCommand (5ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE TABLE [app].[SubscriptionFeatures] (
+    [Id] uniqueidentifier NOT NULL,
+    [Name] nvarchar(100) NOT NULL,
+    [Description] nvarchar(500) NOT NULL,
+    [IsActive] bit NOT NULL,
+    [SortOrder] int NOT NULL,
+    [Icon] nvarchar(100) NOT NULL,
+    [Created] datetimeoffset NOT NULL,
+    [LastModified] datetimeoffset NOT NULL,
+    CONSTRAINT [PK_SubscriptionFeatures] PRIMARY KEY ([Id])
+);
+2025-08-12 17:43:19.797 +05:00 [INF] Executed DbCommand (4ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE TABLE [app].[SubscriptionPlans] (
+    [Id] uniqueidentifier NOT NULL,
+    [Name] nvarchar(100) NOT NULL,
+    [Description] nvarchar(500) NOT NULL,
+    [Price] decimal(18,2) NOT NULL,
+    [BillingCycle] nvarchar(50) NOT NULL,
+    [IsActive] bit NOT NULL,
+    [SortOrder] int NOT NULL,
+    [OriginalPrice] nvarchar(50) NULL,
+    [IsPopular] bit NOT NULL,
+    [Created] datetimeoffset NOT NULL,
+    [LastModified] datetimeoffset NOT NULL,
+    CONSTRAINT [PK_SubscriptionPlans] PRIMARY KEY ([Id])
+);
+2025-08-12 17:43:19.827 +05:00 [ERR] Failed executing DbCommand (25ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE TABLE [app].[PaymentHistory] (
+    [Id] uniqueidentifier NOT NULL,
+    [UserId] uniqueidentifier NOT NULL,
+    [PaymentCardId] uniqueidentifier NULL,
+    [SubscriptionPlanId] uniqueidentifier NULL,
+    [Amount] decimal(18,2) NOT NULL,
+    [Currency] nvarchar(3) NOT NULL,
+    [Description] nvarchar(200) NOT NULL,
+    [Status] nvarchar(450) NOT NULL,
+    [TransactionId] nvarchar(100) NULL,
+    [PaymentMethod] nvarchar(50) NULL,
+    [FailureReason] nvarchar(500) NULL,
+    [TransactionDate] datetime2 NOT NULL,
+    [Created] datetimeoffset NOT NULL,
+    [LastModified] datetimeoffset NOT NULL,
+    CONSTRAINT [PK_PaymentHistory] PRIMARY KEY ([Id]),
+    CONSTRAINT [FK_PaymentHistory_PaymentCards_PaymentCardId] FOREIGN KEY ([PaymentCardId]) REFERENCES [app].[PaymentCards] ([Id]) ON DELETE SET NULL,
+    CONSTRAINT [FK_PaymentHistory_SubscriptionPlans_SubscriptionPlanId] FOREIGN KEY ([SubscriptionPlanId]) REFERENCES [app].[SubscriptionPlans] ([Id]) ON DELETE SET NULL,
+    CONSTRAINT [FK_PaymentHistory_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [app].[Users] ([Id]) ON DELETE CASCADE
+);
+2025-08-12 17:43:36.363 +05:00 [INF] Executed DbCommand (16ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-12 17:43:36.433 +05:00 [INF] Executed DbCommand (12ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2025-08-12 17:43:36.451 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2025-08-12 17:43:54.008 +05:00 [INF] Executed DbCommand (23ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-12 17:43:54.096 +05:00 [INF] Executed DbCommand (16ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2025-08-12 17:43:54.120 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2025-08-12 17:44:44.777 +05:00 [INF] Executed DbCommand (23ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-12 17:44:44.863 +05:00 [INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+2025-08-12 17:44:44.898 +05:00 [INF] Executed DbCommand (23ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+2025-08-12 17:44:45.041 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+2025-08-12 17:44:45.059 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-12 17:44:45.063 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2025-08-12 17:44:45.088 +05:00 [INF] Executed DbCommand (16ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2025-08-12 17:44:45.107 +05:00 [INF] Applying migration '20250811142906_AddTaskItemStatus'.
+2025-08-12 17:44:45.131 +05:00 [INF] Executed DbCommand (5ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+ALTER TABLE [app].[Tasks] ADD [Status] int NOT NULL DEFAULT 0;
+2025-08-12 17:44:45.141 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES (N'20250811142906_AddTaskItemStatus', N'9.0.2');
+2025-08-12 17:44:45.146 +05:00 [INF] Applying migration '20250812124421_AddSubscriptionAndPaymentEntities'.
+2025-08-12 17:44:45.221 +05:00 [INF] Executed DbCommand (12ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE TABLE [app].[PaymentCards] (
+    [Id] uniqueidentifier NOT NULL,
+    [UserId] uniqueidentifier NOT NULL,
+    [CardNumber] nvarchar(50) NOT NULL,
+    [CardholderName] nvarchar(100) NOT NULL,
+    [ExpiryMonth] nvarchar(2) NOT NULL,
+    [ExpiryYear] nvarchar(2) NOT NULL,
+    [CardType] nvarchar(50) NOT NULL,
+    [IsDefault] bit NOT NULL,
+    [IsActive] bit NOT NULL,
+    [LastFourDigits] nvarchar(4) NULL,
+    [Created] datetimeoffset NOT NULL,
+    [LastModified] datetimeoffset NOT NULL,
+    CONSTRAINT [PK_PaymentCards] PRIMARY KEY ([Id]),
+    CONSTRAINT [FK_PaymentCards_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [app].[Users] ([Id]) ON DELETE CASCADE
+);
+2025-08-12 17:44:45.228 +05:00 [INF] Executed DbCommand (4ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE TABLE [app].[SubscriptionFeatures] (
+    [Id] uniqueidentifier NOT NULL,
+    [Name] nvarchar(100) NOT NULL,
+    [Description] nvarchar(500) NOT NULL,
+    [IsActive] bit NOT NULL,
+    [SortOrder] int NOT NULL,
+    [Icon] nvarchar(100) NOT NULL,
+    [Created] datetimeoffset NOT NULL,
+    [LastModified] datetimeoffset NOT NULL,
+    CONSTRAINT [PK_SubscriptionFeatures] PRIMARY KEY ([Id])
+);
+2025-08-12 17:44:45.240 +05:00 [INF] Executed DbCommand (6ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE TABLE [app].[SubscriptionPlans] (
+    [Id] uniqueidentifier NOT NULL,
+    [Name] nvarchar(100) NOT NULL,
+    [Description] nvarchar(500) NOT NULL,
+    [Price] decimal(18,2) NOT NULL,
+    [BillingCycle] nvarchar(50) NOT NULL,
+    [IsActive] bit NOT NULL,
+    [SortOrder] int NOT NULL,
+    [OriginalPrice] nvarchar(50) NULL,
+    [IsPopular] bit NOT NULL,
+    [Created] datetimeoffset NOT NULL,
+    [LastModified] datetimeoffset NOT NULL,
+    CONSTRAINT [PK_SubscriptionPlans] PRIMARY KEY ([Id])
+);
+2025-08-12 17:44:45.259 +05:00 [INF] Executed DbCommand (13ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE TABLE [app].[PaymentHistory] (
+    [Id] uniqueidentifier NOT NULL,
+    [UserId] uniqueidentifier NOT NULL,
+    [PaymentCardId] uniqueidentifier NULL,
+    [SubscriptionPlanId] uniqueidentifier NULL,
+    [Amount] decimal(18,2) NOT NULL,
+    [Currency] nvarchar(3) NOT NULL,
+    [Description] nvarchar(200) NOT NULL,
+    [Status] nvarchar(450) NOT NULL,
+    [TransactionId] nvarchar(100) NULL,
+    [PaymentMethod] nvarchar(50) NULL,
+    [FailureReason] nvarchar(500) NULL,
+    [TransactionDate] datetime2 NOT NULL,
+    [Created] datetimeoffset NOT NULL,
+    [LastModified] datetimeoffset NOT NULL,
+    CONSTRAINT [PK_PaymentHistory] PRIMARY KEY ([Id]),
+    CONSTRAINT [FK_PaymentHistory_PaymentCards_PaymentCardId] FOREIGN KEY ([PaymentCardId]) REFERENCES [app].[PaymentCards] ([Id]) ON DELETE SET NULL,
+    CONSTRAINT [FK_PaymentHistory_SubscriptionPlans_SubscriptionPlanId] FOREIGN KEY ([SubscriptionPlanId]) REFERENCES [app].[SubscriptionPlans] ([Id]) ON DELETE SET NULL,
+    CONSTRAINT [FK_PaymentHistory_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [app].[Users] ([Id])
+);
+2025-08-12 17:44:45.277 +05:00 [INF] Executed DbCommand (14ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE TABLE [app].[PlanFeatures] (
+    [Id] uniqueidentifier NOT NULL,
+    [PlanId] uniqueidentifier NOT NULL,
+    [FeatureId] uniqueidentifier NOT NULL,
+    [IsIncluded] bit NOT NULL,
+    [Limit] nvarchar(100) NULL,
+    [SubscriptionPlanId] uniqueidentifier NULL,
+    [Created] datetimeoffset NOT NULL,
+    [LastModified] datetimeoffset NOT NULL,
+    CONSTRAINT [PK_PlanFeatures] PRIMARY KEY ([Id]),
+    CONSTRAINT [FK_PlanFeatures_SubscriptionFeatures_FeatureId] FOREIGN KEY ([FeatureId]) REFERENCES [app].[SubscriptionFeatures] ([Id]) ON DELETE CASCADE,
+    CONSTRAINT [FK_PlanFeatures_SubscriptionPlans_PlanId] FOREIGN KEY ([PlanId]) REFERENCES [app].[SubscriptionPlans] ([Id]) ON DELETE CASCADE,
+    CONSTRAINT [FK_PlanFeatures_SubscriptionPlans_SubscriptionPlanId] FOREIGN KEY ([SubscriptionPlanId]) REFERENCES [app].[SubscriptionPlans] ([Id])
+);
+2025-08-12 17:44:45.293 +05:00 [INF] Executed DbCommand (7ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE TABLE [app].[UserSubscriptions] (
+    [Id] uniqueidentifier NOT NULL,
+    [UserId] uniqueidentifier NOT NULL,
+    [PlanId] uniqueidentifier NOT NULL,
+    [StartDate] datetime2 NOT NULL,
+    [EndDate] datetime2 NULL,
+    [Status] nvarchar(450) NOT NULL,
+    [Created] datetimeoffset NOT NULL,
+    [LastModified] datetimeoffset NOT NULL,
+    CONSTRAINT [PK_UserSubscriptions] PRIMARY KEY ([Id]),
+    CONSTRAINT [FK_UserSubscriptions_SubscriptionPlans_PlanId] FOREIGN KEY ([PlanId]) REFERENCES [app].[SubscriptionPlans] ([Id]) ON DELETE NO ACTION,
+    CONSTRAINT [FK_UserSubscriptions_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [app].[Users] ([Id]) ON DELETE CASCADE
+);
+2025-08-12 17:44:45.308 +05:00 [INF] Executed DbCommand (9ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_PaymentCards_IsActive] ON [app].[PaymentCards] ([IsActive]);
+2025-08-12 17:44:45.316 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_PaymentCards_IsDefault] ON [app].[PaymentCards] ([IsDefault]);
+2025-08-12 17:44:45.322 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_PaymentCards_UserId] ON [app].[PaymentCards] ([UserId]);
+2025-08-12 17:44:45.328 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_PaymentHistory_PaymentCardId] ON [app].[PaymentHistory] ([PaymentCardId]);
+2025-08-12 17:44:45.337 +05:00 [INF] Executed DbCommand (4ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_PaymentHistory_Status] ON [app].[PaymentHistory] ([Status]);
+2025-08-12 17:44:45.358 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_PaymentHistory_SubscriptionPlanId] ON [app].[PaymentHistory] ([SubscriptionPlanId]);
+2025-08-12 17:44:45.367 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_PaymentHistory_TransactionDate] ON [app].[PaymentHistory] ([TransactionDate]);
+2025-08-12 17:44:45.373 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_PaymentHistory_TransactionId] ON [app].[PaymentHistory] ([TransactionId]);
+2025-08-12 17:44:45.379 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_PaymentHistory_UserId] ON [app].[PaymentHistory] ([UserId]);
+2025-08-12 17:44:45.387 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_PlanFeatures_FeatureId] ON [app].[PlanFeatures] ([FeatureId]);
+2025-08-12 17:44:45.393 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_PlanFeatures_IsIncluded] ON [app].[PlanFeatures] ([IsIncluded]);
+2025-08-12 17:44:45.399 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_PlanFeatures_PlanId] ON [app].[PlanFeatures] ([PlanId]);
+2025-08-12 17:44:45.407 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE UNIQUE INDEX [IX_PlanFeatures_PlanId_FeatureId] ON [app].[PlanFeatures] ([PlanId], [FeatureId]);
+2025-08-12 17:44:45.411 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_PlanFeatures_SubscriptionPlanId] ON [app].[PlanFeatures] ([SubscriptionPlanId]);
+2025-08-12 17:44:45.421 +05:00 [INF] Executed DbCommand (4ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_SubscriptionFeatures_IsActive] ON [app].[SubscriptionFeatures] ([IsActive]);
+2025-08-12 17:44:45.427 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_SubscriptionFeatures_Name] ON [app].[SubscriptionFeatures] ([Name]);
+2025-08-12 17:44:45.432 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_SubscriptionFeatures_SortOrder] ON [app].[SubscriptionFeatures] ([SortOrder]);
+2025-08-12 17:44:45.441 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_SubscriptionPlans_IsActive] ON [app].[SubscriptionPlans] ([IsActive]);
+2025-08-12 17:44:45.447 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_SubscriptionPlans_Name] ON [app].[SubscriptionPlans] ([Name]);
+2025-08-12 17:44:45.455 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_SubscriptionPlans_SortOrder] ON [app].[SubscriptionPlans] ([SortOrder]);
+2025-08-12 17:44:45.460 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_UserSubscriptions_EndDate] ON [app].[UserSubscriptions] ([EndDate]);
+2025-08-12 17:44:45.467 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_UserSubscriptions_PlanId] ON [app].[UserSubscriptions] ([PlanId]);
+2025-08-12 17:44:45.475 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_UserSubscriptions_StartDate] ON [app].[UserSubscriptions] ([StartDate]);
+2025-08-12 17:44:45.481 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_UserSubscriptions_Status] ON [app].[UserSubscriptions] ([Status]);
+2025-08-12 17:44:45.491 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_UserSubscriptions_UserId] ON [app].[UserSubscriptions] ([UserId]);
+2025-08-12 17:44:45.498 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES (N'20250812124421_AddSubscriptionAndPaymentEntities', N'9.0.2');
+2025-08-12 17:44:45.859 +05:00 [INF] Executed DbCommand (13ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-08-12 17:44:45.941 +05:00 [INF] Executed DbCommand (7ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_releaseapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session';
+SELECT @result
+2025-08-12 17:45:08.122 +05:00 [INF] Executed DbCommand (36ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-12 17:45:08.209 +05:00 [INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+2025-08-12 17:45:08.249 +05:00 [INF] Executed DbCommand (32ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+2025-08-12 17:45:08.376 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+2025-08-12 17:45:08.409 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-12 17:45:08.415 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2025-08-12 17:45:08.428 +05:00 [INF] Executed DbCommand (4ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2025-08-12 17:45:08.446 +05:00 [INF] No migrations were applied. The database is already up to date.
+2025-08-12 17:45:08.870 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-08-12 17:45:08.967 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_releaseapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session';
+SELECT @result
+2025-08-12 17:45:09.073 +05:00 [INF] Executed DbCommand (45ms) [Parameters=[@__adminEmail_0='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [app].[Users] AS [u]
+        WHERE [u].[Email] = @__adminEmail_0) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+2025-08-12 17:45:09.096 +05:00 [INF] Executed DbCommand (5ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [app].[SubscriptionPlans] AS [s]) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+2025-08-12 17:45:09.103 +05:00 [INF] Seeding subscription data...
+2025-08-12 17:45:09.331 +05:00 [INF] Executed DbCommand (20ms) [Parameters=[@p0='?' (DbType = Guid), @p1='?' (DbType = DateTimeOffset), @p2='?' (Size = 500), @p3='?' (Size = 100), @p4='?' (DbType = Boolean), @p5='?' (DbType = DateTimeOffset), @p6='?' (Size = 100), @p7='?' (DbType = Int32), @p8='?' (DbType = Guid), @p9='?' (DbType = DateTimeOffset), @p10='?' (Size = 500), @p11='?' (Size = 100), @p12='?' (DbType = Boolean), @p13='?' (DbType = DateTimeOffset), @p14='?' (Size = 100), @p15='?' (DbType = Int32), @p16='?' (DbType = Guid), @p17='?' (DbType = DateTimeOffset), @p18='?' (Size = 500), @p19='?' (Size = 100), @p20='?' (DbType = Boolean), @p21='?' (DbType = DateTimeOffset), @p22='?' (Size = 100), @p23='?' (DbType = Int32), @p24='?' (DbType = Guid), @p25='?' (DbType = DateTimeOffset), @p26='?' (Size = 500), @p27='?' (Size = 100), @p28='?' (DbType = Boolean), @p29='?' (DbType = DateTimeOffset), @p30='?' (Size = 100), @p31='?' (DbType = Int32), @p32='?' (DbType = Guid), @p33='?' (DbType = DateTimeOffset), @p34='?' (Size = 500), @p35='?' (Size = 100), @p36='?' (DbType = Boolean), @p37='?' (DbType = DateTimeOffset), @p38='?' (Size = 100), @p39='?' (DbType = Int32), @p40='?' (DbType = Guid), @p41='?' (DbType = DateTimeOffset), @p42='?' (Size = 500), @p43='?' (Size = 100), @p44='?' (DbType = Boolean), @p45='?' (DbType = DateTimeOffset), @p46='?' (Size = 100), @p47='?' (DbType = Int32), @p48='?' (DbType = Guid), @p49='?' (DbType = DateTimeOffset), @p50='?' (Size = 500), @p51='?' (Size = 100), @p52='?' (DbType = Boolean), @p53='?' (DbType = DateTimeOffset), @p54='?' (Size = 100), @p55='?' (DbType = Int32), @p56='?' (DbType = Guid), @p57='?' (DbType = DateTimeOffset), @p58='?' (Size = 500), @p59='?' (Size = 100), @p60='?' (DbType = Boolean), @p61='?' (DbType = DateTimeOffset), @p62='?' (Size = 100), @p63='?' (DbType = Int32), @p64='?' (DbType = Guid), @p65='?' (DbType = DateTimeOffset), @p66='?' (Size = 500), @p67='?' (Size = 100), @p68='?' (DbType = Boolean), @p69='?' (DbType = DateTimeOffset), @p70='?' (Size = 100), @p71='?' (DbType = Int32), @p72='?' (DbType = Guid), @p73='?' (DbType = DateTimeOffset), @p74='?' (Size = 500), @p75='?' (Size = 100), @p76='?' (DbType = Boolean), @p77='?' (DbType = DateTimeOffset), @p78='?' (Size = 100), @p79='?' (DbType = Int32), @p80='?' (DbType = Guid), @p81='?' (DbType = DateTimeOffset), @p82='?' (Size = 500), @p83='?' (Size = 100), @p84='?' (DbType = Boolean), @p85='?' (DbType = DateTimeOffset), @p86='?' (Size = 100), @p87='?' (DbType = Int32), @p88='?' (DbType = Guid), @p89='?' (DbType = DateTimeOffset), @p90='?' (Size = 500), @p91='?' (Size = 100), @p92='?' (DbType = Boolean), @p93='?' (DbType = DateTimeOffset), @p94='?' (Size = 100), @p95='?' (DbType = Int32), @p96='?' (DbType = Guid), @p97='?' (DbType = DateTimeOffset), @p98='?' (Size = 500), @p99='?' (Size = 100), @p100='?' (DbType = Boolean), @p101='?' (DbType = DateTimeOffset), @p102='?' (Size = 100), @p103='?' (DbType = Int32), @p104='?' (DbType = Guid), @p105='?' (DbType = DateTimeOffset), @p106='?' (Size = 500), @p107='?' (Size = 100), @p108='?' (DbType = Boolean), @p109='?' (DbType = DateTimeOffset), @p110='?' (Size = 100), @p111='?' (DbType = Int32)], CommandType='"Text"', CommandTimeout='30']
+SET IMPLICIT_TRANSACTIONS OFF;
+SET NOCOUNT ON;
+INSERT INTO [app].[SubscriptionFeatures] ([Id], [Created], [Description], [Icon], [IsActive], [LastModified], [Name], [SortOrder])
+VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6, @p7),
+(@p8, @p9, @p10, @p11, @p12, @p13, @p14, @p15),
+(@p16, @p17, @p18, @p19, @p20, @p21, @p22, @p23),
+(@p24, @p25, @p26, @p27, @p28, @p29, @p30, @p31),
+(@p32, @p33, @p34, @p35, @p36, @p37, @p38, @p39),
+(@p40, @p41, @p42, @p43, @p44, @p45, @p46, @p47),
+(@p48, @p49, @p50, @p51, @p52, @p53, @p54, @p55),
+(@p56, @p57, @p58, @p59, @p60, @p61, @p62, @p63),
+(@p64, @p65, @p66, @p67, @p68, @p69, @p70, @p71),
+(@p72, @p73, @p74, @p75, @p76, @p77, @p78, @p79),
+(@p80, @p81, @p82, @p83, @p84, @p85, @p86, @p87),
+(@p88, @p89, @p90, @p91, @p92, @p93, @p94, @p95),
+(@p96, @p97, @p98, @p99, @p100, @p101, @p102, @p103),
+(@p104, @p105, @p106, @p107, @p108, @p109, @p110, @p111);
+2025-08-12 17:45:09.410 +05:00 [INF] Executed DbCommand (8ms) [Parameters=[@p0='?' (DbType = Guid), @p1='?' (Size = 50), @p2='?' (DbType = DateTimeOffset), @p3='?' (Size = 500), @p4='?' (DbType = Boolean), @p5='?' (DbType = Boolean), @p6='?' (DbType = DateTimeOffset), @p7='?' (Size = 100), @p8='?' (Size = 50), @p9='?' (Precision = 18) (Scale = 2) (DbType = Decimal), @p10='?' (DbType = Int32), @p11='?' (DbType = Guid), @p12='?' (Size = 50), @p13='?' (DbType = DateTimeOffset), @p14='?' (Size = 500), @p15='?' (DbType = Boolean), @p16='?' (DbType = Boolean), @p17='?' (DbType = DateTimeOffset), @p18='?' (Size = 100), @p19='?' (Size = 50), @p20='?' (Precision = 18) (Scale = 2) (DbType = Decimal), @p21='?' (DbType = Int32)], CommandType='"Text"', CommandTimeout='30']
+SET IMPLICIT_TRANSACTIONS OFF;
+SET NOCOUNT ON;
+INSERT INTO [app].[SubscriptionPlans] ([Id], [BillingCycle], [Created], [Description], [IsActive], [IsPopular], [LastModified], [Name], [OriginalPrice], [Price], [SortOrder])
+VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9, @p10),
+(@p11, @p12, @p13, @p14, @p15, @p16, @p17, @p18, @p19, @p20, @p21);
+2025-08-12 17:45:09.513 +05:00 [INF] Executed DbCommand (52ms) [Parameters=[@p0='?' (DbType = Guid), @p1='?' (DbType = DateTimeOffset), @p2='?' (DbType = Guid), @p3='?' (DbType = Boolean), @p4='?' (DbType = DateTimeOffset), @p5='?' (Size = 100), @p6='?' (DbType = Guid), @p7='?' (DbType = Guid), @p8='?' (DbType = Guid), @p9='?' (DbType = DateTimeOffset), @p10='?' (DbType = Guid), @p11='?' (DbType = Boolean), @p12='?' (DbType = DateTimeOffset), @p13='?' (Size = 100), @p14='?' (DbType = Guid), @p15='?' (DbType = Guid), @p16='?' (DbType = Guid), @p17='?' (DbType = DateTimeOffset), @p18='?' (DbType = Guid), @p19='?' (DbType = Boolean), @p20='?' (DbType = DateTimeOffset), @p21='?' (Size = 100), @p22='?' (DbType = Guid), @p23='?' (DbType = Guid), @p24='?' (DbType = Guid), @p25='?' (DbType = DateTimeOffset), @p26='?' (DbType = Guid), @p27='?' (DbType = Boolean), @p28='?' (DbType = DateTimeOffset), @p29='?' (Size = 100), @p30='?' (DbType = Guid), @p31='?' (DbType = Guid), @p32='?' (DbType = Guid), @p33='?' (DbType = DateTimeOffset), @p34='?' (DbType = Guid), @p35='?' (DbType = Boolean), @p36='?' (DbType = DateTimeOffset), @p37='?' (Size = 100), @p38='?' (DbType = Guid), @p39='?' (DbType = Guid), @p40='?' (DbType = Guid), @p41='?' (DbType = DateTimeOffset), @p42='?' (DbType = Guid), @p43='?' (DbType = Boolean), @p44='?' (DbType = DateTimeOffset), @p45='?' (Size = 100), @p46='?' (DbType = Guid), @p47='?' (DbType = Guid), @p48='?' (DbType = Guid), @p49='?' (DbType = DateTimeOffset), @p50='?' (DbType = Guid), @p51='?' (DbType = Boolean), @p52='?' (DbType = DateTimeOffset), @p53='?' (Size = 100), @p54='?' (DbType = Guid), @p55='?' (DbType = Guid), @p56='?' (DbType = Guid), @p57='?' (DbType = DateTimeOffset), @p58='?' (DbType = Guid), @p59='?' (DbType = Boolean), @p60='?' (DbType = DateTimeOffset), @p61='?' (Size = 100), @p62='?' (DbType = Guid), @p63='?' (DbType = Guid), @p64='?' (DbType = Guid), @p65='?' (DbType = DateTimeOffset), @p66='?' (DbType = Guid), @p67='?' (DbType = Boolean), @p68='?' (DbType = DateTimeOffset), @p69='?' (Size = 100), @p70='?' (DbType = Guid), @p71='?' (DbType = Guid), @p72='?' (DbType = Guid), @p73='?' (DbType = DateTimeOffset), @p74='?' (DbType = Guid), @p75='?' (DbType = Boolean), @p76='?' (DbType = DateTimeOffset), @p77='?' (Size = 100), @p78='?' (DbType = Guid), @p79='?' (DbType = Guid), @p80='?' (DbType = Guid), @p81='?' (DbType = DateTimeOffset), @p82='?' (DbType = Guid), @p83='?' (DbType = Boolean), @p84='?' (DbType = DateTimeOffset), @p85='?' (Size = 100), @p86='?' (DbType = Guid), @p87='?' (DbType = Guid), @p88='?' (DbType = Guid), @p89='?' (DbType = DateTimeOffset), @p90='?' (DbType = Guid), @p91='?' (DbType = Boolean), @p92='?' (DbType = DateTimeOffset), @p93='?' (Size = 100), @p94='?' (DbType = Guid), @p95='?' (DbType = Guid), @p96='?' (DbType = Guid), @p97='?' (DbType = DateTimeOffset), @p98='?' (DbType = Guid), @p99='?' (DbType = Boolean), @p100='?' (DbType = DateTimeOffset), @p101='?' (Size = 100), @p102='?' (DbType = Guid), @p103='?' (DbType = Guid), @p104='?' (DbType = Guid), @p105='?' (DbType = DateTimeOffset), @p106='?' (DbType = Guid), @p107='?' (DbType = Boolean), @p108='?' (DbType = DateTimeOffset), @p109='?' (Size = 100), @p110='?' (DbType = Guid), @p111='?' (DbType = Guid), @p112='?' (DbType = Guid), @p113='?' (DbType = DateTimeOffset), @p114='?' (DbType = Guid), @p115='?' (DbType = Boolean), @p116='?' (DbType = DateTimeOffset), @p117='?' (Size = 100), @p118='?' (DbType = Guid), @p119='?' (DbType = Guid), @p120='?' (DbType = Guid), @p121='?' (DbType = DateTimeOffset), @p122='?' (DbType = Guid), @p123='?' (DbType = Boolean), @p124='?' (DbType = DateTimeOffset), @p125='?' (Size = 100), @p126='?' (DbType = Guid), @p127='?' (DbType = Guid), @p128='?' (DbType = Guid), @p129='?' (DbType = DateTimeOffset), @p130='?' (DbType = Guid), @p131='?' (DbType = Boolean), @p132='?' (DbType = DateTimeOffset), @p133='?' (Size = 100), @p134='?' (DbType = Guid), @p135='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SET IMPLICIT_TRANSACTIONS OFF;
+SET NOCOUNT ON;
+INSERT INTO [app].[PlanFeatures] ([Id], [Created], [FeatureId], [IsIncluded], [LastModified], [Limit], [PlanId], [SubscriptionPlanId])
+VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6, @p7),
+(@p8, @p9, @p10, @p11, @p12, @p13, @p14, @p15),
+(@p16, @p17, @p18, @p19, @p20, @p21, @p22, @p23),
+(@p24, @p25, @p26, @p27, @p28, @p29, @p30, @p31),
+(@p32, @p33, @p34, @p35, @p36, @p37, @p38, @p39),
+(@p40, @p41, @p42, @p43, @p44, @p45, @p46, @p47),
+(@p48, @p49, @p50, @p51, @p52, @p53, @p54, @p55),
+(@p56, @p57, @p58, @p59, @p60, @p61, @p62, @p63),
+(@p64, @p65, @p66, @p67, @p68, @p69, @p70, @p71),
+(@p72, @p73, @p74, @p75, @p76, @p77, @p78, @p79),
+(@p80, @p81, @p82, @p83, @p84, @p85, @p86, @p87),
+(@p88, @p89, @p90, @p91, @p92, @p93, @p94, @p95),
+(@p96, @p97, @p98, @p99, @p100, @p101, @p102, @p103),
+(@p104, @p105, @p106, @p107, @p108, @p109, @p110, @p111),
+(@p112, @p113, @p114, @p115, @p116, @p117, @p118, @p119),
+(@p120, @p121, @p122, @p123, @p124, @p125, @p126, @p127),
+(@p128, @p129, @p130, @p131, @p132, @p133, @p134, @p135);
+2025-08-12 17:45:09.520 +05:00 [INF] Subscription data seeded successfully!
+2025-08-12 17:45:09.644 +05:00 [INF] User profile is available. Using 'C:\Users\muhammad.aamir2810\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2025-08-12 17:45:10.273 +05:00 [INF] Now listening on: https://localhost:7046
+2025-08-12 17:45:10.276 +05:00 [INF] Now listening on: http://localhost:5000
+2025-08-12 17:45:10.290 +05:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2025-08-12 17:45:10.345 +05:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-08-12 17:45:10.348 +05:00 [INF] Hosting environment: Development
+2025-08-12 17:45:10.351 +05:00 [INF] Content root path: C:\Users\muhammad.aamir2810\Desktop\Personal\MindflowAIAPI\Mindflow Web API
+2025-08-12 17:45:11.418 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - null null
+2025-08-12 17:45:11.418 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_vs/browserLink - null null
+2025-08-12 17:45:11.525 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - 200 16517 application/javascript; charset=utf-8 114.922ms
+2025-08-12 17:45:11.600 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_vs/browserLink - 200 null text/javascript; charset=UTF-8 193.5069ms
+2025-08-12 17:45:11.672 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/swagger/v1/swagger.json - null null
+2025-08-12 17:45:11.944 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/swagger/v1/swagger.json - 200 null application/json;charset=utf-8 271.9871ms
+2025-08-12 17:46:00.002 +05:00 [INF] Executed DbCommand (19ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-12 17:46:00.057 +05:00 [INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+2025-08-12 17:46:00.087 +05:00 [INF] Executed DbCommand (23ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+2025-08-12 17:46:00.145 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+2025-08-12 17:46:00.166 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-12 17:46:00.174 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2025-08-12 17:46:00.182 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2025-08-12 17:46:00.192 +05:00 [INF] No migrations were applied. The database is already up to date.
+2025-08-12 17:46:00.436 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-08-12 17:46:00.492 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_releaseapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session';
+SELECT @result
+2025-08-12 17:46:02.192 +05:00 [INF] Executed DbCommand (18ms) [Parameters=[@__adminEmail_0='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [app].[Users] AS [u]
+        WHERE [u].[Email] = @__adminEmail_0) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+2025-08-12 17:46:11.678 +05:00 [INF] Executed DbCommand (51ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [app].[SubscriptionPlans] AS [s]) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+2025-08-12 17:46:29.534 +05:00 [INF] Subscription data already seeded. Skipping...
+2025-08-12 17:46:29.627 +05:00 [INF] User profile is available. Using 'C:\Users\muhammad.aamir2810\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2025-08-12 17:46:30.290 +05:00 [INF] Now listening on: https://localhost:7046
+2025-08-12 17:46:30.293 +05:00 [INF] Now listening on: http://localhost:5000
+2025-08-12 17:46:30.304 +05:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2025-08-12 17:46:30.373 +05:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-08-12 17:46:30.376 +05:00 [INF] Hosting environment: Development
+2025-08-12 17:46:30.377 +05:00 [INF] Content root path: C:\Users\muhammad.aamir2810\Desktop\Personal\MindflowAIAPI\Mindflow Web API
+2025-08-12 17:46:31.005 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_vs/browserLink - null null
+2025-08-12 17:46:31.005 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - null null
+2025-08-12 17:46:31.126 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - 200 16517 application/javascript; charset=utf-8 134.1366ms
+2025-08-12 17:46:31.180 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_vs/browserLink - 200 null text/javascript; charset=UTF-8 190.4944ms
+2025-08-12 17:46:31.220 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/swagger/v1/swagger.json - null null
+2025-08-12 17:46:31.428 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/swagger/v1/swagger.json - 200 null application/json;charset=utf-8 208.1731ms
+2025-08-12 17:47:04.254 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/api/subscriptions/overview - null null
+2025-08-12 17:47:04.500 +05:00 [INF] Authorization failed. These requirements were not met:
+DenyAnonymousAuthorizationRequirement: Requires an authenticated user.
+2025-08-12 17:47:04.510 +05:00 [INF] AuthenticationScheme: Bearer was challenged.
+2025-08-12 17:47:04.514 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/api/subscriptions/overview - 401 0 null 260.8934ms
+2025-08-12 17:48:33.513 +05:00 [INF] Executed DbCommand (19ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-12 17:48:33.563 +05:00 [INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+2025-08-12 17:48:33.591 +05:00 [INF] Executed DbCommand (22ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+2025-08-12 17:48:33.648 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+2025-08-12 17:48:33.668 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-12 17:48:33.674 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2025-08-12 17:48:33.686 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2025-08-12 17:48:33.697 +05:00 [INF] No migrations were applied. The database is already up to date.
+2025-08-12 17:48:33.924 +05:00 [INF] Executed DbCommand (4ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-08-12 17:48:33.997 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_releaseapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session';
+SELECT @result
+2025-08-12 17:48:34.048 +05:00 [INF] Executed DbCommand (17ms) [Parameters=[@__adminEmail_0='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [app].[Users] AS [u]
+        WHERE [u].[Email] = @__adminEmail_0) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+2025-08-12 17:48:34.064 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [app].[SubscriptionPlans] AS [s]) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+2025-08-12 17:48:34.072 +05:00 [INF] Subscription data already seeded. Skipping...
+2025-08-12 17:48:34.136 +05:00 [INF] User profile is available. Using 'C:\Users\muhammad.aamir2810\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2025-08-12 17:48:34.695 +05:00 [INF] Now listening on: https://localhost:7046
+2025-08-12 17:48:34.697 +05:00 [INF] Now listening on: http://localhost:5000
+2025-08-12 17:48:34.707 +05:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2025-08-12 17:48:34.749 +05:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-08-12 17:48:34.750 +05:00 [INF] Hosting environment: Development
+2025-08-12 17:48:34.752 +05:00 [INF] Content root path: C:\Users\muhammad.aamir2810\Desktop\Personal\MindflowAIAPI\Mindflow Web API
+2025-08-12 17:48:35.200 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_vs/browserLink - null null
+2025-08-12 17:48:35.200 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - null null
+2025-08-12 17:48:35.254 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - 200 16517 application/javascript; charset=utf-8 58.0092ms
+2025-08-12 17:48:35.280 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_vs/browserLink - 200 null text/javascript; charset=UTF-8 85.3896ms
+2025-08-12 17:48:35.359 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/swagger/v1/swagger.json - null null
+2025-08-12 17:48:35.498 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/swagger/v1/swagger.json - 200 null application/json;charset=utf-8 139.3895ms
+2025-08-12 17:48:53.209 +05:00 [INF] Request starting HTTP/2 POST https://localhost:7046/api/users/signin - application/json 76
+2025-08-12 17:48:53.238 +05:00 [INF] CORS policy execution successful.
+2025-08-12 17:48:53.314 +05:00 [INF] Executing endpoint 'HTTP: POST /api/users/signin'
+2025-08-12 17:48:53.401 +05:00 [INF] Executed DbCommand (7ms) [Parameters=[@__command_UserNameOrEmail_0='?' (Size = 100), @__command_UserNameOrEmail_0_1='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[Created], [u].[DateOfBirth], [u].[Email], [u].[EmailConfirmed], [u].[FirstName], [u].[IsActive], [u].[LastModified], [u].[LastName], [u].[PasswordHash], [u].[ProfilePic], [u].[SecurityStamp], [u].[Sub], [u].[UserName]
+FROM [app].[Users] AS [u]
+WHERE [u].[UserName] = @__command_UserNameOrEmail_0 OR [u].[Email] = @__command_UserNameOrEmail_0_1
+2025-08-12 17:48:53.520 +05:00 [INF] User signed in: AamirRajpot
+2025-08-12 17:48:53.530 +05:00 [INF] Setting HTTP status code 200.
+2025-08-12 17:48:53.538 +05:00 [INF] Writing value of type 'TokenResponseDto' as Json.
+2025-08-12 17:48:53.544 +05:00 [INF] Executed endpoint 'HTTP: POST /api/users/signin'
+2025-08-12 17:48:53.548 +05:00 [INF] Request finished HTTP/2 POST https://localhost:7046/api/users/signin - 200 null application/json; charset=utf-8 339.5204ms
+2025-08-12 17:49:08.544 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/api/subscriptions/overview - null null
+2025-08-12 17:49:08.613 +05:00 [INF] Executing endpoint 'HTTP: GET /api/subscriptions/overview'
+2025-08-12 17:49:09.005 +05:00 [INF] Executed DbCommand (51ms) [Parameters=[@__userId_0='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT [s1].[Id], [s1].[Created], [s1].[EndDate], [s1].[LastModified], [s1].[PlanId], [s1].[StartDate], [s1].[Status], [s1].[UserId], [s1].[Id0], [s1].[BillingCycle], [s1].[Created0], [s1].[Description], [s1].[IsActive], [s1].[IsPopular], [s1].[LastModified0], [s1].[Name], [s1].[OriginalPrice], [s1].[Price], [s1].[SortOrder], [s2].[Id], [s2].[Created], [s2].[FeatureId], [s2].[IsIncluded], [s2].[LastModified], [s2].[Limit], [s2].[PlanId], [s2].[SubscriptionPlanId], [s2].[Id0], [s2].[Created0], [s2].[Description], [s2].[Icon], [s2].[IsActive], [s2].[LastModified0], [s2].[Name], [s2].[SortOrder]
+FROM (
+    SELECT TOP(1) [u].[Id], [u].[Created], [u].[EndDate], [u].[LastModified], [u].[PlanId], [u].[StartDate], [u].[Status], [u].[UserId], [s].[Id] AS [Id0], [s].[BillingCycle], [s].[Created] AS [Created0], [s].[Description], [s].[IsActive], [s].[IsPopular], [s].[LastModified] AS [LastModified0], [s].[Name], [s].[OriginalPrice], [s].[Price], [s].[SortOrder]
+    FROM [app].[UserSubscriptions] AS [u]
+    INNER JOIN [app].[SubscriptionPlans] AS [s] ON [u].[PlanId] = [s].[Id]
+    WHERE [u].[UserId] = @__userId_0 AND [u].[Status] = N'Active'
+) AS [s1]
+LEFT JOIN (
+    SELECT [p].[Id], [p].[Created], [p].[FeatureId], [p].[IsIncluded], [p].[LastModified], [p].[Limit], [p].[PlanId], [p].[SubscriptionPlanId], [s0].[Id] AS [Id0], [s0].[Created] AS [Created0], [s0].[Description], [s0].[Icon], [s0].[IsActive], [s0].[LastModified] AS [LastModified0], [s0].[Name], [s0].[SortOrder]
+    FROM [app].[PlanFeatures] AS [p]
+    INNER JOIN [app].[SubscriptionFeatures] AS [s0] ON [p].[FeatureId] = [s0].[Id]
+) AS [s2] ON [s1].[Id0] = [s2].[SubscriptionPlanId]
+ORDER BY [s1].[Id], [s1].[Id0], [s2].[Id]
+2025-08-12 17:49:09.108 +05:00 [INF] Executed DbCommand (20ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [s].[Id], [s].[BillingCycle], [s].[Created], [s].[Description], [s].[IsActive], [s].[IsPopular], [s].[LastModified], [s].[Name], [s].[OriginalPrice], [s].[Price], [s].[SortOrder], [s1].[Id], [s1].[Created], [s1].[FeatureId], [s1].[IsIncluded], [s1].[LastModified], [s1].[Limit], [s1].[PlanId], [s1].[SubscriptionPlanId], [s1].[Id0], [s1].[Created0], [s1].[Description], [s1].[Icon], [s1].[IsActive], [s1].[LastModified0], [s1].[Name], [s1].[SortOrder]
+FROM [app].[SubscriptionPlans] AS [s]
+LEFT JOIN (
+    SELECT [p].[Id], [p].[Created], [p].[FeatureId], [p].[IsIncluded], [p].[LastModified], [p].[Limit], [p].[PlanId], [p].[SubscriptionPlanId], [s0].[Id] AS [Id0], [s0].[Created] AS [Created0], [s0].[Description], [s0].[Icon], [s0].[IsActive], [s0].[LastModified] AS [LastModified0], [s0].[Name], [s0].[SortOrder]
+    FROM [app].[PlanFeatures] AS [p]
+    INNER JOIN [app].[SubscriptionFeatures] AS [s0] ON [p].[FeatureId] = [s0].[Id]
+) AS [s1] ON [s].[Id] = [s1].[SubscriptionPlanId]
+WHERE [s].[IsActive] = CAST(1 AS bit)
+ORDER BY [s].[SortOrder], [s].[Id], [s1].[Id]
+2025-08-12 17:49:09.210 +05:00 [INF] Executed DbCommand (9ms) [Parameters=[@__planId_0='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT [p].[Id], [p].[Created], [p].[FeatureId], [p].[IsIncluded], [p].[LastModified], [p].[Limit], [p].[PlanId], [p].[SubscriptionPlanId], [s].[Id], [s].[Created], [s].[Description], [s].[Icon], [s].[IsActive], [s].[LastModified], [s].[Name], [s].[SortOrder]
+FROM [app].[PlanFeatures] AS [p]
+INNER JOIN [app].[SubscriptionFeatures] AS [s] ON [p].[FeatureId] = [s].[Id]
+WHERE [p].[PlanId] = @__planId_0 AND [p].[IsIncluded] = CAST(1 AS bit)
+ORDER BY [s].[SortOrder]
+2025-08-12 17:49:09.291 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[@__planId_0='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT [p].[Id], [p].[Created], [p].[FeatureId], [p].[IsIncluded], [p].[LastModified], [p].[Limit], [p].[PlanId], [p].[SubscriptionPlanId], [s].[Id], [s].[Created], [s].[Description], [s].[Icon], [s].[IsActive], [s].[LastModified], [s].[Name], [s].[SortOrder]
+FROM [app].[PlanFeatures] AS [p]
+INNER JOIN [app].[SubscriptionFeatures] AS [s] ON [p].[FeatureId] = [s].[Id]
+WHERE [p].[PlanId] = @__planId_0 AND [p].[IsIncluded] = CAST(1 AS bit)
+ORDER BY [s].[SortOrder]
+2025-08-12 17:49:09.315 +05:00 [INF] Executed DbCommand (5ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [s].[Id], [s].[Created], [s].[Description], [s].[Icon], [s].[IsActive], [s].[LastModified], [s].[Name], [s].[SortOrder]
+FROM [app].[SubscriptionFeatures] AS [s]
+WHERE [s].[IsActive] = CAST(1 AS bit)
+ORDER BY [s].[SortOrder]
+2025-08-12 17:49:09.321 +05:00 [INF] Setting HTTP status code 200.
+2025-08-12 17:49:09.331 +05:00 [INF] Writing value of type 'SubscriptionOverviewDto' as Json.
+2025-08-12 17:49:09.346 +05:00 [INF] Executed endpoint 'HTTP: GET /api/subscriptions/overview'
+2025-08-12 17:49:09.352 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/api/subscriptions/overview - 200 null application/json; charset=utf-8 807.9409ms
+2025-08-12 17:49:46.765 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/api/subscriptions/current - null null
+2025-08-12 17:49:46.795 +05:00 [INF] Executing endpoint 'HTTP: GET /api/subscriptions/current'
+2025-08-12 17:49:46.816 +05:00 [INF] Executed DbCommand (15ms) [Parameters=[@__userId_0='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT [s1].[Id], [s1].[Created], [s1].[EndDate], [s1].[LastModified], [s1].[PlanId], [s1].[StartDate], [s1].[Status], [s1].[UserId], [s1].[Id0], [s1].[BillingCycle], [s1].[Created0], [s1].[Description], [s1].[IsActive], [s1].[IsPopular], [s1].[LastModified0], [s1].[Name], [s1].[OriginalPrice], [s1].[Price], [s1].[SortOrder], [s2].[Id], [s2].[Created], [s2].[FeatureId], [s2].[IsIncluded], [s2].[LastModified], [s2].[Limit], [s2].[PlanId], [s2].[SubscriptionPlanId], [s2].[Id0], [s2].[Created0], [s2].[Description], [s2].[Icon], [s2].[IsActive], [s2].[LastModified0], [s2].[Name], [s2].[SortOrder]
+FROM (
+    SELECT TOP(1) [u].[Id], [u].[Created], [u].[EndDate], [u].[LastModified], [u].[PlanId], [u].[StartDate], [u].[Status], [u].[UserId], [s].[Id] AS [Id0], [s].[BillingCycle], [s].[Created] AS [Created0], [s].[Description], [s].[IsActive], [s].[IsPopular], [s].[LastModified] AS [LastModified0], [s].[Name], [s].[OriginalPrice], [s].[Price], [s].[SortOrder]
+    FROM [app].[UserSubscriptions] AS [u]
+    INNER JOIN [app].[SubscriptionPlans] AS [s] ON [u].[PlanId] = [s].[Id]
+    WHERE [u].[UserId] = @__userId_0 AND [u].[Status] = N'Active'
+) AS [s1]
+LEFT JOIN (
+    SELECT [p].[Id], [p].[Created], [p].[FeatureId], [p].[IsIncluded], [p].[LastModified], [p].[Limit], [p].[PlanId], [p].[SubscriptionPlanId], [s0].[Id] AS [Id0], [s0].[Created] AS [Created0], [s0].[Description], [s0].[Icon], [s0].[IsActive], [s0].[LastModified] AS [LastModified0], [s0].[Name], [s0].[SortOrder]
+    FROM [app].[PlanFeatures] AS [p]
+    INNER JOIN [app].[SubscriptionFeatures] AS [s0] ON [p].[FeatureId] = [s0].[Id]
+) AS [s2] ON [s1].[Id0] = [s2].[SubscriptionPlanId]
+ORDER BY [s1].[Id], [s1].[Id0], [s2].[Id]
+2025-08-12 17:49:46.825 +05:00 [INF] Setting HTTP status code 200.
+2025-08-12 17:49:46.826 +05:00 [INF] Executed endpoint 'HTTP: GET /api/subscriptions/current'
+2025-08-12 17:49:46.827 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/api/subscriptions/current - 200 0 null 61.6451ms
+2025-08-12 17:50:14.058 +05:00 [INF] Request starting HTTP/2 POST https://localhost:7046/api/subscriptions/subscribe - application/json 54
+2025-08-12 17:50:14.074 +05:00 [INF] CORS policy execution successful.
+2025-08-12 17:50:14.076 +05:00 [INF] Executing endpoint 'HTTP: POST /api/subscriptions/subscribe'
+2025-08-12 17:50:14.097 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[@__userId_0='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[Created], [u].[EndDate], [u].[LastModified], [u].[PlanId], [u].[StartDate], [u].[Status], [u].[UserId]
+FROM [app].[UserSubscriptions] AS [u]
+WHERE [u].[UserId] = @__userId_0 AND [u].[Status] = N'Active'
+2025-08-12 17:50:14.283 +05:00 [INF] Executed DbCommand (21ms) [Parameters=[@p0='?' (DbType = Guid), @p1='?' (DbType = DateTimeOffset), @p2='?' (DbType = DateTime2), @p3='?' (DbType = DateTimeOffset), @p4='?' (DbType = Guid), @p5='?' (DbType = DateTime2), @p6='?' (Size = 450), @p7='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SET IMPLICIT_TRANSACTIONS OFF;
+SET NOCOUNT ON;
+INSERT INTO [app].[UserSubscriptions] ([Id], [Created], [EndDate], [LastModified], [PlanId], [StartDate], [Status], [UserId])
+VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6, @p7);
+2025-08-12 17:50:40.009 +05:00 [INF] Executed endpoint 'HTTP: POST /api/subscriptions/subscribe'
+2025-08-12 17:50:42.154 +05:00 [ERR] An unhandled exception occurred: Object reference not set to an instance of an object.
+System.NullReferenceException: Object reference not set to an instance of an object.
+   at Mindflow_Web_API.Services.SubscriptionService.ToPlanDtoAsync(SubscriptionPlan plan) in C:\Users\muhammad.aamir2810\Desktop\Personal\MindflowAIAPI\Mindflow Web API\Services\SubscriptionService.cs:line 312
+   at Mindflow_Web_API.Services.SubscriptionService.ToUserSubscriptionDtoAsync(UserSubscription userSubscription) in C:\Users\muhammad.aamir2810\Desktop\Personal\MindflowAIAPI\Mindflow Web API\Services\SubscriptionService.cs:line 355
+   at Mindflow_Web_API.Services.SubscriptionService.CreateUserSubscriptionAsync(Guid userId, CreateUserSubscriptionDto dto) in C:\Users\muhammad.aamir2810\Desktop\Personal\MindflowAIAPI\Mindflow Web API\Services\SubscriptionService.cs:line 229
+   at Mindflow_Web_API.EndPoints.SubscriptionEndpoints.<>c.<<MapSubscriptionEndpoints>b__0_2>d.MoveNext() in C:\Users\muhammad.aamir2810\Desktop\Personal\MindflowAIAPI\Mindflow Web API\EndPoints\SubscriptionEndpoints.cs:line 38
+--- End of stack trace from previous location ---
+   at Microsoft.AspNetCore.Http.RequestDelegateFactory.ExecuteTaskResult[T](Task`1 task, HttpContext httpContext)
+   at Microsoft.AspNetCore.Http.RequestDelegateFactory.<>c__DisplayClass101_2.<<HandleRequestBodyAndCompileRequestDelegateForJson>b__2>d.MoveNext()
+--- End of stack trace from previous location ---
+   at Microsoft.AspNetCore.Routing.EndpointMiddleware.<Invoke>g__AwaitRequestTask|7_0(Endpoint endpoint, Task requestTask, ILogger logger)
+   at Microsoft.AspNetCore.Authorization.AuthorizationMiddleware.Invoke(HttpContext context)
+   at Microsoft.AspNetCore.Authentication.AuthenticationMiddleware.Invoke(HttpContext context)
+   at Swashbuckle.AspNetCore.SwaggerUI.SwaggerUIMiddleware.Invoke(HttpContext httpContext)
+   at Swashbuckle.AspNetCore.Swagger.SwaggerMiddleware.Invoke(HttpContext httpContext, ISwaggerProvider swaggerProvider)
+   at Mindflow_Web_API.Middleware.GlobalExceptionHandler.InvokeAsync(HttpContext context) in C:\Users\muhammad.aamir2810\Desktop\Personal\MindflowAIAPI\Mindflow Web API\Middleware\GlobalExceptionHandler.cs:line 24
+2025-08-12 17:50:42.201 +05:00 [INF] Request finished HTTP/2 POST https://localhost:7046/api/subscriptions/subscribe - 500 null application/json 28143.2861ms
+2025-08-12 17:50:44.235 +05:00 [INF] Request starting HTTP/2 POST https://localhost:7046/api/subscriptions/subscribe - application/json 54
+2025-08-12 17:50:44.252 +05:00 [INF] CORS policy execution successful.
+2025-08-12 17:50:44.256 +05:00 [INF] Executing endpoint 'HTTP: POST /api/subscriptions/subscribe'
+2025-08-12 17:51:05.584 +05:00 [INF] Executed DbCommand (28ms) [Parameters=[@__userId_0='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[Created], [u].[EndDate], [u].[LastModified], [u].[PlanId], [u].[StartDate], [u].[Status], [u].[UserId]
+FROM [app].[UserSubscriptions] AS [u]
+WHERE [u].[UserId] = @__userId_0 AND [u].[Status] = N'Active'
+2025-08-12 17:51:40.230 +05:00 [INF] Executed DbCommand (23ms) [Parameters=[@p2='?' (DbType = Guid), @p0='?' (DbType = DateTime2), @p1='?' (Size = 450), @p3='?' (DbType = Guid), @p4='?' (DbType = DateTimeOffset), @p5='?' (DbType = DateTime2), @p6='?' (DbType = DateTimeOffset), @p7='?' (DbType = Guid), @p8='?' (DbType = DateTime2), @p9='?' (Size = 450), @p10='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SET NOCOUNT ON;
+UPDATE [app].[UserSubscriptions] SET [EndDate] = @p0, [Status] = @p1
+OUTPUT INSERTED.[LastModified]
+WHERE [Id] = @p2;
+INSERT INTO [app].[UserSubscriptions] ([Id], [Created], [EndDate], [LastModified], [PlanId], [StartDate], [Status], [UserId])
+VALUES (@p3, @p4, @p5, @p6, @p7, @p8, @p9, @p10);
+2025-08-12 17:56:08.140 +05:00 [INF] Executed DbCommand (31ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-12 17:56:08.199 +05:00 [INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+2025-08-12 17:56:08.234 +05:00 [INF] Executed DbCommand (28ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+2025-08-12 17:56:08.307 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+2025-08-12 17:56:08.356 +05:00 [INF] Executed DbCommand (11ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-12 17:56:08.372 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2025-08-12 17:56:08.383 +05:00 [INF] Executed DbCommand (4ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2025-08-12 17:56:08.400 +05:00 [INF] No migrations were applied. The database is already up to date.
+2025-08-12 17:56:08.692 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-08-12 17:56:08.758 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_releaseapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session';
+SELECT @result
+2025-08-12 17:56:08.807 +05:00 [INF] Executed DbCommand (17ms) [Parameters=[@__adminEmail_0='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [app].[Users] AS [u]
+        WHERE [u].[Email] = @__adminEmail_0) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+2025-08-12 17:56:08.824 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [app].[SubscriptionPlans] AS [s]) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+2025-08-12 17:56:08.830 +05:00 [INF] Subscription data already seeded. Skipping...
+2025-08-12 17:56:08.907 +05:00 [INF] User profile is available. Using 'C:\Users\muhammad.aamir2810\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2025-08-12 17:56:09.297 +05:00 [INF] Now listening on: https://localhost:7046
+2025-08-12 17:56:09.301 +05:00 [INF] Now listening on: http://localhost:5000
+2025-08-12 17:56:09.308 +05:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2025-08-12 17:56:09.336 +05:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-08-12 17:56:09.339 +05:00 [INF] Hosting environment: Development
+2025-08-12 17:56:09.341 +05:00 [INF] Content root path: C:\Users\muhammad.aamir2810\Desktop\Personal\MindflowAIAPI\Mindflow Web API
+2025-08-12 17:56:09.893 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - null null
+2025-08-12 17:56:09.893 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_vs/browserLink - null null
+2025-08-12 17:56:09.938 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - 200 16517 application/javascript; charset=utf-8 48.5818ms
+2025-08-12 17:56:09.987 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_vs/browserLink - 200 null text/javascript; charset=UTF-8 98.6625ms
+2025-08-12 17:56:10.024 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/swagger/v1/swagger.json - null null
+2025-08-12 17:56:10.159 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/swagger/v1/swagger.json - 200 null application/json;charset=utf-8 134.8927ms
+2025-08-12 17:56:30.529 +05:00 [INF] Request starting HTTP/2 POST https://localhost:7046/api/subscriptions/subscribe - application/json 54
+2025-08-12 17:56:30.616 +05:00 [INF] CORS policy execution successful.
+2025-08-12 17:56:30.836 +05:00 [INF] Executing endpoint 'HTTP: POST /api/subscriptions/subscribe'
+2025-08-12 17:56:34.252 +05:00 [INF] Executed DbCommand (22ms) [Parameters=[@__userId_0='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[Created], [u].[EndDate], [u].[LastModified], [u].[PlanId], [u].[StartDate], [u].[Status], [u].[UserId]
+FROM [app].[UserSubscriptions] AS [u]
+WHERE [u].[UserId] = @__userId_0 AND [u].[Status] = N'Active'
+2025-08-12 17:56:37.442 +05:00 [INF] Executed DbCommand (51ms) [Parameters=[@p2='?' (DbType = Guid), @p0='?' (DbType = DateTime2), @p1='?' (Size = 450), @p3='?' (DbType = Guid), @p4='?' (DbType = DateTimeOffset), @p5='?' (DbType = DateTime2), @p6='?' (DbType = DateTimeOffset), @p7='?' (DbType = Guid), @p8='?' (DbType = DateTime2), @p9='?' (Size = 450), @p10='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SET NOCOUNT ON;
+UPDATE [app].[UserSubscriptions] SET [EndDate] = @p0, [Status] = @p1
+OUTPUT INSERTED.[LastModified]
+WHERE [Id] = @p2;
+INSERT INTO [app].[UserSubscriptions] ([Id], [Created], [EndDate], [LastModified], [PlanId], [StartDate], [Status], [UserId])
+VALUES (@p3, @p4, @p5, @p6, @p7, @p8, @p9, @p10);
+2025-08-12 17:56:42.258 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[@__userSubscription_PlanId_0='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [s].[Id], [s].[BillingCycle], [s].[Created], [s].[Description], [s].[IsActive], [s].[IsPopular], [s].[LastModified], [s].[Name], [s].[OriginalPrice], [s].[Price], [s].[SortOrder]
+FROM [app].[SubscriptionPlans] AS [s]
+WHERE [s].[Id] = @__userSubscription_PlanId_0
+2025-08-12 17:56:44.632 +05:00 [INF] Executed DbCommand (7ms) [Parameters=[@__planId_0='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT [p].[Id], [p].[Created], [p].[FeatureId], [p].[IsIncluded], [p].[LastModified], [p].[Limit], [p].[PlanId], [p].[SubscriptionPlanId], [s].[Id], [s].[Created], [s].[Description], [s].[Icon], [s].[IsActive], [s].[LastModified], [s].[Name], [s].[SortOrder]
+FROM [app].[PlanFeatures] AS [p]
+INNER JOIN [app].[SubscriptionFeatures] AS [s] ON [p].[FeatureId] = [s].[Id]
+WHERE [p].[PlanId] = @__planId_0 AND [p].[IsIncluded] = CAST(1 AS bit)
+ORDER BY [s].[SortOrder]
+2025-08-12 17:56:47.477 +05:00 [INF] Setting HTTP status code 200.
+2025-08-12 17:56:47.487 +05:00 [INF] Writing value of type 'UserSubscriptionDto' as Json.
+2025-08-12 17:56:48.645 +05:00 [INF] Executed endpoint 'HTTP: POST /api/subscriptions/subscribe'
+2025-08-12 17:56:48.648 +05:00 [INF] Request finished HTTP/2 POST https://localhost:7046/api/subscriptions/subscribe - 200 null application/json; charset=utf-8 18119.7401ms
+2025-08-12 17:57:00.924 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/api/subscriptions/current - null null
+2025-08-12 17:57:00.954 +05:00 [INF] Executing endpoint 'HTTP: GET /api/subscriptions/current'
+2025-08-12 17:57:01.174 +05:00 [INF] Executed DbCommand (14ms) [Parameters=[@__userId_0='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT [s1].[Id], [s1].[Created], [s1].[EndDate], [s1].[LastModified], [s1].[PlanId], [s1].[StartDate], [s1].[Status], [s1].[UserId], [s1].[Id0], [s1].[BillingCycle], [s1].[Created0], [s1].[Description], [s1].[IsActive], [s1].[IsPopular], [s1].[LastModified0], [s1].[Name], [s1].[OriginalPrice], [s1].[Price], [s1].[SortOrder], [s2].[Id], [s2].[Created], [s2].[FeatureId], [s2].[IsIncluded], [s2].[LastModified], [s2].[Limit], [s2].[PlanId], [s2].[SubscriptionPlanId], [s2].[Id0], [s2].[Created0], [s2].[Description], [s2].[Icon], [s2].[IsActive], [s2].[LastModified0], [s2].[Name], [s2].[SortOrder]
+FROM (
+    SELECT TOP(1) [u].[Id], [u].[Created], [u].[EndDate], [u].[LastModified], [u].[PlanId], [u].[StartDate], [u].[Status], [u].[UserId], [s].[Id] AS [Id0], [s].[BillingCycle], [s].[Created] AS [Created0], [s].[Description], [s].[IsActive], [s].[IsPopular], [s].[LastModified] AS [LastModified0], [s].[Name], [s].[OriginalPrice], [s].[Price], [s].[SortOrder]
+    FROM [app].[UserSubscriptions] AS [u]
+    INNER JOIN [app].[SubscriptionPlans] AS [s] ON [u].[PlanId] = [s].[Id]
+    WHERE [u].[UserId] = @__userId_0 AND [u].[Status] = N'Active'
+) AS [s1]
+LEFT JOIN (
+    SELECT [p].[Id], [p].[Created], [p].[FeatureId], [p].[IsIncluded], [p].[LastModified], [p].[Limit], [p].[PlanId], [p].[SubscriptionPlanId], [s0].[Id] AS [Id0], [s0].[Created] AS [Created0], [s0].[Description], [s0].[Icon], [s0].[IsActive], [s0].[LastModified] AS [LastModified0], [s0].[Name], [s0].[SortOrder]
+    FROM [app].[PlanFeatures] AS [p]
+    INNER JOIN [app].[SubscriptionFeatures] AS [s0] ON [p].[FeatureId] = [s0].[Id]
+) AS [s2] ON [s1].[Id0] = [s2].[SubscriptionPlanId]
+ORDER BY [s1].[Id], [s1].[Id0], [s2].[Id]
+2025-08-12 17:57:06.061 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[@__planId_0='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT [p].[Id], [p].[Created], [p].[FeatureId], [p].[IsIncluded], [p].[LastModified], [p].[Limit], [p].[PlanId], [p].[SubscriptionPlanId], [s].[Id], [s].[Created], [s].[Description], [s].[Icon], [s].[IsActive], [s].[LastModified], [s].[Name], [s].[SortOrder]
+FROM [app].[PlanFeatures] AS [p]
+INNER JOIN [app].[SubscriptionFeatures] AS [s] ON [p].[FeatureId] = [s].[Id]
+WHERE [p].[PlanId] = @__planId_0 AND [p].[IsIncluded] = CAST(1 AS bit)
+ORDER BY [s].[SortOrder]
+2025-08-12 17:57:06.067 +05:00 [INF] Setting HTTP status code 200.
+2025-08-12 17:57:06.068 +05:00 [INF] Writing value of type 'UserSubscriptionDto' as Json.
+2025-08-12 17:57:06.069 +05:00 [INF] Executed endpoint 'HTTP: GET /api/subscriptions/current'
+2025-08-12 17:57:06.070 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/api/subscriptions/current - 200 null application/json; charset=utf-8 5146.705ms
+2025-08-12 17:57:15.646 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/api/subscriptions/overview - null null
+2025-08-12 17:57:15.660 +05:00 [INF] Executing endpoint 'HTTP: GET /api/subscriptions/overview'
+2025-08-12 17:57:15.669 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[@__userId_0='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT [s1].[Id], [s1].[Created], [s1].[EndDate], [s1].[LastModified], [s1].[PlanId], [s1].[StartDate], [s1].[Status], [s1].[UserId], [s1].[Id0], [s1].[BillingCycle], [s1].[Created0], [s1].[Description], [s1].[IsActive], [s1].[IsPopular], [s1].[LastModified0], [s1].[Name], [s1].[OriginalPrice], [s1].[Price], [s1].[SortOrder], [s2].[Id], [s2].[Created], [s2].[FeatureId], [s2].[IsIncluded], [s2].[LastModified], [s2].[Limit], [s2].[PlanId], [s2].[SubscriptionPlanId], [s2].[Id0], [s2].[Created0], [s2].[Description], [s2].[Icon], [s2].[IsActive], [s2].[LastModified0], [s2].[Name], [s2].[SortOrder]
+FROM (
+    SELECT TOP(1) [u].[Id], [u].[Created], [u].[EndDate], [u].[LastModified], [u].[PlanId], [u].[StartDate], [u].[Status], [u].[UserId], [s].[Id] AS [Id0], [s].[BillingCycle], [s].[Created] AS [Created0], [s].[Description], [s].[IsActive], [s].[IsPopular], [s].[LastModified] AS [LastModified0], [s].[Name], [s].[OriginalPrice], [s].[Price], [s].[SortOrder]
+    FROM [app].[UserSubscriptions] AS [u]
+    INNER JOIN [app].[SubscriptionPlans] AS [s] ON [u].[PlanId] = [s].[Id]
+    WHERE [u].[UserId] = @__userId_0 AND [u].[Status] = N'Active'
+) AS [s1]
+LEFT JOIN (
+    SELECT [p].[Id], [p].[Created], [p].[FeatureId], [p].[IsIncluded], [p].[LastModified], [p].[Limit], [p].[PlanId], [p].[SubscriptionPlanId], [s0].[Id] AS [Id0], [s0].[Created] AS [Created0], [s0].[Description], [s0].[Icon], [s0].[IsActive], [s0].[LastModified] AS [LastModified0], [s0].[Name], [s0].[SortOrder]
+    FROM [app].[PlanFeatures] AS [p]
+    INNER JOIN [app].[SubscriptionFeatures] AS [s0] ON [p].[FeatureId] = [s0].[Id]
+) AS [s2] ON [s1].[Id0] = [s2].[SubscriptionPlanId]
+ORDER BY [s1].[Id], [s1].[Id0], [s2].[Id]
+2025-08-12 17:57:15.674 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[@__planId_0='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT [p].[Id], [p].[Created], [p].[FeatureId], [p].[IsIncluded], [p].[LastModified], [p].[Limit], [p].[PlanId], [p].[SubscriptionPlanId], [s].[Id], [s].[Created], [s].[Description], [s].[Icon], [s].[IsActive], [s].[LastModified], [s].[Name], [s].[SortOrder]
+FROM [app].[PlanFeatures] AS [p]
+INNER JOIN [app].[SubscriptionFeatures] AS [s] ON [p].[FeatureId] = [s].[Id]
+WHERE [p].[PlanId] = @__planId_0 AND [p].[IsIncluded] = CAST(1 AS bit)
+ORDER BY [s].[SortOrder]
+2025-08-12 17:57:15.751 +05:00 [INF] Executed DbCommand (16ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [s].[Id], [s].[BillingCycle], [s].[Created], [s].[Description], [s].[IsActive], [s].[IsPopular], [s].[LastModified], [s].[Name], [s].[OriginalPrice], [s].[Price], [s].[SortOrder], [s1].[Id], [s1].[Created], [s1].[FeatureId], [s1].[IsIncluded], [s1].[LastModified], [s1].[Limit], [s1].[PlanId], [s1].[SubscriptionPlanId], [s1].[Id0], [s1].[Created0], [s1].[Description], [s1].[Icon], [s1].[IsActive], [s1].[LastModified0], [s1].[Name], [s1].[SortOrder]
+FROM [app].[SubscriptionPlans] AS [s]
+LEFT JOIN (
+    SELECT [p].[Id], [p].[Created], [p].[FeatureId], [p].[IsIncluded], [p].[LastModified], [p].[Limit], [p].[PlanId], [p].[SubscriptionPlanId], [s0].[Id] AS [Id0], [s0].[Created] AS [Created0], [s0].[Description], [s0].[Icon], [s0].[IsActive], [s0].[LastModified] AS [LastModified0], [s0].[Name], [s0].[SortOrder]
+    FROM [app].[PlanFeatures] AS [p]
+    INNER JOIN [app].[SubscriptionFeatures] AS [s0] ON [p].[FeatureId] = [s0].[Id]
+) AS [s1] ON [s].[Id] = [s1].[SubscriptionPlanId]
+WHERE [s].[IsActive] = CAST(1 AS bit)
+ORDER BY [s].[SortOrder], [s].[Id], [s1].[Id]
+2025-08-12 17:57:15.767 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[@__planId_0='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT [p].[Id], [p].[Created], [p].[FeatureId], [p].[IsIncluded], [p].[LastModified], [p].[Limit], [p].[PlanId], [p].[SubscriptionPlanId], [s].[Id], [s].[Created], [s].[Description], [s].[Icon], [s].[IsActive], [s].[LastModified], [s].[Name], [s].[SortOrder]
+FROM [app].[PlanFeatures] AS [p]
+INNER JOIN [app].[SubscriptionFeatures] AS [s] ON [p].[FeatureId] = [s].[Id]
+WHERE [p].[PlanId] = @__planId_0 AND [p].[IsIncluded] = CAST(1 AS bit)
+ORDER BY [s].[SortOrder]
+2025-08-12 17:57:15.779 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[@__planId_0='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT [p].[Id], [p].[Created], [p].[FeatureId], [p].[IsIncluded], [p].[LastModified], [p].[Limit], [p].[PlanId], [p].[SubscriptionPlanId], [s].[Id], [s].[Created], [s].[Description], [s].[Icon], [s].[IsActive], [s].[LastModified], [s].[Name], [s].[SortOrder]
+FROM [app].[PlanFeatures] AS [p]
+INNER JOIN [app].[SubscriptionFeatures] AS [s] ON [p].[FeatureId] = [s].[Id]
+WHERE [p].[PlanId] = @__planId_0 AND [p].[IsIncluded] = CAST(1 AS bit)
+ORDER BY [s].[SortOrder]
+2025-08-12 17:57:15.801 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [s].[Id], [s].[Created], [s].[Description], [s].[Icon], [s].[IsActive], [s].[LastModified], [s].[Name], [s].[SortOrder]
+FROM [app].[SubscriptionFeatures] AS [s]
+WHERE [s].[IsActive] = CAST(1 AS bit)
+ORDER BY [s].[SortOrder]
+2025-08-12 17:57:15.807 +05:00 [INF] Setting HTTP status code 200.
+2025-08-12 17:57:15.809 +05:00 [INF] Writing value of type 'SubscriptionOverviewDto' as Json.
+2025-08-12 17:57:15.814 +05:00 [INF] Executed endpoint 'HTTP: GET /api/subscriptions/overview'
+2025-08-12 17:57:15.816 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/api/subscriptions/overview - 200 null application/json; charset=utf-8 170.0005ms
+2025-08-12 17:57:32.085 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/api/payments/wallet - null null
+2025-08-12 17:57:32.091 +05:00 [INF] Executing endpoint 'HTTP: GET /api/payments/wallet'
+2025-08-12 17:57:32.120 +05:00 [INF] Executed DbCommand (5ms) [Parameters=[@__userId_0='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT [p].[Id], [p].[CardNumber], [p].[CardType], [p].[CardholderName], [p].[Created], [p].[ExpiryMonth], [p].[ExpiryYear], [p].[IsActive], [p].[IsDefault], [p].[LastFourDigits], [p].[LastModified], [p].[UserId]
+FROM [app].[PaymentCards] AS [p]
+WHERE [p].[UserId] = @__userId_0 AND [p].[IsActive] = CAST(1 AS bit)
+ORDER BY [p].[IsDefault] DESC, [p].[Created]
+2025-08-12 17:57:32.185 +05:00 [INF] Executed DbCommand (7ms) [Parameters=[@__userId_0='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT [p].[Id], [p].[Amount], [p].[Created], [p].[Currency], [p].[Description], [p].[FailureReason], [p].[LastModified], [p].[PaymentCardId], [p].[PaymentMethod], [p].[Status], [p].[SubscriptionPlanId], [p].[TransactionDate], [p].[TransactionId], [p].[UserId], [p0].[Id], [p0].[CardNumber], [p0].[CardType], [p0].[CardholderName], [p0].[Created], [p0].[ExpiryMonth], [p0].[ExpiryYear], [p0].[IsActive], [p0].[IsDefault], [p0].[LastFourDigits], [p0].[LastModified], [p0].[UserId], [s].[Id], [s].[BillingCycle], [s].[Created], [s].[Description], [s].[IsActive], [s].[IsPopular], [s].[LastModified], [s].[Name], [s].[OriginalPrice], [s].[Price], [s].[SortOrder]
+FROM [app].[PaymentHistory] AS [p]
+LEFT JOIN [app].[PaymentCards] AS [p0] ON [p].[PaymentCardId] = [p0].[Id]
+LEFT JOIN [app].[SubscriptionPlans] AS [s] ON [p].[SubscriptionPlanId] = [s].[Id]
+WHERE [p].[UserId] = @__userId_0
+ORDER BY [p].[TransactionDate] DESC
+2025-08-12 17:57:32.193 +05:00 [INF] Setting HTTP status code 200.
+2025-08-12 17:57:32.206 +05:00 [INF] Writing value of type 'WalletOverviewDto' as Json.
+2025-08-12 17:57:32.211 +05:00 [INF] Executed endpoint 'HTTP: GET /api/payments/wallet'
+2025-08-12 17:57:32.214 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/api/payments/wallet - 200 null application/json; charset=utf-8 129.5794ms
+2025-08-12 18:10:32.179 +05:00 [INF] Executed DbCommand (16ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-12 18:10:32.240 +05:00 [INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+2025-08-12 18:10:32.261 +05:00 [INF] Executed DbCommand (17ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+2025-08-12 18:10:32.348 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+2025-08-12 18:10:32.363 +05:00 [INF] Executed DbCommand (0ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-12 18:10:32.366 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2025-08-12 18:10:32.393 +05:00 [INF] Executed DbCommand (23ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2025-08-12 18:10:32.410 +05:00 [INF] Applying migration '20250812130801_AddUserRole'.
+2025-08-12 18:10:32.451 +05:00 [INF] Executed DbCommand (4ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+ALTER TABLE [app].[Users] ADD [Role] nvarchar(20) NOT NULL DEFAULT N'';
+2025-08-12 18:10:32.474 +05:00 [INF] Executed DbCommand (20ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_Users_Role] ON [app].[Users] ([Role]);
+2025-08-12 18:10:32.478 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES (N'20250812130801_AddUserRole', N'9.0.2');
+2025-08-12 18:10:32.770 +05:00 [INF] Executed DbCommand (5ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-08-12 18:10:32.838 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_releaseapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session';
+SELECT @result
+2025-08-12 18:10:50.489 +05:00 [INF] Executed DbCommand (19ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-12 18:10:50.547 +05:00 [INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+2025-08-12 18:10:50.575 +05:00 [INF] Executed DbCommand (20ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+2025-08-12 18:10:50.632 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+2025-08-12 18:10:50.656 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-12 18:10:50.665 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2025-08-12 18:10:50.672 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2025-08-12 18:10:50.681 +05:00 [INF] No migrations were applied. The database is already up to date.
+2025-08-12 18:10:50.918 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-08-12 18:10:50.978 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_releaseapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session';
+SELECT @result
+2025-08-12 18:11:08.626 +05:00 [INF] Executed DbCommand (16ms) [Parameters=[@__adminEmail_0='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [app].[Users] AS [u]
+        WHERE [u].[Email] = @__adminEmail_0) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+2025-08-12 18:11:26.542 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [app].[SubscriptionPlans] AS [s]) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+2025-08-12 18:11:26.550 +05:00 [INF] Subscription data already seeded. Skipping...
+2025-08-12 18:11:26.627 +05:00 [INF] User profile is available. Using 'C:\Users\muhammad.aamir2810\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2025-08-12 18:11:27.019 +05:00 [INF] Now listening on: https://localhost:7046
+2025-08-12 18:11:27.021 +05:00 [INF] Now listening on: http://localhost:5000
+2025-08-12 18:11:27.027 +05:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2025-08-12 18:11:27.060 +05:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-08-12 18:11:27.062 +05:00 [INF] Hosting environment: Development
+2025-08-12 18:11:27.066 +05:00 [INF] Content root path: C:\Users\muhammad.aamir2810\Desktop\Personal\MindflowAIAPI\Mindflow Web API
+2025-08-12 18:11:27.589 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - null null
+2025-08-12 18:11:27.589 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_vs/browserLink - null null
+2025-08-12 18:11:27.719 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - 200 16517 application/javascript; charset=utf-8 134.7924ms
+2025-08-12 18:11:27.761 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_vs/browserLink - 200 null text/javascript; charset=UTF-8 181.7331ms
+2025-08-12 18:11:27.798 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/swagger/v1/swagger.json - null null
+2025-08-12 18:11:27.919 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/swagger/v1/swagger.json - 200 null application/json;charset=utf-8 120.7058ms
+2025-08-12 18:16:52.225 +05:00 [INF] Executed DbCommand (19ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-12 18:16:52.280 +05:00 [INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+2025-08-12 18:16:52.313 +05:00 [INF] Executed DbCommand (27ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+2025-08-12 18:16:52.381 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+2025-08-12 18:16:52.404 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-12 18:16:52.411 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2025-08-12 18:16:52.421 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2025-08-12 18:16:52.435 +05:00 [INF] No migrations were applied. The database is already up to date.
+2025-08-12 18:16:52.686 +05:00 [INF] Executed DbCommand (4ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-08-12 18:16:52.747 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_releaseapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session';
+SELECT @result
+2025-08-12 18:16:56.208 +05:00 [INF] Executed DbCommand (18ms) [Parameters=[@__adminEmail_0='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [app].[Users] AS [u]
+        WHERE [u].[Email] = @__adminEmail_0) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+2025-08-12 18:17:03.635 +05:00 [INF] Executed DbCommand (4ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [app].[SubscriptionPlans] AS [s]) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+2025-08-12 18:17:03.642 +05:00 [INF] Subscription data already seeded. Skipping...
+2025-08-12 18:17:03.739 +05:00 [INF] User profile is available. Using 'C:\Users\muhammad.aamir2810\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2025-08-12 18:17:04.279 +05:00 [INF] Now listening on: https://localhost:7046
+2025-08-12 18:17:04.281 +05:00 [INF] Now listening on: http://localhost:5000
+2025-08-12 18:17:04.291 +05:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2025-08-12 18:17:04.334 +05:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-08-12 18:17:04.335 +05:00 [INF] Hosting environment: Development
+2025-08-12 18:17:04.337 +05:00 [INF] Content root path: C:\Users\muhammad.aamir2810\Desktop\Personal\MindflowAIAPI\Mindflow Web API
+2025-08-12 18:17:05.166 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_vs/browserLink - null null
+2025-08-12 18:17:05.166 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - null null
+2025-08-12 18:17:05.240 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - 200 16517 application/javascript; charset=utf-8 81.9384ms
+2025-08-12 18:17:05.268 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_vs/browserLink - 200 null text/javascript; charset=UTF-8 111.9035ms
+2025-08-12 18:17:05.327 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/swagger/v1/swagger.json - null null
+2025-08-12 18:17:05.507 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/swagger/v1/swagger.json - 200 null application/json;charset=utf-8 181.0569ms
+2025-08-12 18:17:26.274 +05:00 [INF] Executed DbCommand (21ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-12 18:17:26.331 +05:00 [INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+2025-08-12 18:17:26.361 +05:00 [INF] Executed DbCommand (23ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+2025-08-12 18:17:26.425 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+2025-08-12 18:17:26.446 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-12 18:17:26.452 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2025-08-12 18:17:26.459 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2025-08-12 18:17:26.470 +05:00 [INF] No migrations were applied. The database is already up to date.
+2025-08-12 18:17:26.700 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-08-12 18:17:26.755 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_releaseapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session';
+SELECT @result
+2025-08-12 18:17:30.020 +05:00 [INF] Executed DbCommand (19ms) [Parameters=[@__adminEmail_0='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [app].[Users] AS [u]
+        WHERE [u].[Email] = @__adminEmail_0) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+2025-08-12 18:17:42.178 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [app].[SubscriptionPlans] AS [s]) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+2025-08-12 18:17:42.186 +05:00 [INF] Subscription data already seeded. Skipping...
+2025-08-12 18:17:42.295 +05:00 [INF] User profile is available. Using 'C:\Users\muhammad.aamir2810\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2025-08-12 18:17:42.680 +05:00 [INF] Now listening on: https://localhost:7046
+2025-08-12 18:17:42.683 +05:00 [INF] Now listening on: http://localhost:5000
+2025-08-12 18:17:42.688 +05:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2025-08-12 18:17:42.717 +05:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-08-12 18:17:42.719 +05:00 [INF] Hosting environment: Development
+2025-08-12 18:17:42.720 +05:00 [INF] Content root path: C:\Users\muhammad.aamir2810\Desktop\Personal\MindflowAIAPI\Mindflow Web API
+2025-08-12 18:17:43.355 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_vs/browserLink - null null
+2025-08-12 18:17:43.355 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - null null
+2025-08-12 18:17:43.418 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - 200 16517 application/javascript; charset=utf-8 71.5609ms
+2025-08-12 18:17:43.442 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_vs/browserLink - 200 null text/javascript; charset=UTF-8 97.7707ms
+2025-08-12 18:17:43.480 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/swagger/v1/swagger.json - null null
+2025-08-12 18:17:43.606 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/swagger/v1/swagger.json - 200 null application/json;charset=utf-8 126.3919ms
+2025-08-12 18:17:57.930 +05:00 [INF] Request starting HTTP/2 POST https://localhost:7046/api/users/signin - application/json 74
+2025-08-12 18:17:57.987 +05:00 [INF] CORS policy execution successful.
+2025-08-12 18:17:58.046 +05:00 [INF] Executing endpoint 'HTTP: POST /api/users/signin'
+2025-08-12 18:17:58.101 +05:00 [INF] Executed DbCommand (4ms) [Parameters=[@__command_UserNameOrEmail_0='?' (Size = 100), @__command_UserNameOrEmail_0_1='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [u].[Id], [u].[Created], [u].[DateOfBirth], [u].[Email], [u].[EmailConfirmed], [u].[FirstName], [u].[IsActive], [u].[LastModified], [u].[LastName], [u].[PasswordHash], [u].[ProfilePic], [u].[Role], [u].[SecurityStamp], [u].[Sub], [u].[UserName]
+FROM [app].[Users] AS [u]
+WHERE [u].[UserName] = @__command_UserNameOrEmail_0 OR [u].[Email] = @__command_UserNameOrEmail_0_1
+2025-08-12 18:17:58.179 +05:00 [INF] User signed in: admin
+2025-08-12 18:17:58.185 +05:00 [INF] Setting HTTP status code 200.
+2025-08-12 18:17:58.191 +05:00 [INF] Writing value of type 'TokenResponseDto' as Json.
+2025-08-12 18:17:58.197 +05:00 [INF] Executed endpoint 'HTTP: POST /api/users/signin'
+2025-08-12 18:17:58.199 +05:00 [INF] Request finished HTTP/2 POST https://localhost:7046/api/users/signin - 200 null application/json; charset=utf-8 269.1497ms
+2025-08-12 18:18:25.481 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/api/admin/subscriptions/plans - null null
+2025-08-12 18:18:25.533 +05:00 [INF] Executing endpoint 'HTTP: GET /api/admin/subscriptions/plans'
+2025-08-12 18:18:38.031 +05:00 [INF] Executed DbCommand (16ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [s].[Id], [s].[BillingCycle], [s].[Created], [s].[Description], [s].[IsActive], [s].[IsPopular], [s].[LastModified], [s].[Name], [s].[OriginalPrice], [s].[Price], [s].[SortOrder], [s1].[Id], [s1].[Created], [s1].[FeatureId], [s1].[IsIncluded], [s1].[LastModified], [s1].[Limit], [s1].[PlanId], [s1].[SubscriptionPlanId], [s1].[Id0], [s1].[Created0], [s1].[Description], [s1].[Icon], [s1].[IsActive], [s1].[LastModified0], [s1].[Name], [s1].[SortOrder]
+FROM [app].[SubscriptionPlans] AS [s]
+LEFT JOIN (
+    SELECT [p].[Id], [p].[Created], [p].[FeatureId], [p].[IsIncluded], [p].[LastModified], [p].[Limit], [p].[PlanId], [p].[SubscriptionPlanId], [s0].[Id] AS [Id0], [s0].[Created] AS [Created0], [s0].[Description], [s0].[Icon], [s0].[IsActive], [s0].[LastModified] AS [LastModified0], [s0].[Name], [s0].[SortOrder]
+    FROM [app].[PlanFeatures] AS [p]
+    INNER JOIN [app].[SubscriptionFeatures] AS [s0] ON [p].[FeatureId] = [s0].[Id]
+) AS [s1] ON [s].[Id] = [s1].[SubscriptionPlanId]
+WHERE [s].[IsActive] = CAST(1 AS bit)
+ORDER BY [s].[SortOrder], [s].[Id], [s1].[Id]
+2025-08-12 18:18:38.082 +05:00 [INF] Executed DbCommand (4ms) [Parameters=[@__planId_0='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT [p].[Id], [p].[Created], [p].[FeatureId], [p].[IsIncluded], [p].[LastModified], [p].[Limit], [p].[PlanId], [p].[SubscriptionPlanId], [s].[Id], [s].[Created], [s].[Description], [s].[Icon], [s].[IsActive], [s].[LastModified], [s].[Name], [s].[SortOrder]
+FROM [app].[PlanFeatures] AS [p]
+INNER JOIN [app].[SubscriptionFeatures] AS [s] ON [p].[FeatureId] = [s].[Id]
+WHERE [p].[PlanId] = @__planId_0 AND [p].[IsIncluded] = CAST(1 AS bit)
+ORDER BY [s].[SortOrder]
+2025-08-12 18:18:38.123 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[@__planId_0='?' (DbType = Guid)], CommandType='"Text"', CommandTimeout='30']
+SELECT [p].[Id], [p].[Created], [p].[FeatureId], [p].[IsIncluded], [p].[LastModified], [p].[Limit], [p].[PlanId], [p].[SubscriptionPlanId], [s].[Id], [s].[Created], [s].[Description], [s].[Icon], [s].[IsActive], [s].[LastModified], [s].[Name], [s].[SortOrder]
+FROM [app].[PlanFeatures] AS [p]
+INNER JOIN [app].[SubscriptionFeatures] AS [s] ON [p].[FeatureId] = [s].[Id]
+WHERE [p].[PlanId] = @__planId_0 AND [p].[IsIncluded] = CAST(1 AS bit)
+ORDER BY [s].[SortOrder]
+2025-08-12 18:18:38.129 +05:00 [INF] Setting HTTP status code 200.
+2025-08-12 18:18:38.132 +05:00 [INF] Writing value of type 'List`1' as Json.
+2025-08-12 18:18:38.138 +05:00 [INF] Executed endpoint 'HTTP: GET /api/admin/subscriptions/plans'
+2025-08-12 18:18:38.140 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/api/admin/subscriptions/plans - 200 null application/json; charset=utf-8 12659.5447ms
+2025-08-12 18:21:02.831 +05:00 [INF] Executed DbCommand (23ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-12 18:21:02.893 +05:00 [INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+2025-08-12 18:21:02.927 +05:00 [INF] Executed DbCommand (29ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+2025-08-12 18:21:02.998 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+2025-08-12 18:21:03.023 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-12 18:21:03.027 +05:00 [INF] Executed DbCommand (1ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2025-08-12 18:21:03.037 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2025-08-12 18:21:03.048 +05:00 [INF] No migrations were applied. The database is already up to date.
+2025-08-12 18:21:03.280 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-08-12 18:21:03.336 +05:00 [INF] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_releaseapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session';
+SELECT @result
+2025-08-12 18:21:31.133 +05:00 [INF] Executed DbCommand (106ms) [Parameters=[@__adminEmail_0='?' (Size = 200)], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [app].[Users] AS [u]
+        WHERE [u].[Email] = @__adminEmail_0) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+2025-08-12 18:21:35.201 +05:00 [INF] Executed DbCommand (4ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [u].[Id], [u].[Created], [u].[DateOfBirth], [u].[Email], [u].[EmailConfirmed], [u].[FirstName], [u].[IsActive], [u].[LastModified], [u].[LastName], [u].[PasswordHash], [u].[ProfilePic], [u].[Role], [u].[SecurityStamp], [u].[Sub], [u].[UserName]
+FROM [app].[Users] AS [u]
+2025-08-12 18:21:44.354 +05:00 [INF] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [app].[SubscriptionPlans] AS [s]) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+2025-08-12 18:21:44.363 +05:00 [INF] Subscription data already seeded. Skipping...
+2025-08-12 18:21:44.455 +05:00 [INF] User profile is available. Using 'C:\Users\muhammad.aamir2810\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+2025-08-12 18:21:44.839 +05:00 [INF] Now listening on: https://localhost:7046
+2025-08-12 18:21:44.841 +05:00 [INF] Now listening on: http://localhost:5000
+2025-08-12 18:21:44.846 +05:00 [INF] No action descriptors found. This may indicate an incorrectly configured application or missing application parts. To learn more, visit https://aka.ms/aspnet/mvc/app-parts
+2025-08-12 18:21:44.874 +05:00 [INF] Application started. Press Ctrl+C to shut down.
+2025-08-12 18:21:44.876 +05:00 [INF] Hosting environment: Development
+2025-08-12 18:21:44.879 +05:00 [INF] Content root path: C:\Users\muhammad.aamir2810\Desktop\Personal\MindflowAIAPI\Mindflow Web API
+2025-08-12 18:21:45.718 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_vs/browserLink - null null
+2025-08-12 18:21:45.718 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - null null
+2025-08-12 18:21:45.768 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_framework/aspnetcore-browser-refresh.js - 200 16517 application/javascript; charset=utf-8 54.2457ms
+2025-08-12 18:21:45.807 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/_vs/browserLink - 200 null text/javascript; charset=UTF-8 95.2537ms
+2025-08-12 18:21:45.846 +05:00 [INF] Request starting HTTP/2 GET https://localhost:7046/swagger/v1/swagger.json - null null
+2025-08-12 18:21:45.974 +05:00 [INF] Request finished HTTP/2 GET https://localhost:7046/swagger/v1/swagger.json - 200 null application/json;charset=utf-8 128.3705ms
+2025-08-12 18:23:08.714 +05:00 [INF] Executed DbCommand (270ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-12 18:23:08.747 +05:00 [INF] Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.
+2025-08-12 18:23:09.021 +05:00 [INF] Executed DbCommand (272ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_getapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session', @LockMode = 'Exclusive';
+SELECT @result
+2025-08-12 18:23:09.590 +05:00 [INF] Executed DbCommand (257ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+IF OBJECT_ID(N'[__EFMigrationsHistory]') IS NULL
+BEGIN
+    CREATE TABLE [__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+2025-08-12 18:23:10.378 +05:00 [INF] Executed DbCommand (261ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT 1
+2025-08-12 18:23:10.644 +05:00 [INF] Executed DbCommand (265ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+2025-08-12 18:23:10.912 +05:00 [INF] Executed DbCommand (262ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+2025-08-12 18:23:10.919 +05:00 [INF] Applying migration '20250812124421_AddSubscriptionAndPaymentEntities'.
+2025-08-12 18:23:11.213 +05:00 [INF] Executed DbCommand (262ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE TABLE [app].[PaymentCards] (
+    [Id] uniqueidentifier NOT NULL,
+    [UserId] uniqueidentifier NOT NULL,
+    [CardNumber] nvarchar(50) NOT NULL,
+    [CardholderName] nvarchar(100) NOT NULL,
+    [ExpiryMonth] nvarchar(2) NOT NULL,
+    [ExpiryYear] nvarchar(2) NOT NULL,
+    [CardType] nvarchar(50) NOT NULL,
+    [IsDefault] bit NOT NULL,
+    [IsActive] bit NOT NULL,
+    [LastFourDigits] nvarchar(4) NULL,
+    [Created] datetimeoffset NOT NULL,
+    [LastModified] datetimeoffset NOT NULL,
+    CONSTRAINT [PK_PaymentCards] PRIMARY KEY ([Id]),
+    CONSTRAINT [FK_PaymentCards_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [app].[Users] ([Id]) ON DELETE CASCADE
+);
+2025-08-12 18:23:11.476 +05:00 [INF] Executed DbCommand (262ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE TABLE [app].[SubscriptionFeatures] (
+    [Id] uniqueidentifier NOT NULL,
+    [Name] nvarchar(100) NOT NULL,
+    [Description] nvarchar(500) NOT NULL,
+    [IsActive] bit NOT NULL,
+    [SortOrder] int NOT NULL,
+    [Icon] nvarchar(100) NOT NULL,
+    [Created] datetimeoffset NOT NULL,
+    [LastModified] datetimeoffset NOT NULL,
+    CONSTRAINT [PK_SubscriptionFeatures] PRIMARY KEY ([Id])
+);
+2025-08-12 18:23:11.734 +05:00 [INF] Executed DbCommand (258ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE TABLE [app].[SubscriptionPlans] (
+    [Id] uniqueidentifier NOT NULL,
+    [Name] nvarchar(100) NOT NULL,
+    [Description] nvarchar(500) NOT NULL,
+    [Price] decimal(18,2) NOT NULL,
+    [BillingCycle] nvarchar(50) NOT NULL,
+    [IsActive] bit NOT NULL,
+    [SortOrder] int NOT NULL,
+    [OriginalPrice] nvarchar(50) NULL,
+    [IsPopular] bit NOT NULL,
+    [Created] datetimeoffset NOT NULL,
+    [LastModified] datetimeoffset NOT NULL,
+    CONSTRAINT [PK_SubscriptionPlans] PRIMARY KEY ([Id])
+);
+2025-08-12 18:23:11.993 +05:00 [INF] Executed DbCommand (258ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE TABLE [app].[PaymentHistory] (
+    [Id] uniqueidentifier NOT NULL,
+    [UserId] uniqueidentifier NOT NULL,
+    [PaymentCardId] uniqueidentifier NULL,
+    [SubscriptionPlanId] uniqueidentifier NULL,
+    [Amount] decimal(18,2) NOT NULL,
+    [Currency] nvarchar(3) NOT NULL,
+    [Description] nvarchar(200) NOT NULL,
+    [Status] nvarchar(450) NOT NULL,
+    [TransactionId] nvarchar(100) NULL,
+    [PaymentMethod] nvarchar(50) NULL,
+    [FailureReason] nvarchar(500) NULL,
+    [TransactionDate] datetime2 NOT NULL,
+    [Created] datetimeoffset NOT NULL,
+    [LastModified] datetimeoffset NOT NULL,
+    CONSTRAINT [PK_PaymentHistory] PRIMARY KEY ([Id]),
+    CONSTRAINT [FK_PaymentHistory_PaymentCards_PaymentCardId] FOREIGN KEY ([PaymentCardId]) REFERENCES [app].[PaymentCards] ([Id]) ON DELETE SET NULL,
+    CONSTRAINT [FK_PaymentHistory_SubscriptionPlans_SubscriptionPlanId] FOREIGN KEY ([SubscriptionPlanId]) REFERENCES [app].[SubscriptionPlans] ([Id]) ON DELETE SET NULL,
+    CONSTRAINT [FK_PaymentHistory_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [app].[Users] ([Id])
+);
+2025-08-12 18:23:12.250 +05:00 [INF] Executed DbCommand (256ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE TABLE [app].[PlanFeatures] (
+    [Id] uniqueidentifier NOT NULL,
+    [PlanId] uniqueidentifier NOT NULL,
+    [FeatureId] uniqueidentifier NOT NULL,
+    [IsIncluded] bit NOT NULL,
+    [Limit] nvarchar(100) NULL,
+    [SubscriptionPlanId] uniqueidentifier NULL,
+    [Created] datetimeoffset NOT NULL,
+    [LastModified] datetimeoffset NOT NULL,
+    CONSTRAINT [PK_PlanFeatures] PRIMARY KEY ([Id]),
+    CONSTRAINT [FK_PlanFeatures_SubscriptionFeatures_FeatureId] FOREIGN KEY ([FeatureId]) REFERENCES [app].[SubscriptionFeatures] ([Id]) ON DELETE CASCADE,
+    CONSTRAINT [FK_PlanFeatures_SubscriptionPlans_PlanId] FOREIGN KEY ([PlanId]) REFERENCES [app].[SubscriptionPlans] ([Id]) ON DELETE CASCADE,
+    CONSTRAINT [FK_PlanFeatures_SubscriptionPlans_SubscriptionPlanId] FOREIGN KEY ([SubscriptionPlanId]) REFERENCES [app].[SubscriptionPlans] ([Id])
+);
+2025-08-12 18:23:12.511 +05:00 [INF] Executed DbCommand (261ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE TABLE [app].[UserSubscriptions] (
+    [Id] uniqueidentifier NOT NULL,
+    [UserId] uniqueidentifier NOT NULL,
+    [PlanId] uniqueidentifier NOT NULL,
+    [StartDate] datetime2 NOT NULL,
+    [EndDate] datetime2 NULL,
+    [Status] nvarchar(450) NOT NULL,
+    [Created] datetimeoffset NOT NULL,
+    [LastModified] datetimeoffset NOT NULL,
+    CONSTRAINT [PK_UserSubscriptions] PRIMARY KEY ([Id]),
+    CONSTRAINT [FK_UserSubscriptions_SubscriptionPlans_PlanId] FOREIGN KEY ([PlanId]) REFERENCES [app].[SubscriptionPlans] ([Id]) ON DELETE NO ACTION,
+    CONSTRAINT [FK_UserSubscriptions_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [app].[Users] ([Id]) ON DELETE CASCADE
+);
+2025-08-12 18:23:12.770 +05:00 [INF] Executed DbCommand (259ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_PaymentCards_IsActive] ON [app].[PaymentCards] ([IsActive]);
+2025-08-12 18:23:13.031 +05:00 [INF] Executed DbCommand (260ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_PaymentCards_IsDefault] ON [app].[PaymentCards] ([IsDefault]);
+2025-08-12 18:23:13.289 +05:00 [INF] Executed DbCommand (258ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_PaymentCards_UserId] ON [app].[PaymentCards] ([UserId]);
+2025-08-12 18:23:13.551 +05:00 [INF] Executed DbCommand (262ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_PaymentHistory_PaymentCardId] ON [app].[PaymentHistory] ([PaymentCardId]);
+2025-08-12 18:23:13.810 +05:00 [INF] Executed DbCommand (259ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_PaymentHistory_Status] ON [app].[PaymentHistory] ([Status]);
+2025-08-12 18:23:14.068 +05:00 [INF] Executed DbCommand (257ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_PaymentHistory_SubscriptionPlanId] ON [app].[PaymentHistory] ([SubscriptionPlanId]);
+2025-08-12 18:23:14.325 +05:00 [INF] Executed DbCommand (257ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_PaymentHistory_TransactionDate] ON [app].[PaymentHistory] ([TransactionDate]);
+2025-08-12 18:23:14.583 +05:00 [INF] Executed DbCommand (258ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_PaymentHistory_TransactionId] ON [app].[PaymentHistory] ([TransactionId]);
+2025-08-12 18:23:14.840 +05:00 [INF] Executed DbCommand (256ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_PaymentHistory_UserId] ON [app].[PaymentHistory] ([UserId]);
+2025-08-12 18:23:15.099 +05:00 [INF] Executed DbCommand (259ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_PlanFeatures_FeatureId] ON [app].[PlanFeatures] ([FeatureId]);
+2025-08-12 18:23:15.356 +05:00 [INF] Executed DbCommand (256ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_PlanFeatures_IsIncluded] ON [app].[PlanFeatures] ([IsIncluded]);
+2025-08-12 18:23:15.612 +05:00 [INF] Executed DbCommand (256ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_PlanFeatures_PlanId] ON [app].[PlanFeatures] ([PlanId]);
+2025-08-12 18:23:15.875 +05:00 [INF] Executed DbCommand (263ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE UNIQUE INDEX [IX_PlanFeatures_PlanId_FeatureId] ON [app].[PlanFeatures] ([PlanId], [FeatureId]);
+2025-08-12 18:23:16.133 +05:00 [INF] Executed DbCommand (257ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_PlanFeatures_SubscriptionPlanId] ON [app].[PlanFeatures] ([SubscriptionPlanId]);
+2025-08-12 18:23:16.395 +05:00 [INF] Executed DbCommand (262ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_SubscriptionFeatures_IsActive] ON [app].[SubscriptionFeatures] ([IsActive]);
+2025-08-12 18:23:16.650 +05:00 [INF] Executed DbCommand (255ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_SubscriptionFeatures_Name] ON [app].[SubscriptionFeatures] ([Name]);
+2025-08-12 18:23:16.922 +05:00 [INF] Executed DbCommand (272ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_SubscriptionFeatures_SortOrder] ON [app].[SubscriptionFeatures] ([SortOrder]);
+2025-08-12 18:23:17.181 +05:00 [INF] Executed DbCommand (258ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_SubscriptionPlans_IsActive] ON [app].[SubscriptionPlans] ([IsActive]);
+2025-08-12 18:23:17.437 +05:00 [INF] Executed DbCommand (256ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_SubscriptionPlans_Name] ON [app].[SubscriptionPlans] ([Name]);
+2025-08-12 18:23:17.693 +05:00 [INF] Executed DbCommand (256ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_SubscriptionPlans_SortOrder] ON [app].[SubscriptionPlans] ([SortOrder]);
+2025-08-12 18:23:17.953 +05:00 [INF] Executed DbCommand (260ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_UserSubscriptions_EndDate] ON [app].[UserSubscriptions] ([EndDate]);
+2025-08-12 18:23:18.211 +05:00 [INF] Executed DbCommand (257ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_UserSubscriptions_PlanId] ON [app].[UserSubscriptions] ([PlanId]);
+2025-08-12 18:23:18.469 +05:00 [INF] Executed DbCommand (258ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_UserSubscriptions_StartDate] ON [app].[UserSubscriptions] ([StartDate]);
+2025-08-12 18:23:18.725 +05:00 [INF] Executed DbCommand (255ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_UserSubscriptions_Status] ON [app].[UserSubscriptions] ([Status]);
+2025-08-12 18:23:18.982 +05:00 [INF] Executed DbCommand (257ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_UserSubscriptions_UserId] ON [app].[UserSubscriptions] ([UserId]);
+2025-08-12 18:23:19.240 +05:00 [INF] Executed DbCommand (257ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES (N'20250812124421_AddSubscriptionAndPaymentEntities', N'9.0.2');
+2025-08-12 18:23:19.240 +05:00 [INF] Applying migration '20250812130801_AddUserRole'.
+2025-08-12 18:23:19.522 +05:00 [INF] Executed DbCommand (255ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+ALTER TABLE [app].[Users] ADD [Role] nvarchar(20) NOT NULL DEFAULT N'';
+2025-08-12 18:23:19.781 +05:00 [INF] Executed DbCommand (259ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+CREATE INDEX [IX_Users_Role] ON [app].[Users] ([Role]);
+2025-08-12 18:23:20.036 +05:00 [INF] Executed DbCommand (255ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+VALUES (N'20250812130801_AddUserRole', N'9.0.2');
+2025-08-12 18:23:20.473 +05:00 [INF] Executed DbCommand (259ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT TOP(1) [m].[Id], [m].[Created], [m].[Genre], [m].[LastModified], [m].[Rating], [m].[ReleaseDate], [m].[Title]
+FROM [app].[Movies] AS [m]
+WHERE [m].[Title] = N'Sonic the Hedgehog 3'
+2025-08-12 18:23:21.035 +05:00 [INF] Executed DbCommand (257ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+DECLARE @result int;
+EXEC @result = sp_releaseapplock @Resource = '__EFMigrationsLock', @LockOwner = 'Session';
+SELECT @result

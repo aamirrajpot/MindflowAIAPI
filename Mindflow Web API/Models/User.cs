@@ -15,6 +15,7 @@ namespace Mindflow_Web_API.Models
         public DateTime? DateOfBirth { get; set; }
         public string? ProfilePic { get; set; }
         public string? Sub { get; set; } // Apple subject identifier
+        public Role Role { get; set; } = Role.User;
 
         public static User Create(string userName, string email, string firstName, string lastName, bool emailConfirmed, bool isActive, string passwordHash, string securityStamp, string? sub = null)
         {

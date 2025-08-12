@@ -10,6 +10,7 @@ namespace Mindflow_Web_API.Services
     public interface IAdminSeedService
     {
         Task SeedAdminUserAsync();
+        Task SeedDefaultUsersAsync();
     }
 
     public class AdminSeedService : IAdminSeedService
@@ -39,12 +40,41 @@ namespace Mindflow_Web_API.Services
                     PasswordHash = PasswordHelper.HashPassword("Admin@123"), // Default password
                     SecurityStamp = Guid.NewGuid().ToString(),
                     EmailConfirmed = true,
-                    IsActive = true
+                    IsActive = true,
+                    Role = Role.Admin
                 };
 
                 await _dbContext.Users.AddAsync(adminUser);
                 await _dbContext.SaveChangesAsync();
                 _logger.LogInformation("Default admin user seeded successfully");
+            }
+        }
+
+        public async Task SeedDefaultUsersAsync()
+        {
+            await SeedAdminUserAsync();
+
+            var userEmail = "user@mindflowai.com";
+            var userExists = await _dbContext.Users.AnyAsync(u => u.Email == userEmail);
+
+            if (!userExists)
+            {
+                var defaultUser = new User
+                {
+                    UserName = "user",
+                    Email = userEmail,
+                    FirstName = "Default",
+                    LastName = "User",
+                    PasswordHash = PasswordHelper.HashPassword("User@123"),
+                    SecurityStamp = Guid.NewGuid().ToString(),
+                    EmailConfirmed = true,
+                    IsActive = true,
+                    Role = Role.User
+                };
+
+                await _dbContext.Users.AddAsync(defaultUser);
+                await _dbContext.SaveChangesAsync();
+                _logger.LogInformation("Default regular user seeded successfully");
             }
         }
     }

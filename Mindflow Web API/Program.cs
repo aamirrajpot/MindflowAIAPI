@@ -95,13 +95,13 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 
 // Register UserService
-builder.Services.AddTransient<IUserService, UserService>();
+builder.Services.AddScoped<IUserService, UserService>();
 
 // Register EmailService
 builder.Services.AddTransient<IEmailService, EmailService>();
 
 // Register WellnessCheckInService
-builder.Services.AddTransient<IWellnessCheckInService, WellnessCheckInService>();
+builder.Services.AddScoped<IWellnessCheckInService, WellnessCheckInService>();
 
 // Register ExternalAuthService
 builder.Services.AddTransient<IExternalAuthService, ExternalAuthService>();
@@ -110,13 +110,22 @@ builder.Services.AddTransient<IExternalAuthService, ExternalAuthService>();
 builder.Services.AddTransient<IAdminSeedService, AdminSeedService>();
 
 // Register TaskItem Service
-builder.Services.AddTransient<ITaskItemService, TaskItemService>();
+builder.Services.AddScoped<ITaskItemService, TaskItemService>();
 
 // Register OllamaService
 builder.Services.AddHttpClient<IOllamaService, OllamaService>(client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["Ollama:BaseUrl"] ?? "http://localhost:11434");
 });
+
+// Register SubscriptionService
+builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
+
+// Register PaymentService
+builder.Services.AddScoped<IPaymentService, PaymentService>();
+
+// Register SubscriptionSeedService
+builder.Services.AddScoped<SubscriptionSeedService>();
 
 // Add CORS policy to allow all
 builder.Services.AddCors(options =>
@@ -150,6 +159,10 @@ if (app.Environment.IsDevelopment())
         // Seed admin user
         var adminSeedService = serviceScope.ServiceProvider.GetRequiredService<IAdminSeedService>();
         await adminSeedService.SeedAdminUserAsync();
+
+        // Seed subscription data
+        var subscriptionSeedService = serviceScope.ServiceProvider.GetRequiredService<SubscriptionSeedService>();
+        await subscriptionSeedService.SeedSubscriptionDataAsync();
     }
 
 
@@ -171,6 +184,8 @@ app.UseAuthorization();
 app.MapUserEndpoints();
 app.MapWellnessCheckInEndpoints();
 app.MapTaskItemEndpoints();
+app.MapSubscriptionEndpoints();
+app.MapPaymentEndpoints();
 
 app.Run();
 
