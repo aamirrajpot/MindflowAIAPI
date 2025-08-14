@@ -10,8 +10,7 @@ namespace Mindflow_Web_API.Models
         public TaskCategory Category { get; set; }
         public string? OtherCategoryName { get; set; } // Only if Category == Other
         public DateTime Date { get; set; }
-        public string Time { get; set; } = string.Empty; // e.g., "09:00"
-        public string? TimeShift { get; set; } // "AM" or "PM"
+        public string Time { get; set; } = string.Empty; // e.g., "09:00 AM"
         public int DurationMinutes { get; set; }
         public bool ReminderEnabled { get; set; }
         public RepeatType RepeatType { get; set; } = RepeatType.Never;
