@@ -7,10 +7,12 @@ using Mindflow_Web_API.EndPoints;
 using Mindflow_Web_API.Persistence;
 using Mindflow_Web_API.Services;
 using Mindflow_Web_API.Middleware;
+using Mindflow_Web_API.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Microsoft.OpenApi.Models;
+using Stripe;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -118,11 +120,20 @@ builder.Services.AddHttpClient<IOllamaService, OllamaService>(client =>
     client.BaseAddress = new Uri(builder.Configuration["Ollama:BaseUrl"] ?? "http://localhost:11434");
 });
 
-// Register SubscriptionService
-builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
+// Register SubscriptionService (fully qualify to avoid Stripe.SubscriptionService ambiguity)
+builder.Services.AddScoped<Mindflow_Web_API.Services.ISubscriptionService, Mindflow_Web_API.Services.SubscriptionService>();
 
 // Register PaymentService
 builder.Services.AddScoped<IPaymentService, PaymentService>();
+
+// Stripe configuration and services
+builder.Services.Configure<StripeOptions>(builder.Configuration.GetSection("Stripe"));
+builder.Services.AddSingleton<TokenService>();
+builder.Services.AddSingleton<CustomerService>();
+builder.Services.AddSingleton<ChargeService>();
+builder.Services.AddSingleton<PaymentIntentService>();
+builder.Services.AddSingleton<EphemeralKeyService>();
+builder.Services.AddScoped<IStripeService, StripeService>();
 
 // Register SubscriptionSeedService
 builder.Services.AddScoped<SubscriptionSeedService>();
@@ -186,6 +197,7 @@ app.MapWellnessCheckInEndpoints();
 app.MapTaskItemEndpoints();
 app.MapSubscriptionEndpoints();
 app.MapPaymentEndpoints();
+app.MapStripeEndpoints();
 
 app.Run();
 
