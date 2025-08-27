@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>Mindflow_Web_API</RootNamespace>
+    <UserSecretsId>0f648d20-e5af-4381-81cf-9ea918f3c3f1</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
