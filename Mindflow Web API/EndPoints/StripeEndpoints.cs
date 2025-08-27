@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using System.IO;
 using System.Linq;
 using System.Security.Claims;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Mindflow_Web_API.EndPoints
 {
@@ -93,7 +94,7 @@ namespace Mindflow_Web_API.EndPoints
             });
 
             // Webhook endpoint (no auth) for Stripe events
-            app.MapPost("/api/stripe/webhook", async (HttpRequest request, IConfiguration configuration, MindflowDbContext dbContext) =>
+            app.MapPost("/api/stripe/webhook", async (HttpRequest request, IConfiguration configuration, MindflowDbContext dbContext, IServiceProvider serviceProvider) =>
             {
                 var json = await new StreamReader(request.Body).ReadToEndAsync();
                 var signature = request.Headers["Stripe-Signature"].FirstOrDefault();
@@ -151,6 +152,33 @@ namespace Mindflow_Web_API.EndPoints
 
                         await dbContext.PaymentHistory.AddAsync(record);
                         await dbContext.SaveChangesAsync();
+
+                        // Create user subscription if planId is provided
+                        if (planId.HasValue && userId != Guid.Empty)
+                        {
+                            try
+                            {
+                                // Get subscription service from DI container
+                                using var scope = serviceProvider.CreateScope();
+                                var subscriptionService = scope.ServiceProvider.GetRequiredService<ISubscriptionService>();
+                                
+                                // Create user subscription
+                                var createSubscriptionDto = new CreateUserSubscriptionDto(planId.Value);
+                                await subscriptionService.CreateUserSubscriptionAsync(userId, createSubscriptionDto);
+                                
+                                // Log successful subscription creation
+                                var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+                                logger.LogInformation("User subscription created successfully for UserId: {UserId}, PlanId: {PlanId}, PaymentIntent: {PaymentIntentId}", 
+                                    userId, planId.Value, paymentIntent.Id);
+                            }
+                            catch (Exception ex)
+                            {
+                                // Log error but don't fail the webhook
+                                var logger = serviceProvider.GetRequiredService<ILogger<Program>>();
+                                logger.LogError(ex, "Failed to create user subscription for UserId: {UserId}, PlanId: {PlanId}, PaymentIntent: {PaymentIntentId}", 
+                                    userId, planId.Value, paymentIntent.Id);
+                            }
+                        }
                     }
                 }
 
