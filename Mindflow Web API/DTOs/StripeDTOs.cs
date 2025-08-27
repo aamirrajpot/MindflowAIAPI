@@ -37,7 +37,6 @@ namespace Mindflow_Web_API.DTOs
 
     // Payment Sheet DTOs
     public record CreatePaymentSheetResource(
-        string UserId,
         decimal Amount,
         string Currency,
         string Email,

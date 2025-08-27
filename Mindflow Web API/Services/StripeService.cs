@@ -104,7 +104,7 @@ namespace Mindflow_Web_API.Services
             // Let other exceptions propagate up
         }
 
-        public async Task<PaymentSheetResource> CreatePaymentSheet(CreatePaymentSheetResource resource, CancellationToken cancellationToken)
+        public async Task<PaymentSheetResource> CreatePaymentSheet(Guid userId, CreatePaymentSheetResource resource, CancellationToken cancellationToken)
         {
             // Create or use existing customer
             Customer customer;
@@ -146,7 +146,7 @@ namespace Mindflow_Web_API.Services
                 },
                 Metadata = new Dictionary<string, string>
                 {
-                    { "userId", resource.UserId },
+                    { "userId", userId.ToString() },
                     { "amount", amountInSmallestUnit.ToString() },
                     { "currency", resource.Currency.ToLower() },
                     { "planId", resource.PlanId?.ToString() ?? string.Empty }

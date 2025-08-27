@@ -9,6 +9,6 @@ namespace Mindflow_Web_API.Services
         Task<CustomerResource> CreateCustomer(CreateCustomerResource resource, CancellationToken cancellationToken);
         Task<ChargeResource> CreateCharge(CreateChargeResource resource, CancellationToken cancellationToken);
         Task<IEnumerable<ChargeResource>> GetChargeHistory(string customerId, CancellationToken cancellationToken);
-        Task<PaymentSheetResource> CreatePaymentSheet(CreatePaymentSheetResource resource, CancellationToken cancellationToken);
+        Task<PaymentSheetResource> CreatePaymentSheet(Guid userId, CreatePaymentSheetResource resource, CancellationToken cancellationToken);
     }
 }

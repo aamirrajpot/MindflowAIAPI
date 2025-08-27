@@ -7,6 +7,7 @@ using Mindflow_Web_API.Models;
 using Microsoft.EntityFrameworkCore;
 using System.IO;
 using System.Linq;
+using System.Security.Claims;
 
 namespace Mindflow_Web_API.EndPoints
 {
@@ -72,12 +73,17 @@ namespace Mindflow_Web_API.EndPoints
                 }
             });
 
-            // Create PaymentSheet (optionally with PlanId; no token used)
-            stripeApi.MapPost("/payment-sheet", async (CreatePaymentSheetResource resource, IStripeService stripeService, CancellationToken cancellationToken) =>
+            // Create PaymentSheet (optionally with PlanId; userId extracted from token)
+            stripeApi.MapPost("/payment-sheet", async (CreatePaymentSheetResource resource, IStripeService stripeService, HttpContext context, CancellationToken cancellationToken) =>
             {
                 try
                 {
-                    var paymentSheet = await stripeService.CreatePaymentSheet(resource, cancellationToken);
+                    // Extract userId from JWT token
+                    var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier || c.Type == "sub");
+                    if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+                        return Results.Unauthorized();
+
+                    var paymentSheet = await stripeService.CreatePaymentSheet(userId, resource, cancellationToken);
                     return Results.Ok(paymentSheet);
                 }
                 catch (StripeException ex)
