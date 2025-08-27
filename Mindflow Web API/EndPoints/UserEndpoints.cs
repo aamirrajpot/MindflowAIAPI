@@ -288,6 +288,74 @@ namespace Mindflow_Web_API.EndPoints
                 return op;
             });
 
+            // Authorized endpoint to test Azure secrets configuration
+            usersApi.MapGet("/test-azure-secrets", (IConfiguration configuration, HttpContext context) =>
+            {
+                if (!context.User.Identity?.IsAuthenticated ?? true)
+                    throw ApiExceptions.Unauthorized("User is not authenticated");
+                
+                var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
+                if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+                    throw ApiExceptions.Unauthorized("Invalid user token");
+                
+                // Check if user is admin
+                var isAdmin = context.User.Claims.Any(c => c.Type == System.Security.Claims.ClaimTypes.Role && c.Value == "Admin");
+                if (!isAdmin)
+                    throw ApiExceptions.Forbidden("Only administrators can access this endpoint");
+                
+                // Read secrets from configuration (Azure Web App Application Settings)
+                var stripeSecretKey = configuration["Stripe:SecretKey"];
+                var stripePublishableKey = configuration["Stripe:PublishableKey"];
+                var stripeWebhookSecret = configuration["Stripe:WebhookSecret"];
+                var jwtKey = configuration["Jwt:Key"];
+                var emailSmtpPassword = configuration["Email:SmtpPassword"];
+                var connectionString = configuration.GetConnectionString("DefaultConnection");
+                
+                // Create a safe response that masks sensitive data
+                var response = new
+                {
+                    timestamp = DateTime.UtcNow,
+                    userId = userId,
+                    isAdmin = isAdmin,
+                    configurationStatus = new
+                    {
+                        stripeSecretKey = !string.IsNullOrEmpty(stripeSecretKey) ? $"{stripeSecretKey.Substring(0, Math.Min(7, stripeSecretKey.Length))}..." : "NOT_SET",
+                        stripePublishableKey = !string.IsNullOrEmpty(stripePublishableKey) ? $"{stripePublishableKey.Substring(0, Math.Min(7, stripePublishableKey.Length))}..." : "NOT_SET",
+                        stripeWebhookSecret = !string.IsNullOrEmpty(stripeWebhookSecret) ? $"{stripeWebhookSecret.Substring(0, Math.Min(7, stripeWebhookSecret.Length))}..." : "NOT_SET",
+                        jwtKey = !string.IsNullOrEmpty(jwtKey) ? $"{jwtKey.Substring(0, Math.Min(7, jwtKey.Length))}..." : "NOT_SET",
+                        emailSmtpPassword = !string.IsNullOrEmpty(emailSmtpPassword) ? "SET" : "NOT_SET",
+                        connectionString = !string.IsNullOrEmpty(connectionString) ? "SET" : "NOT_SET"
+                    },
+                    secretsFound = new
+                    {
+                        stripeSecretKey = !string.IsNullOrEmpty(stripeSecretKey),
+                        stripePublishableKey = !string.IsNullOrEmpty(stripePublishableKey),
+                        stripeWebhookSecret = !string.IsNullOrEmpty(stripeWebhookSecret),
+                        jwtKey = !string.IsNullOrEmpty(jwtKey),
+                        emailSmtpPassword = !string.IsNullOrEmpty(emailSmtpPassword),
+                        connectionString = !string.IsNullOrEmpty(connectionString)
+                    },
+                    totalSecretsConfigured = new[]
+                    {
+                        !string.IsNullOrEmpty(stripeSecretKey),
+                        !string.IsNullOrEmpty(stripePublishableKey),
+                        !string.IsNullOrEmpty(stripeWebhookSecret),
+                        !string.IsNullOrEmpty(jwtKey),
+                        !string.IsNullOrEmpty(emailSmtpPassword),
+                        !string.IsNullOrEmpty(connectionString)
+                    }.Count(x => x),
+                    message = "Azure Web App secrets configuration test completed successfully"
+                };
+                
+                return Results.Ok(response);
+            })
+            .RequireAuthorization()
+            .WithOpenApi(op => {
+                op.Summary = "Test Azure secrets configuration";
+                op.Description = "Authorized endpoint for administrators to test if Azure Web App Application Settings are properly configured. Returns masked values of secrets for security.";
+                return op;
+            });
+
             // Simple test endpoint to verify routing
             usersApi.MapGet("/test-routing", (ILogger<Program> logger) =>
             {
