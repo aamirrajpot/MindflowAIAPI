@@ -51,4 +51,14 @@ namespace Mindflow_Web_API.DTOs
         string EphemeralKeySecret,
         string PublishableKey
     );
+
+    // Test Webhook DTO
+    public record TestWebhookDto(
+        Guid? UserId = null,
+        Guid? PlanId = null,
+        string? PaymentIntentId = null,
+        long? Amount = null,
+        string? Currency = null,
+        string? Description = null
+    );
 }

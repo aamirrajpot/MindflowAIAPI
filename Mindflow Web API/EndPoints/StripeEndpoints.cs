@@ -147,7 +147,7 @@ namespace Mindflow_Web_API.EndPoints
                             TransactionId = paymentIntent.Id,
                             PaymentMethod = paymentIntent.PaymentMethodTypes?.FirstOrDefault(),
                             FailureReason = null,
-                            TransactionDate = (paymentIntent.Created.Kind == DateTimeKind.Utc ? paymentIntent.Created : paymentIntent.Created.ToUniversalTime())
+                            TransactionDate = DateTime.UtcNow
                         };
 
                         await dbContext.PaymentHistory.AddAsync(record);
@@ -184,7 +184,103 @@ namespace Mindflow_Web_API.EndPoints
 
                 // Return 200 OK for all events to acknowledge receipt
                 return Results.Ok(new { received = true });
-            }).AllowAnonymous().WithTags("Stripe");
+                         }).AllowAnonymous().WithTags("Stripe");
+
+            // Test webhook endpoint (for development only)
+            app.MapPost("/api/stripe/test-webhook", async (TestWebhookDto dto, IConfiguration configuration, MindflowDbContext dbContext, IServiceProvider serviceProvider) =>
+            {
+                // Only allow in development
+                var environment = serviceProvider.GetRequiredService<IWebHostEnvironment>();
+                if (!environment.IsDevelopment())
+                {
+                    return Results.Forbid();
+                }
+
+                // Create a mock PaymentIntent
+                var mockPaymentIntent = new PaymentIntent
+                {
+                    Id = dto.PaymentIntentId ?? $"pi_test_{Guid.NewGuid():N}",
+                    Amount = dto.Amount ?? 1000, // $10.00 in cents
+                    Currency = dto.Currency ?? "usd",
+                    Status = "succeeded",
+                    PaymentMethodTypes = new List<string> { "card" },
+                    Description = dto.Description ?? "Test Payment",
+                    Metadata = new Dictionary<string, string>
+                    {
+                        { "userId", dto.UserId?.ToString() ?? Guid.Empty.ToString() },
+                        { "planId", dto.PlanId?.ToString() ?? string.Empty },
+                        { "currency", dto.Currency ?? "usd" },
+                        { "amount", (dto.Amount ?? 1000).ToString() }
+                    }
+                };
+
+                // Simulate the webhook processing
+                var exists = await dbContext.PaymentHistory.AnyAsync(p => p.TransactionId == mockPaymentIntent.Id);
+                var metadata = mockPaymentIntent.Metadata ?? new Dictionary<string, string>();
+                Guid.TryParse(metadata.GetValueOrDefault("userId"), out var userId);
+                Guid? planId = null;
+                if (Guid.TryParse(metadata.GetValueOrDefault("planId"), out var parsedPlan))
+                {
+                    planId = parsedPlan;
+                }
+                
+                if (!exists)
+                {
+
+                    var currency = (metadata.GetValueOrDefault("currency") ?? mockPaymentIntent.Currency ?? "usd").ToUpper();
+                    long amountMinor = mockPaymentIntent.Amount;
+                    decimal amountMajor = currency is "JPY" or "VND" or "KRW" ? amountMinor : amountMinor / 100m;
+
+                    var record = new PaymentHistory
+                    {
+                        UserId = userId,
+                        PaymentCardId = null,
+                        SubscriptionPlanId = planId,
+                        Amount = amountMajor,
+                        Currency = currency,
+                        Description = mockPaymentIntent.Description ?? "Test PaymentIntent Succeeded",
+                        Status = PaymentStatus.Success,
+                        TransactionId = mockPaymentIntent.Id,
+                        PaymentMethod = mockPaymentIntent.PaymentMethodTypes?.FirstOrDefault(),
+                        FailureReason = null,
+                        TransactionDate = DateTime.UtcNow
+                    };
+
+                    await dbContext.PaymentHistory.AddAsync(record);
+                    await dbContext.SaveChangesAsync();
+
+                    // Create user subscription if planId is provided
+                    if (planId.HasValue && userId != Guid.Empty)
+                    {
+                        try
+                        {
+                            using var scope = serviceProvider.CreateScope();
+                            var subscriptionService = scope.ServiceProvider.GetRequiredService<ISubscriptionService>();
+                            
+                            var createSubscriptionDto = new CreateUserSubscriptionDto(planId.Value);
+                            await subscriptionService.CreateUserSubscriptionAsync(userId, createSubscriptionDto);
+                            
+                            var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+                            logger.LogInformation("Test webhook: User subscription created successfully for UserId: {UserId}, PlanId: {PlanId}, PaymentIntent: {PaymentIntentId}", 
+                                userId, planId.Value, mockPaymentIntent.Id);
+                        }
+                        catch (Exception ex)
+                        {
+                            var logger = serviceProvider.GetRequiredService<ILogger<Program>>();
+                            logger.LogError(ex, "Test webhook: Failed to create user subscription for UserId: {UserId}, PlanId: {PlanId}, PaymentIntent: {PaymentIntentId}", 
+                                userId, planId.Value, mockPaymentIntent.Id);
+                        }
+                    }
+                }
+
+                return Results.Ok(new { 
+                    message = "Test webhook processed successfully",
+                    paymentIntentId = mockPaymentIntent.Id,
+                    userId = dto.UserId,
+                    planId = dto.PlanId,
+                    subscriptionCreated = planId.HasValue && userId != Guid.Empty
+                });
+            }).WithTags("Stripe");
         }
     }
 }
