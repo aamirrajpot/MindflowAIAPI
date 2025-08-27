@@ -308,7 +308,7 @@ namespace Mindflow_Web_API.EndPoints
                 var stripePublishableKey = configuration["Stripe:PublishableKey"];
                 var stripeWebhookSecret = configuration["Stripe:WebhookSecret"];
                 var jwtKey = configuration["Jwt:Key"];
-                var emailSmtpPassword = configuration["Email:SmtpPassword"];
+                var emailSmtpPassword = configuration["Email:SenderPassword"];
                 var connectionString = configuration.GetConnectionString("DefaultConnection");
                 
                 // Create a safe response that masks sensitive data
