@@ -5,7 +5,7 @@ namespace Mindflow_Web_API.Services
     public interface IUserService
     {
         Task<UserDto> RegisterAsync(RegisterUserDto command);
-        Task<TokenResponseDto?> SignInAsync(SignInUserDto command);
+        Task<SignInResponseDto?> SignInAsync(SignInUserDto command);
         Task<SendOtpResponseDto> SendOtpAsync(string email);
         Task<bool> VerifyOtpAsync(VerifyOtpDto command);
         Task<bool> ChangePasswordAsync(Guid userId, ChangePasswordDto command);

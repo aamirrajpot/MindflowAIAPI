@@ -106,20 +106,35 @@ namespace Mindflow_Web_API.Services
 
         public async Task<PaymentSheetResource> CreatePaymentSheet(Guid userId, CreatePaymentSheetResource resource, CancellationToken cancellationToken)
         {
+            // Get user to check if they already have a Stripe customer ID
+            var user = await _dbContext.Users.FindAsync(new object?[] { userId }, cancellationToken: cancellationToken)
+                ?? throw new InvalidOperationException($"User with ID {userId} not found.");
+
             // Create or use existing customer
             Customer customer;
-            if (string.IsNullOrEmpty(resource.CustomerId))
+            if (!string.IsNullOrEmpty(user.StripeCustomerId))
             {
+                // User already has a Stripe customer ID, use it
+                customer = await _customerService.GetAsync(user.StripeCustomerId, cancellationToken: cancellationToken);
+            }
+            else if (!string.IsNullOrEmpty(resource.CustomerId))
+            {
+                // Use provided customer ID
+                customer = await _customerService.GetAsync(resource.CustomerId, cancellationToken: cancellationToken);
+            }
+            else
+            {
+                // Create new customer
                 var customerOptions = new CustomerCreateOptions
                 {
                     Email = resource.Email,
                     Name = resource.Name
                 };
                 customer = await _customerService.CreateAsync(customerOptions, cancellationToken: cancellationToken);
-            }
-            else
-            {
-                customer = await _customerService.GetAsync(resource.CustomerId, cancellationToken: cancellationToken);
+                
+                // Save the customer ID to the user record
+                user.StripeCustomerId = customer.Id;
+                await _dbContext.SaveChangesAsync(cancellationToken);
             }
 
             // If a plan is specified, use its price for the amount

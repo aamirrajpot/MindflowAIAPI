@@ -51,6 +51,10 @@ namespace Mindflow_Web_API.Persistence.Configurations
                    .HasMaxLength(20)
                    .IsRequired();
 
+            builder.Property(u => u.StripeCustomerId)
+                   .HasMaxLength(255)
+                   .IsRequired(false);
+
             builder.Property(u => u.Created)
                    .IsRequired()
                    .ValueGeneratedOnAdd();

@@ -22,10 +22,10 @@ namespace Mindflow_Web_API.EndPoints
 
             usersApi.MapPost("/signin", async (SignInUserDto dto, IUserService userService) =>
             {
-                var tokenResponse = await userService.SignInAsync(dto);
-                if (tokenResponse == null)
+                var signInResponse = await userService.SignInAsync(dto);
+                if (signInResponse == null)
                     throw ApiExceptions.Unauthorized("Invalid credentials");
-                return Results.Ok(tokenResponse);
+                return Results.Ok(signInResponse);
             })
             .WithOpenApi(op => {
                 op.Summary = "Sign in a user";
