@@ -161,6 +161,19 @@ app.UseStaticFiles();
 // Add global exception handler middleware (must be early in pipeline)
 app.UseGlobalExceptionHandler();
 
+// Ensure database schema exists (apply migrations on startup)
+try
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    await using var dbContext = scope.ServiceProvider.GetRequiredService<MindflowDbContext>();
+    await dbContext.Database.MigrateAsync();
+    Log.Information("EF migrations applied successfully on startup.");
+}
+catch (Exception ex)
+{
+    Log.Error(ex, "Failed to apply EF migrations on startup.");
+}
+
 // Configure the HTTP request pipeline.
 //if (app.Environment.IsDevelopment())
 //{
@@ -168,8 +181,7 @@ app.UseGlobalExceptionHandler();
     await using (var serviceScope = app.Services.CreateAsyncScope())
     await using (var dbContext = serviceScope.ServiceProvider.GetRequiredService<MindflowDbContext>())
     {
-        // Apply any pending migrations
-        await dbContext.Database.MigrateAsync();
+        
 
         // Seed admin user
         var adminSeedService = serviceScope.ServiceProvider.GetRequiredService<IAdminSeedService>();
