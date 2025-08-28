@@ -64,7 +64,7 @@ builder.Services.AddDbContext<MindflowDbContext>(options =>
     var contentRoot = builder.Environment.ContentRootPath;
     var dbPath = Path.Combine(contentRoot, "mindflow.db");
     Log.Information("Using SQLite database at path: {DbPath}", dbPath);
-    var connectionString = $"Data Source={dbPath}";
+    var connectionString = $"Data Source=mindflow.db";
     options.UseSqlite(connectionString);
 });
 
