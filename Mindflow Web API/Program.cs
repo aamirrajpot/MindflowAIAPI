@@ -58,15 +58,9 @@ builder.Services.AddSwaggerGen(options =>
         }
     });
 });
+// Configure SQLite as the database
 builder.Services.AddDbContext<MindflowDbContext>(options =>
-{
-    // Always place the SQLite DB in the project's root (content root)
-    var contentRoot = builder.Environment.ContentRootPath;
-    var dbPath = Path.Combine(contentRoot, "mindflow.db");
-    Log.Information("Using SQLite database at path: {DbPath}", dbPath);
-    var connectionString = $"Data Source=mindflow.db";
-    options.UseSqlite(connectionString);
-});
+    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // Remove MovieService registration
 // builder.Services.AddTransient<IMovieService, MovieService>();
