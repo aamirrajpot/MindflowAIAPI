@@ -281,6 +281,91 @@ namespace Mindflow_Web_API.EndPoints
                     subscriptionCreated = planId.HasValue && userId != Guid.Empty
                 });
             }).WithTags("Stripe");
+
+            // Customer Cards Management
+            stripeApi.MapGet("/cards", async (IStripeService stripeService, HttpContext context, CancellationToken cancellationToken) =>
+            {
+                try
+                {
+                    // Extract userId from JWT token
+                    var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier || c.Type == "sub");
+                    if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+                        return Results.Unauthorized();
+
+                    var customerCards = await stripeService.GetCustomerCardsByUserId(userId, cancellationToken);
+                    return Results.Ok(customerCards);
+                }
+                catch (StripeException ex)
+                {
+                    return Results.BadRequest(new { error = ex.Message });
+                }
+            })
+            .WithOpenApi(op => {
+                op.Summary = "Get customer cards";
+                op.Description = "Gets all payment methods (cards) for the authenticated user from Stripe.";
+                return op;
+            });
+
+            stripeApi.MapGet("/customers/{customerId}/cards", async (string customerId, IStripeService stripeService, CancellationToken cancellationToken) =>
+            {
+                try
+                {
+                    var customerCards = await stripeService.GetCustomerCards(customerId, cancellationToken);
+                    return Results.Ok(customerCards);
+                }
+                catch (StripeException ex)
+                {
+                    return Results.BadRequest(new { error = ex.Message });
+                }
+            })
+            .WithOpenApi(op => {
+                op.Summary = "Get customer cards by customer ID";
+                op.Description = "Gets all payment methods (cards) for a specific Stripe customer.";
+                return op;
+            });
+
+            stripeApi.MapDelete("/customers/{customerId}/cards/{paymentMethodId}", async (string customerId, string paymentMethodId, IStripeService stripeService, CancellationToken cancellationToken) =>
+            {
+                try
+                {
+                    var deleted = await stripeService.DeleteCustomerCard(customerId, paymentMethodId, cancellationToken);
+                    if (!deleted)
+                        return Results.NotFound(new { error = "Payment method not found" });
+                    
+                    return Results.Ok(new { message = "Payment method deleted successfully" });
+                }
+                catch (StripeException ex)
+                {
+                    return Results.BadRequest(new { error = ex.Message });
+                }
+            })
+            .WithOpenApi(op => {
+                op.Summary = "Delete customer card";
+                op.Description = "Deletes a payment method (card) for a Stripe customer.";
+                return op;
+            });
+
+            stripeApi.MapPatch("/customers/{customerId}/cards/{paymentMethodId}/default", async (string customerId, string paymentMethodId, IStripeService stripeService, CancellationToken cancellationToken) =>
+            {
+                try
+                {
+                    var defaultCard = await stripeService.SetDefaultCard(customerId, paymentMethodId, cancellationToken);
+                    return Results.Ok(defaultCard);
+                }
+                catch (StripeException ex)
+                {
+                    return Results.BadRequest(new { error = ex.Message });
+                }
+                catch (InvalidOperationException ex)
+                {
+                    return Results.NotFound(new { error = ex.Message });
+                }
+            })
+            .WithOpenApi(op => {
+                op.Summary = "Set default card";
+                op.Description = "Sets a payment method as the default for a Stripe customer.";
+                return op;
+            });
         }
     }
 }

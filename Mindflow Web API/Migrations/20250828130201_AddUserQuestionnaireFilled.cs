@@ -1,29 +1,29 @@
-﻿using System;
-using Microsoft.EntityFrameworkCore.Migrations;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace Mindflow_Web_API.Migrations
 {
     /// <inheritdoc />
-    public partial class DOB_Added_UserEntity : Migration
+    public partial class AddUserQuestionnaireFilled : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<DateTime>(
-                name: "DateOfBirth",
+            migrationBuilder.AddColumn<bool>(
+                name: "QuestionnaireFilled",
                 schema: "app",
                 table: "Users",
-                type: "datetime2",
-                nullable: true);
+                type: "INTEGER",
+                nullable: false,
+                defaultValue: false);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropColumn(
-                name: "DateOfBirth",
+                name: "QuestionnaireFilled",
                 schema: "app",
                 table: "Users");
         }

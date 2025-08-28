@@ -55,8 +55,7 @@ namespace Mindflow_Web_API.Persistence.Configurations
             builder.Property(w => w.AgeRange)
                    .HasMaxLength(20);
 
-            builder.Property(w => w.FocusAreas)
-                   .HasColumnType("nvarchar(max)");
+            builder.Property(w => w.FocusAreas);
 
             builder.Property(w => w.StressNotes)
                    .HasMaxLength(500);
@@ -64,8 +63,7 @@ namespace Mindflow_Web_API.Persistence.Configurations
             builder.Property(w => w.ThoughtTrackingMethod)
                    .HasMaxLength(50);
 
-            builder.Property(w => w.SupportAreas)
-                   .HasColumnType("nvarchar(max)");
+            builder.Property(w => w.SupportAreas);
 
             builder.Property(w => w.SelfCareFrequency)
                    .HasMaxLength(20);
@@ -73,8 +71,7 @@ namespace Mindflow_Web_API.Persistence.Configurations
             builder.Property(w => w.ToughDayMessage)
                    .HasMaxLength(500);
 
-            builder.Property(w => w.CopingMechanisms)
-                   .HasColumnType("nvarchar(max)");
+            builder.Property(w => w.CopingMechanisms);
 
             builder.Property(w => w.JoyPeaceSources)
                    .HasMaxLength(500);

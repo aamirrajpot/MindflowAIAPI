@@ -2,7 +2,7 @@ namespace Mindflow_Web_API.DTOs
 {
     public record RegisterUserDto(string UserName, string Email, string Password, string FirstName, string LastName);
     public record SignInUserDto(string UserNameOrEmail, string Password);
-    public record UserDto(Guid Id, string UserName, string Email, bool EmailConfirmed, string FirstName, string LastName, bool IsActive, DateTime? DateOfBirth, string? ProfilePic, string? StripeCustomerId);
+    public record UserDto(Guid Id, string UserName, string Email, bool EmailConfirmed, string FirstName, string LastName, bool IsActive, DateTime? DateOfBirth, string? ProfilePic, string? StripeCustomerId, bool QuestionnaireFilled);
     public record SendOtpResponseDto(string Email, bool Sent);
     public record VerifyOtpDto(Guid UserId, string Code);
     public record ChangePasswordDto(string CurrentPassword, string NewPassword);

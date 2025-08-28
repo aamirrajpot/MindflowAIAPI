@@ -51,7 +51,7 @@ namespace Mindflow_Web_API.Services
             // Automatically send OTP after registration
             await SendOtpAsync(user.Email);
 
-            return new UserDto(user.Id, user.UserName, user.Email, user.EmailConfirmed, user.FirstName, user.LastName, user.IsActive, user.DateOfBirth, user.ProfilePic, user.StripeCustomerId);
+            return new UserDto(user.Id, user.UserName, user.Email, user.EmailConfirmed, user.FirstName, user.LastName, user.IsActive, user.DateOfBirth, user.ProfilePic, user.StripeCustomerId, user.QuestionnaireFilled);
         }
 
         public async Task<SignInResponseDto?> SignInAsync(SignInUserDto command)
@@ -73,7 +73,7 @@ namespace Mindflow_Web_API.Services
             var tokenString = JwtHelper.GenerateJwtToken(user, _configuration, out expiresInSeconds);
             _logger.LogInformation($"User signed in: {user.UserName}");
             
-            var userDto = new UserDto(user.Id, user.UserName, user.Email, user.EmailConfirmed, user.FirstName, user.LastName, user.IsActive, user.DateOfBirth, user.ProfilePic, user.StripeCustomerId);
+            var userDto = new UserDto(user.Id, user.UserName, user.Email, user.EmailConfirmed, user.FirstName, user.LastName, user.IsActive, user.DateOfBirth, user.ProfilePic, user.StripeCustomerId, user.QuestionnaireFilled);
             return new SignInResponseDto(tokenString, "Bearer", expiresInSeconds, userDto);
         }
 

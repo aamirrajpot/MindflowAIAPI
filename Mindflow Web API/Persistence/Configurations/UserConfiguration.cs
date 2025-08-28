@@ -55,6 +55,10 @@ namespace Mindflow_Web_API.Persistence.Configurations
                    .HasMaxLength(255)
                    .IsRequired(false);
 
+            builder.Property(u => u.QuestionnaireFilled)
+                   .IsRequired()
+                   .HasDefaultValue(false);
+
             builder.Property(u => u.Created)
                    .IsRequired()
                    .ValueGeneratedOnAdd();

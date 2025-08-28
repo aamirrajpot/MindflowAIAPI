@@ -1,3 +1,6 @@
+# Ensure the SQLite DB is tracked even if *.db is ignored elsewhere
+!mindflow.db
+
 # .NET Core
 bin/
 obj/

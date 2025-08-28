@@ -60,11 +60,11 @@ builder.Services.AddSwaggerGen(options =>
 });
 builder.Services.AddDbContext<MindflowDbContext>(options =>
 {
-    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-    options.UseSqlServer(connectionString, sqlOptions =>
-    {
-        sqlOptions.EnableRetryOnFailure();
-    });
+    // Always place the SQLite DB in the project's root (content root)
+    var contentRoot = builder.Environment.ContentRootPath;
+    var dbPath = Path.Combine(contentRoot, "mindflow.db");
+    var connectionString = $"Data Source={dbPath}";
+    options.UseSqlite(connectionString);
 });
 
 // Remove MovieService registration
@@ -134,6 +134,7 @@ builder.Services.AddSingleton<TokenService>();
 builder.Services.AddSingleton<CustomerService>();
 builder.Services.AddSingleton<ChargeService>();
 builder.Services.AddSingleton<PaymentIntentService>();
+builder.Services.AddSingleton<PaymentMethodService>();
 builder.Services.AddSingleton<EphemeralKeyService>();
 builder.Services.AddScoped<IStripeService, StripeService>();
 

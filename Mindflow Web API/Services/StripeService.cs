@@ -11,6 +11,7 @@ namespace Mindflow_Web_API.Services
         private readonly CustomerService _customerService;
         private readonly ChargeService _chargeService;
         private readonly PaymentIntentService _paymentIntentService;
+        private readonly PaymentMethodService _paymentMethodService;
         private readonly StripeOptions _stripeOptions;
         private readonly EphemeralKeyService _ephemeralKeyService;
         private readonly MindflowDbContext _dbContext;
@@ -19,6 +20,7 @@ namespace Mindflow_Web_API.Services
             CustomerService customerService,
             ChargeService chargeService,
             PaymentIntentService paymentIntentService,
+            PaymentMethodService paymentMethodService,
             IOptions<StripeOptions> stripeOptions,
             EphemeralKeyService ephemeralKeyService,
             MindflowDbContext dbContext)
@@ -26,6 +28,7 @@ namespace Mindflow_Web_API.Services
             _customerService = customerService;
             _chargeService = chargeService;
             _paymentIntentService = paymentIntentService;
+            _paymentMethodService = paymentMethodService;
             _stripeOptions = stripeOptions.Value;
             _ephemeralKeyService = ephemeralKeyService;
             _dbContext = dbContext;
@@ -178,6 +181,109 @@ namespace Mindflow_Web_API.Services
                 ephemeralKeySecret,
                 _stripeOptions.PublishableKey
             );
+        }
+
+        public async Task<CustomerCardsResource> GetCustomerCards(string customerId, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var paymentMethodListOptions = new PaymentMethodListOptions
+                {
+                    Customer = customerId,
+                    Type = "card"
+                };
+
+                var paymentMethods = await _paymentMethodService.ListAsync(paymentMethodListOptions, cancellationToken: cancellationToken);
+
+                var cards = paymentMethods.Data.Select(pm => new PaymentMethodResource(
+                    pm.Id,
+                    pm.Type,
+                    pm.Card?.Brand,
+                    pm.Card?.Last4,
+                    (int?)pm.Card?.ExpMonth,
+                    (int?)pm.Card?.ExpYear,
+                    pm.Card?.Country,
+                    pm.Card?.Funding,
+                    false, // Stripe doesn't have a concept of default payment method at the customer level
+                    pm.Created
+                ));
+
+                return new CustomerCardsResource(customerId, cards);
+            }
+            catch (StripeException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                // Return empty list if customer not found
+                return new CustomerCardsResource(customerId, Enumerable.Empty<PaymentMethodResource>());
+            }
+        }
+
+        public async Task<CustomerCardsResource> GetCustomerCardsByUserId(Guid userId, CancellationToken cancellationToken)
+        {
+            // Get user to find their Stripe customer ID
+            var user = await _dbContext.Users.FindAsync(new object?[] { userId }, cancellationToken: cancellationToken)
+                ?? throw new InvalidOperationException($"User with ID {userId} not found.");
+
+            if (string.IsNullOrEmpty(user.StripeCustomerId))
+            {
+                // User doesn't have a Stripe customer ID yet
+                return new CustomerCardsResource(string.Empty, Enumerable.Empty<PaymentMethodResource>());
+            }
+
+            return await GetCustomerCards(user.StripeCustomerId, cancellationToken);
+        }
+
+        public async Task<bool> DeleteCustomerCard(string customerId, string paymentMethodId, CancellationToken cancellationToken)
+        {
+            try
+            {
+                // First, detach the payment method from the customer
+                var detachOptions = new PaymentMethodDetachOptions();
+                await _paymentMethodService.DetachAsync(paymentMethodId, detachOptions, cancellationToken: cancellationToken);
+                
+                return true;
+            }
+            catch (StripeException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                // Payment method not found
+                return false;
+            }
+        }
+
+        public async Task<PaymentMethodResource> SetDefaultCard(string customerId, string paymentMethodId, CancellationToken cancellationToken)
+        {
+            try
+            {
+                // Update the customer's default payment method
+                var customerUpdateOptions = new CustomerUpdateOptions
+                {
+                    InvoiceSettings = new CustomerInvoiceSettingsOptions
+                    {
+                        DefaultPaymentMethod = paymentMethodId
+                    }
+                };
+
+                await _customerService.UpdateAsync(customerId, customerUpdateOptions, cancellationToken: cancellationToken);
+
+                // Get the updated payment method
+                var paymentMethod = await _paymentMethodService.GetAsync(paymentMethodId, cancellationToken: cancellationToken);
+
+                return new PaymentMethodResource(
+                    paymentMethod.Id,
+                    paymentMethod.Type,
+                    paymentMethod.Card?.Brand,
+                    paymentMethod.Card?.Last4,
+                    (int?)paymentMethod.Card?.ExpMonth,
+                    (int?)paymentMethod.Card?.ExpYear,
+                    paymentMethod.Card?.Country,
+                    paymentMethod.Card?.Funding,
+                    true, // This is now the default
+                    paymentMethod.Created
+                );
+            }
+            catch (StripeException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                throw new InvalidOperationException("Customer or payment method not found.");
+            }
         }
 
         private static long ConvertToSmallestCurrencyUnit(decimal amount, string currency)

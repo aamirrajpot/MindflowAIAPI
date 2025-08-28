@@ -175,6 +175,12 @@ namespace Mindflow_Web_API.Services
             
             try
             {
+                // Mark user's questionnaire as filled
+                var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId);
+                if (user != null && !user.QuestionnaireFilled)
+                {
+                    user.QuestionnaireFilled = true;
+                }
                 await _dbContext.SaveChangesAsync();
             }
             catch (Exception ex)

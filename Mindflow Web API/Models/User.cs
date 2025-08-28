@@ -17,6 +17,7 @@ namespace Mindflow_Web_API.Models
         public string? Sub { get; set; } // Apple subject identifier
         public string? StripeCustomerId { get; set; } // Stripe customer ID
         public Role Role { get; set; } = Role.User;
+        public bool QuestionnaireFilled { get; set; } = false;
 
         public static User Create(string userName, string email, string firstName, string lastName, bool emailConfirmed, bool isActive, string passwordHash, string securityStamp, string? sub = null)
         {

@@ -14,6 +14,25 @@ namespace Mindflow_Web_API.DTOs
         string Name
     );
 
+    // Payment Method DTOs for customer cards
+    public record PaymentMethodResource(
+        string Id,
+        string Type,
+        string? Brand,
+        string? Last4,
+        int? ExpMonth,
+        int? ExpYear,
+        string? Country,
+        string? Funding,
+        bool IsDefault,
+        DateTime Created
+    );
+
+    public record CustomerCardsResource(
+        string CustomerId,
+        IEnumerable<PaymentMethodResource> Cards
+    );
+
     // Removed card details and token usage; PaymentSheet will handle payment methods client-side
 
     // Charge DTOs
