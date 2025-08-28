@@ -162,8 +162,8 @@ app.UseStaticFiles();
 app.UseGlobalExceptionHandler();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
+//if (app.Environment.IsDevelopment())
+//{
     // Seeding configurations.
     await using (var serviceScope = app.Services.CreateAsyncScope())
     await using (var dbContext = serviceScope.ServiceProvider.GetRequiredService<MindflowDbContext>())
@@ -181,7 +181,7 @@ if (app.Environment.IsDevelopment())
     }
 
 
-}
+//}
 
 // Enable Swagger in all environments
 app.UseSwagger();
