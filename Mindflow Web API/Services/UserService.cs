@@ -125,8 +125,9 @@ namespace Mindflow_Web_API.Services
                 return false;
 
             // Get the latest non-expired OTP
+            var currentTime = DateTimeOffset.UtcNow;
             var otpRecord = await _dbContext.UserOtps
-                .Where(o => o.UserId == user.Id && o.Otp == command.Code && !o.IsUsed && o.Expiry > DateTimeOffset.UtcNow)
+                .Where(o => o.UserId == user.Id && o.Otp == command.Code && !o.IsUsed && o.Expiry > currentTime)
                 .OrderByDescending(o => o.Expiry) // Get the latest one
                 .FirstOrDefaultAsync();
 
@@ -226,8 +227,9 @@ namespace Mindflow_Web_API.Services
                 return false;
 
             // Get the latest non-expired OTP
+            var currentTime = DateTimeOffset.UtcNow;
             var otpRecord = await _dbContext.UserOtps
-                .Where(o => o.UserId == user.Id && o.Otp == command.Otp && !o.IsUsed && o.Expiry > DateTimeOffset.UtcNow)
+                .Where(o => o.UserId == user.Id && o.Otp == command.Otp && !o.IsUsed && o.Expiry > currentTime)
                 .OrderByDescending(o => o.Expiry) // Get the latest one
                 .FirstOrDefaultAsync();
 
