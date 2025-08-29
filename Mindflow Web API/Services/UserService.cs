@@ -166,7 +166,7 @@ namespace Mindflow_Web_API.Services
             var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId);
             if (user == null)
                 return null;
-            return new UserProfileDto(user.UserName, user.Email, user.FirstName, user.LastName, user.DateOfBirth, user.ProfilePic);
+            return new UserProfileDto(user.UserName, user.Email, user.FirstName, user.LastName, user.DateOfBirth, user.ProfilePic, user.QuestionnaireFilled);
         }
 
         public async Task<bool> UpdateProfileAsync(Guid userId, UpdateProfileDto command)
