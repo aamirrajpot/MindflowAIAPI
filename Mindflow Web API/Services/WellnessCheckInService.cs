@@ -22,9 +22,13 @@ namespace Mindflow_Web_API.Services
             if (userId == Guid.Empty)
                 throw ApiExceptions.ValidationError("Invalid user ID provided.");
 
+            // Use raw SQL for ordering by CheckInDate
             var checkIn = await _dbContext.WellnessCheckIns
-                .Where(w => w.UserId == userId)
-                .OrderByDescending(w => w.CheckInDate)
+                .FromSqlRaw(@"
+                    SELECT * FROM WellnessCheckIns 
+                    WHERE UserId = {0} 
+                    ORDER BY CheckInDate DESC 
+                    LIMIT 1", userId)
                 .FirstOrDefaultAsync();
 
             if (checkIn == null)
@@ -93,9 +97,13 @@ namespace Mindflow_Web_API.Services
             if (patchDto == null)
                 throw ApiExceptions.ValidationError("Patch data cannot be null.");
 
+            // Use raw SQL for ordering by CheckInDate
             var checkIn = await _dbContext.WellnessCheckIns
-                .Where(w => w.UserId == userId)
-                .OrderByDescending(w => w.CheckInDate)
+                .FromSqlRaw(@"
+                    SELECT * FROM WellnessCheckIns 
+                    WHERE UserId = {0} 
+                    ORDER BY CheckInDate DESC 
+                    LIMIT 1", userId)
                 .FirstOrDefaultAsync();
 
             if (checkIn == null)

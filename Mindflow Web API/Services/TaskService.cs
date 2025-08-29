@@ -52,12 +52,25 @@ namespace Mindflow_Web_API.Services
 
         public async Task<IEnumerable<TaskItemDto>> GetAllAsync(Guid userId, DateTime? date = null)
         {
-            var query = _dbContext.Tasks.Where(t => t.UserId == userId);
+            List<TaskItem> tasks;
+            
             if (date.HasValue)
             {
-                query = query.Where(t => t.Date.Date == date.Value.Date);
+                // Use raw SQL for date filtering
+                tasks = await _dbContext.Tasks
+                    .FromSqlRaw(@"
+                        SELECT * FROM Tasks 
+                        WHERE UserId = {0} 
+                        AND DATE(Date) = DATE({1})", userId, date.Value)
+                    .ToListAsync();
             }
-            var tasks = await query.ToListAsync();
+            else
+            {
+                tasks = await _dbContext.Tasks
+                    .Where(t => t.UserId == userId)
+                    .ToListAsync();
+            }
+            
             return tasks.Select(ToDto);
         }
 

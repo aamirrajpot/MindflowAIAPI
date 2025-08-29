@@ -65,10 +65,12 @@ namespace Mindflow_Web_API.Services
 
         public async Task<IEnumerable<PaymentCardDto>> GetUserPaymentCardsAsync(Guid userId)
         {
+            // Use raw SQL for ordering by IsDefault and Created
             var paymentCards = await _dbContext.PaymentCards
-                .Where(pc => pc.UserId == userId && pc.IsActive)
-                .OrderByDescending(pc => pc.IsDefault)
-                .ThenBy(pc => pc.Created)
+                .FromSqlRaw(@"
+                    SELECT * FROM PaymentCards 
+                    WHERE UserId = {0} AND IsActive = 1
+                    ORDER BY IsDefault DESC, Created ASC", userId)
                 .ToListAsync();
 
             return paymentCards.Select(ToPaymentCardDto);
@@ -176,11 +178,14 @@ namespace Mindflow_Web_API.Services
 
         public async Task<IEnumerable<PaymentHistoryDto>> GetUserPaymentHistoryAsync(Guid userId)
         {
+            // Use raw SQL for ordering by TransactionDate
             var paymentHistory = await _dbContext.PaymentHistory
+                .FromSqlRaw(@"
+                    SELECT * FROM PaymentHistory 
+                    WHERE UserId = {0} 
+                    ORDER BY TransactionDate DESC", userId)
                 .Include(ph => ph.PaymentCard)
                 .Include(ph => ph.SubscriptionPlan)
-                .Where(ph => ph.UserId == userId)
-                .OrderByDescending(ph => ph.TransactionDate)
                 .ToListAsync();
 
             var paymentHistoryDtos = new List<PaymentHistoryDto>();
