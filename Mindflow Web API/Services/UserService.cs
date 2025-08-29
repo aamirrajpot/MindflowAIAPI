@@ -124,11 +124,17 @@ namespace Mindflow_Web_API.Services
             if (user == null)
                 return false;
 
-            // Get the latest non-expired OTP
+            // Get the latest non-expired OTP using raw SQL
             var currentTime = DateTimeOffset.UtcNow;
             var otpRecord = await _dbContext.UserOtps
-                .Where(o => o.UserId == user.Id && o.Otp == command.Code && !o.IsUsed && o.Expiry > currentTime)
-                .OrderByDescending(o => o.Expiry) // Get the latest one
+                .FromSqlRaw(@"
+                    SELECT * FROM UserOtps 
+                    WHERE UserId = {0} 
+                    AND Otp = {1} 
+                    AND IsUsed = 0 
+                    AND Expiry > {2}
+                    ORDER BY Expiry DESC 
+                    LIMIT 1", user.Id, command.Code, currentTime)
                 .FirstOrDefaultAsync();
 
             if (otpRecord == null)
@@ -226,11 +232,17 @@ namespace Mindflow_Web_API.Services
             if (user == null)
                 return false;
 
-            // Get the latest non-expired OTP
+            // Get the latest non-expired OTP using raw SQL
             var currentTime = DateTimeOffset.UtcNow;
             var otpRecord = await _dbContext.UserOtps
-                .Where(o => o.UserId == user.Id && o.Otp == command.Otp && !o.IsUsed && o.Expiry > currentTime)
-                .OrderByDescending(o => o.Expiry) // Get the latest one
+                .FromSqlRaw(@"
+                    SELECT * FROM UserOtps 
+                    WHERE UserId = {0} 
+                    AND Otp = {1} 
+                    AND IsUsed = 0 
+                    AND Expiry > {2}
+                    ORDER BY Expiry DESC 
+                    LIMIT 1", user.Id, command.Otp, currentTime)
                 .FirstOrDefaultAsync();
 
             if (otpRecord == null)
