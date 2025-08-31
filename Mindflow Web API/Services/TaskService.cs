@@ -30,7 +30,7 @@ namespace Mindflow_Web_API.Services
                 Category = dto.Category,
                 OtherCategoryName = dto.OtherCategoryName,
                 Date = dto.Date,
-                Time = dto.Time,
+                Time = EnsureUtc(dto.Time),
                 DurationMinutes = dto.DurationMinutes,
                 ReminderEnabled = dto.ReminderEnabled,
                 RepeatType = dto.RepeatType,
@@ -84,7 +84,10 @@ namespace Mindflow_Web_API.Services
             if (dto.Category.HasValue) task.Category = dto.Category.Value;
             if (dto.OtherCategoryName != null) task.OtherCategoryName = dto.OtherCategoryName;
             if (dto.Date.HasValue) task.Date = dto.Date.Value;
-            if (dto.Time.HasValue) task.Time = dto.Time.Value;
+            if (dto.Time.HasValue) 
+            {
+                task.Time = EnsureUtc(dto.Time.Value);
+            }
             if (dto.DurationMinutes.HasValue) task.DurationMinutes = dto.DurationMinutes.Value;
             if (dto.ReminderEnabled.HasValue) task.ReminderEnabled = dto.ReminderEnabled.Value;
             if (dto.RepeatType.HasValue) task.RepeatType = dto.RepeatType.Value;
@@ -123,7 +126,7 @@ namespace Mindflow_Web_API.Services
                 task.Category,
                 task.OtherCategoryName,
                 task.Date,
-                task.Time,
+                EnsureUtc(task.Time),
                 task.DurationMinutes,
                 task.ReminderEnabled,
                 task.RepeatType,
@@ -131,6 +134,13 @@ namespace Mindflow_Web_API.Services
                 task.IsApproved,
                 task.Status
             );
+        }
+
+        private static DateTime EnsureUtc(DateTime dateTime)
+        {
+            return dateTime.Kind == DateTimeKind.Unspecified 
+                ? DateTime.SpecifyKind(dateTime, DateTimeKind.Utc) 
+                : dateTime.ToUniversalTime();
         }
     }
 }
