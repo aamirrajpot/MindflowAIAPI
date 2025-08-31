@@ -84,7 +84,7 @@ namespace Mindflow_Web_API.Services
             if (dto.Category.HasValue) task.Category = dto.Category.Value;
             if (dto.OtherCategoryName != null) task.OtherCategoryName = dto.OtherCategoryName;
             if (dto.Date.HasValue) task.Date = dto.Date.Value;
-            if (dto.Time != null) task.Time = dto.Time;
+            if (dto.Time.HasValue) task.Time = dto.Time.Value;
             if (dto.DurationMinutes.HasValue) task.DurationMinutes = dto.DurationMinutes.Value;
             if (dto.ReminderEnabled.HasValue) task.ReminderEnabled = dto.ReminderEnabled.Value;
             if (dto.RepeatType.HasValue) task.RepeatType = dto.RepeatType.Value;
