@@ -31,6 +31,16 @@ namespace Mindflow_Web_API.Models
 		[MaxLength(512)]
 		public string? FlagReason { get; set; }
 		public DateTime? DeletedAtUtc { get; set; }
+		
+		// Journal-specific fields
+		[MaxLength(200)]
+		public string? Title { get; set; } // "Morning Reflections", etc.
+		[MaxLength(1000)]
+		public string? Tags { get; set; } // Comma-separated tags like "gratitude,morning"
+		public bool IsFavorite { get; set; } = false; // For favorites filter
+		[MaxLength(1000)]
+		public string? AiInsight { get; set; } // AI-generated insights
+		public int WordCount { get; set; } = 0; // Word count for statistics
 	}
 }
 

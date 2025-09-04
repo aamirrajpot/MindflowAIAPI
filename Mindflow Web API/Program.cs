@@ -124,6 +124,12 @@ builder.Services.AddHttpClient<IRunPodService, RunPodService>();
 // Brain Dump service
 builder.Services.AddScoped<IBrainDumpService, BrainDumpService>();
 
+// Journal service
+builder.Services.AddScoped<IJournalService, JournalService>();
+
+// User data cleanup service (runs weekly)
+builder.Services.AddHostedService<UserDataCleanupService>();
+
 // Register SubscriptionService (fully qualify to avoid Stripe.SubscriptionService ambiguity)
 builder.Services.AddScoped<Mindflow_Web_API.Services.ISubscriptionService, Mindflow_Web_API.Services.SubscriptionService>();
 
@@ -212,11 +218,13 @@ app.UseAuthorization();
 app.MapUserEndpoints();
 app.MapWellnessCheckInEndpoints();
 app.MapTaskItemEndpoints();
+app.MapBraindumpDashboardEndpoints();
 app.MapSubscriptionEndpoints();
-app.MapPaymentEndpoints();
-app.MapStripeEndpoints();
-app.MapRunPodEndpoints();
+//app.MapPaymentEndpoints();
+//app.MapStripeEndpoints();
+//app.MapRunPodEndpoints();
 app.MapBrainDumpEndpoints();
+app.MapJournalEndpoints();
 
 app.Run();
 

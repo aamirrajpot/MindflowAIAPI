@@ -9,7 +9,12 @@ namespace Mindflow_Web_API.Services
         Task<IEnumerable<TaskItemDto>> GetAllAsync(Guid userId, DateTime? date = null);
         Task<TaskItemDto?> UpdateAsync(Guid userId, Guid taskId, UpdateTaskItemDto dto);
         Task<bool> DeleteAsync(Guid userId, Guid taskId);
-                Task<TaskItemDto?> UpdateStatusAsync(Guid userId, Guid taskId, Mindflow_Web_API.Models.TaskStatus status);
-
+        Task<TaskItemDto?> UpdateStatusAsync(Guid userId, Guid taskId, Mindflow_Web_API.Models.TaskStatus status);
+        
+        // Recurring task methods
+        Task<IEnumerable<TaskItemDto>> GetTasksWithRecurringAsync(Guid userId, DateTime date);
+        Task<IEnumerable<TaskItemDto>> GetActiveTemplatesAsync(Guid userId);
+        Task<bool> HasInstanceForDateAsync(Guid templateId, DateTime date);
+        Task<TaskItemDto> GenerateTaskInstanceAsync(Guid templateId, DateTime date);
     }
 }

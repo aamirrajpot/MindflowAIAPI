@@ -50,6 +50,28 @@ namespace Mindflow_Web_API.EndPoints
                 op.Description = "Retrieves the wellness check-in record for the authenticated user.";
                 return op;
             });
+
+            // Get wellness summary (for "You're all set!" screen)
+            wellnessApi.MapGet("/analysis/summary", async (IWellnessCheckInService wellnessService, HttpContext context) =>
+            {
+                if (!context.User.Identity?.IsAuthenticated ?? true)
+                    throw ApiExceptions.Unauthorized("User is not authenticated");
+                
+                var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
+                if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+                    throw ApiExceptions.Unauthorized("Invalid user token");
+
+                var summary = await wellnessService.GetWellnessSummaryAsync(userId);
+                return Results.Ok(summary);
+            })
+            .RequireAuthorization()
+            .WithOpenApi(op =>
+            {
+                op.Summary = "Get wellness summary";
+                op.Description = "Returns a personalized wellness summary for the 'You're all set!' screen with focus areas, self-care frequency, and support needs.";
+                return op;
+            });
+
         }
     }
 } 

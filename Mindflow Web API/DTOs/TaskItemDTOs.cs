@@ -12,7 +12,14 @@ namespace Mindflow_Web_API.DTOs
         int DurationMinutes,
         bool ReminderEnabled,
         RepeatType RepeatType,
-        Mindflow_Web_API.Models.TaskStatus Status
+        Mindflow_Web_API.Models.TaskStatus Status,
+        // Recurring task fields
+        Guid? ParentTaskId = null,
+        bool IsTemplate = false,
+        DateTime? NextOccurrence = null,
+        int? MaxOccurrences = null,
+        DateTime? EndDate = null,
+        bool IsActive = true
     );
 
     public record UpdateTaskItemDto(
@@ -26,7 +33,14 @@ namespace Mindflow_Web_API.DTOs
         bool? ReminderEnabled,
         RepeatType? RepeatType,
         bool? IsApproved,
-        Mindflow_Web_API.Models.TaskStatus? Status
+        Mindflow_Web_API.Models.TaskStatus? Status,
+        // Recurring task fields
+        Guid? ParentTaskId = null,
+        bool? IsTemplate = null,
+        DateTime? NextOccurrence = null,
+        int? MaxOccurrences = null,
+        DateTime? EndDate = null,
+        bool? IsActive = null
     );
 
     public record TaskItemDto(
@@ -43,7 +57,14 @@ namespace Mindflow_Web_API.DTOs
         RepeatType RepeatType,
         bool CreatedBySuggestionEngine,
         bool IsApproved,
-        Mindflow_Web_API.Models.TaskStatus Status
+        Mindflow_Web_API.Models.TaskStatus Status,
+        // Recurring task fields
+        Guid? ParentTaskId,
+        bool IsTemplate,
+        DateTime? NextOccurrence,
+        int? MaxOccurrences,
+        DateTime? EndDate,
+        bool IsActive
     );
     public record StatusUpdateDto(Mindflow_Web_API.Models.TaskStatus Status);
 

@@ -17,6 +17,14 @@ namespace Mindflow_Web_API.Models
         public bool CreatedBySuggestionEngine { get; set; }
         public bool IsApproved { get; set; }
         public TaskStatus Status { get; set; } = TaskStatus.Pending;
+        
+        // Recurring task fields
+        public Guid? ParentTaskId { get; set; } // For recurring instances - references the template task
+        public bool IsTemplate { get; set; } = false; // True for template tasks, false for instances
+        public DateTime? NextOccurrence { get; set; } // When to generate the next instance (for templates)
+        public int? MaxOccurrences { get; set; } // Optional limit on number of occurrences
+        public DateTime? EndDate { get; set; } // Optional end date for recurring tasks
+        public bool IsActive { get; set; } = true; // Whether the recurring series is active
     }
 
     public enum TaskStatus

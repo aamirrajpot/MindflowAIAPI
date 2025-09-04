@@ -18,6 +18,7 @@ namespace Mindflow_Web_API.Models
         public string? StripeCustomerId { get; set; } // Stripe customer ID
         public Role Role { get; set; } = Role.User;
         public bool QuestionnaireFilled { get; set; } = false;
+        public DateTime? DeactivatedAtUtc { get; set; } // When user requested account deletion
 
         public static User Create(string userName, string email, string firstName, string lastName, bool emailConfirmed, bool isActive, string passwordHash, string securityStamp, string? sub = null)
         {

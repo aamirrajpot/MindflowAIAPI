@@ -565,5 +565,19 @@ namespace Mindflow_Web_API.Services
 
             return sanitized;
         }
+
+        public async Task<bool> DeactivateAccountAsync(Guid userId)
+        {
+            var user = await _dbContext.Users.FindAsync(userId);
+            if (user == null)
+                return false;
+
+            // Mark user as deactivated with timestamp
+            user.DeactivatedAtUtc = DateTime.UtcNow;
+            user.IsActive = false;
+            
+            await _dbContext.SaveChangesAsync();
+            return true;
+        }
     }
 }

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Mindflow_Web_API.Persistence;
 
@@ -10,9 +11,11 @@ using Mindflow_Web_API.Persistence;
 namespace Mindflow_Web_API.Migrations
 {
     [DbContext(typeof(MindflowDbContext))]
-    partial class MindflowDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250904183022_AddJournalFields")]
+    partial class AddJournalFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -508,9 +511,6 @@ namespace Mindflow_Web_API.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DateOfBirth")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("DeactivatedAtUtc")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Email")

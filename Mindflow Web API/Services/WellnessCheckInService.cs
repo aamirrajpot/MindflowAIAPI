@@ -1,8 +1,12 @@
+using JsonRepairSharp;
 using Microsoft.EntityFrameworkCore;
 using Mindflow_Web_API.DTOs;
+using Mindflow_Web_API.Exceptions;
 using Mindflow_Web_API.Models;
 using Mindflow_Web_API.Persistence;
-using Mindflow_Web_API.Exceptions;
+using Mindflow_Web_API.Utilities;
+using System.Text.Json;
+using static Google.Apis.Requests.BatchRequest;
 
 namespace Mindflow_Web_API.Services
 {
@@ -10,11 +14,13 @@ namespace Mindflow_Web_API.Services
     {
         private readonly MindflowDbContext _dbContext;
         private readonly ILogger<WellnessCheckInService> _logger;
+        private readonly IRunPodService _runPodService;
 
-        public WellnessCheckInService(MindflowDbContext dbContext, ILogger<WellnessCheckInService> logger)
+        public WellnessCheckInService(MindflowDbContext dbContext, ILogger<WellnessCheckInService> logger, IRunPodService runPodService)
         {
             _dbContext = dbContext;
             _logger = logger;
+            _runPodService = runPodService;
         }
 
         public async Task<WellnessCheckInDto?> GetAsync(Guid userId)
@@ -226,6 +232,225 @@ namespace Mindflow_Web_API.Services
                 checkIn.WeekendEndTime,
                 checkIn.WeekendEndShift
             );
+        }
+
+        private async Task<WellnessAnalysisResponse> GenerateAnalysisAsync(Guid userId, WellnessCheckInDto wellnessData)
+        {
+            try
+            {
+                // Convert DTO to model for the prompt
+                var wellnessModel = WellnessCheckIn.Create(
+                    userId,
+                    wellnessData.MoodLevel,
+                    wellnessData.CheckInDate,
+                    wellnessData.ReminderEnabled,
+                    wellnessData.ReminderTime,
+                    wellnessData.AgeRange,
+                    wellnessData.FocusAreas,
+                    wellnessData.StressNotes,
+                    wellnessData.ThoughtTrackingMethod,
+                    wellnessData.SupportAreas,
+                    wellnessData.SelfCareFrequency,
+                    wellnessData.ToughDayMessage,
+                    wellnessData.CopingMechanisms,
+                    wellnessData.JoyPeaceSources,
+                    wellnessData.WeekdayStartTime,
+                    wellnessData.WeekdayStartShift,
+                    wellnessData.WeekdayEndTime,
+                    wellnessData.WeekdayEndShift,
+                    wellnessData.WeekendStartTime,
+                    wellnessData.WeekendStartShift,
+                    wellnessData.WeekendEndTime,
+                    wellnessData.WeekendEndShift
+                );
+
+                // Build the wellness analysis prompt
+                var prompt = LlamaPromptBuilderForRunpod.BuildWellnessPromptForRunpod(wellnessModel);
+
+                // Call RunPod service to get AI analysis
+                var response = await _runPodService.SendPromptAsync(prompt, 1000, 0.7);
+
+                // Parse the AI response
+                var analysis = ParseWellnessAnalysisResponse(response);
+
+                return new WellnessAnalysisResponse(
+                    Guid.NewGuid(),
+                    userId,
+                    wellnessData,
+                    analysis,
+                    DateTime.UtcNow
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to generate wellness analysis for user {UserId}", userId);
+                throw ApiExceptions.InternalServerError("Failed to generate wellness analysis");
+            }
+        }
+
+        public async Task<WellnessSummaryDto> GetWellnessSummaryAsync(Guid userId)
+        {
+            var wellnessData = await GetAsync(userId);
+            if (wellnessData == null)
+                throw ApiExceptions.NotFound("Wellness check-in not found");
+
+            // Generate analysis
+            var analysis = await GenerateAnalysisAsync(userId, wellnessData);
+
+            // Extract primary focus from focus areas
+            var primaryFocus = wellnessData.FocusAreas?.FirstOrDefault() ?? "general wellness";
+            
+            // Get top support needs
+            var topSupportNeeds = analysis.Analysis.SupportNeeds.Take(2).ToList();
+            
+            // Get recommended actions
+            var recommendedActions = analysis.Analysis.ImmediateActions.Take(3).ToList();
+
+            // Create personalized message
+            var personalizedMessage = $"Based on your focus on {primaryFocus} and {wellnessData.SelfCareFrequency ?? "regular"} self-care routine, we've tailored MindFlow AI to support your mental wellness journey.";
+
+            return new WellnessSummaryDto(
+                primaryFocus,
+                wellnessData.SelfCareFrequency ?? "regular",
+                wellnessData.SupportAreas?.Length ?? 0,
+                topSupportNeeds,
+                recommendedActions,
+                analysis.Analysis.UrgencyLevel,
+                personalizedMessage
+            );
+        }
+
+        private WellnessAnalysisDto ParseWellnessAnalysisResponse(string response)
+        {
+            try
+            {
+                _logger.LogInformation("Starting wellness analysis response parsing. Response length: {ResponseLength}", response?.Length ?? 0);
+                
+                // Clean up the response - remove any markdown formatting
+                var cleanResponse = response?.Trim() ?? string.Empty;
+                _logger.LogDebug("Initial response cleaned. Length: {CleanLength}", cleanResponse.Length);
+                
+                // If it's wrapped in code blocks, remove them
+                if (cleanResponse.StartsWith("```json") && cleanResponse.EndsWith("```"))
+                {
+                    cleanResponse = cleanResponse.Substring(7, cleanResponse.Length - 10).Trim();
+                    _logger.LogDebug("Removed ```json code blocks. New length: {NewLength}", cleanResponse.Length);
+                }
+                else if (cleanResponse.StartsWith("```") && cleanResponse.EndsWith("```"))
+                {
+                    cleanResponse = cleanResponse.Substring(3, cleanResponse.Length - 6).Trim();
+                    _logger.LogDebug("Removed ``` code blocks. New length: {NewLength}", cleanResponse.Length);
+                }
+                
+                string extractedText = cleanResponse;
+                _logger.LogDebug("Starting RunPod response envelope parsing");
+                
+                try
+                {
+                    var runpod = JsonSerializer.Deserialize<RunpodResponse>(cleanResponse, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+                    
+                    if (runpod != null && runpod.Output != null && runpod.Output.Count > 0)
+                    {
+                        _logger.LogDebug("RunPod response parsed successfully. Output count: {OutputCount}", runpod.Output.Count);
+                        
+                        var tokens = runpod.Output
+                            .SelectMany(o => o.Choices ?? new())
+                            .SelectMany(c => c.Tokens ?? new())
+                            .ToList();
+                        
+                        _logger.LogDebug("Extracted {TokenCount} tokens from RunPod response", tokens.Count);
+                        
+                        extractedText = tokens.Count > 0 ? string.Join(string.Empty, tokens) : extractedText;
+                        _logger.LogDebug("Token extraction completed. Extracted text length: {ExtractedLength}", extractedText.Length);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("RunPod response structure is invalid or empty");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "RunPod envelope parsing failed, falling back to plain text. Error: {ErrorMessage}", ex.Message);
+                    extractedText = cleanResponse;
+                }
+                
+                _logger.LogDebug("Starting JSON repair process. Text length: {TextLength}", extractedText.Length);
+                
+                // Extract JSON from the response if it contains explanatory text
+                var jsonStart = extractedText.IndexOf('{');
+                var jsonEnd = extractedText.LastIndexOf('}');
+                
+                if (jsonStart >= 0 && jsonEnd > jsonStart)
+                {
+                    var jsonOnly = extractedText.Substring(jsonStart, jsonEnd - jsonStart + 1);
+                    _logger.LogDebug("Extracted JSON portion. JSON length: {JsonLength}", jsonOnly.Length);
+                    extractedText = jsonOnly;
+                }
+                else
+                {
+                    _logger.LogWarning("No JSON object found in response, using full text");
+                }
+                
+                var repairedText = RepairJson(extractedText);
+                _logger.LogDebug("JSON repair completed. Repaired text length: {RepairedLength}", repairedText.Length);
+               
+                // Try to parse as JSON
+                _logger.LogDebug("Attempting to deserialize wellness analysis JSON");
+                var analysisData = System.Text.Json.JsonSerializer.Deserialize<WellnessAnalysisDto>(repairedText, new System.Text.Json.JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+                if (analysisData == null)
+                {
+                    _logger.LogError("Failed to deserialize wellness analysis - result is null");
+                    throw new InvalidOperationException("Failed to deserialize wellness analysis");
+                }
+
+                _logger.LogInformation("Wellness analysis parsing completed successfully. Mood assessment: {MoodAssessment}, Urgency level: {UrgencyLevel}", 
+                    analysisData.MoodAssessment, analysisData.UrgencyLevel);
+                
+                return analysisData;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Wellness analysis parsing failed completely. Using fallback response. Error: {ErrorMessage}", ex.Message);
+                
+                // Fallback to default analysis if parsing fails
+                return new WellnessAnalysisDto(
+                    "Mood assessment could not be generated at this time.",
+                    "Stress level evaluation is currently unavailable.",
+                    new List<string> { "General support", "Emotional guidance" },
+                    new List<string> { "Deep breathing", "Mindfulness practice" },
+                    new List<string> { "Take regular breaks", "Practice self-care" },
+                    "Track your mood and activities daily",
+                    5,
+                    new List<string> { "Take a moment to breathe", "Connect with support" },
+                    new List<string> { "Build consistent self-care routine", "Develop coping strategies" }
+                );
+            }
+        }
+        private static string RepairJson(string json)
+        {
+            try
+            {
+
+                // Deep repair with JsonRepairSharp
+                var repaired = JsonRepair.RepairJson(json);
+                return string.IsNullOrWhiteSpace(repaired) ? json : repaired;
+            }
+            catch
+            {
+                try
+                {
+                    var fallback = JsonRepair.RepairJson(json);
+                    return string.IsNullOrWhiteSpace(fallback) ? json : fallback;
+                }
+                catch { return json; }
+            }
         }
     }
 } 

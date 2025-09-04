@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Mindflow_Web_API.Persistence;
 
@@ -10,9 +11,11 @@ using Mindflow_Web_API.Persistence;
 namespace Mindflow_Web_API.Migrations
 {
     [DbContext(typeof(MindflowDbContext))]
-    partial class MindflowDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250904160254_AddRecurringTaskFields")]
+    partial class AddRecurringTaskFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -23,10 +26,6 @@ namespace Mindflow_Web_API.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("AiInsight")
-                        .HasMaxLength(1000)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Context")
@@ -45,9 +44,6 @@ namespace Mindflow_Web_API.Migrations
                     b.Property<string>("FlagReason")
                         .HasMaxLength(512)
                         .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsFavorite")
-                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsFlagged")
                         .HasColumnType("INTEGER");
@@ -75,17 +71,9 @@ namespace Mindflow_Web_API.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("Tags")
-                        .HasMaxLength(1000)
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Text")
                         .IsRequired()
                         .HasMaxLength(20000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Title")
-                        .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
                     b.Property<int?>("TokensEstimate")
@@ -93,9 +81,6 @@ namespace Mindflow_Web_API.Migrations
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("TEXT");
-
-                    b.Property<int>("WordCount")
-                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -508,9 +493,6 @@ namespace Mindflow_Web_API.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("DateOfBirth")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("DeactivatedAtUtc")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Email")

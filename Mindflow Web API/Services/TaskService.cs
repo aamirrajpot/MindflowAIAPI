@@ -36,7 +36,14 @@ namespace Mindflow_Web_API.Services
                 RepeatType = dto.RepeatType,
                 CreatedBySuggestionEngine = false,
                 IsApproved = true,
-                Status = dto.Status
+                Status = dto.Status,
+                // Recurring task fields
+                ParentTaskId = dto.ParentTaskId,
+                IsTemplate = dto.IsTemplate,
+                NextOccurrence = dto.NextOccurrence,
+                MaxOccurrences = dto.MaxOccurrences,
+                EndDate = dto.EndDate,
+                IsActive = dto.IsActive
             };
 
             await _dbContext.Tasks.AddAsync(task);
@@ -93,6 +100,14 @@ namespace Mindflow_Web_API.Services
             if (dto.RepeatType.HasValue) task.RepeatType = dto.RepeatType.Value;
             if (dto.IsApproved.HasValue) task.IsApproved = dto.IsApproved.Value;
             if (dto.Status.HasValue) task.Status = dto.Status.Value;
+            
+            // Recurring task fields
+            if (dto.ParentTaskId.HasValue) task.ParentTaskId = dto.ParentTaskId.Value;
+            if (dto.IsTemplate.HasValue) task.IsTemplate = dto.IsTemplate.Value;
+            if (dto.NextOccurrence.HasValue) task.NextOccurrence = dto.NextOccurrence.Value;
+            if (dto.MaxOccurrences.HasValue) task.MaxOccurrences = dto.MaxOccurrences.Value;
+            if (dto.EndDate.HasValue) task.EndDate = dto.EndDate.Value;
+            if (dto.IsActive.HasValue) task.IsActive = dto.IsActive.Value;
 
             await _dbContext.SaveChangesAsync();
             return ToDto(task);
@@ -132,7 +147,14 @@ namespace Mindflow_Web_API.Services
                 task.RepeatType,
                 task.CreatedBySuggestionEngine,
                 task.IsApproved,
-                task.Status
+                task.Status,
+                // Recurring task fields
+                task.ParentTaskId,
+                task.IsTemplate,
+                task.NextOccurrence,
+                task.MaxOccurrences,
+                task.EndDate,
+                task.IsActive
             );
         }
 
@@ -141,6 +163,114 @@ namespace Mindflow_Web_API.Services
             return dateTime.Kind == DateTimeKind.Unspecified 
                 ? DateTime.SpecifyKind(dateTime, DateTimeKind.Utc) 
                 : dateTime.ToUniversalTime();
+        }
+
+        // Recurring task methods
+        public async Task<IEnumerable<TaskItemDto>> GetTasksWithRecurringAsync(Guid userId, DateTime date)
+        {
+            // 1. Get existing tasks for the date
+            var existingTasks = await GetAllAsync(userId, date);
+            
+            // 2. Get active templates that should have instances for this date
+            var templates = await GetActiveTemplatesAsync(userId);
+            
+            // 3. Generate missing instances
+            var newInstances = new List<TaskItem>();
+            foreach (var template in templates)
+            {
+                if (ShouldGenerateInstanceForDate(template, date) && 
+                    !await HasInstanceForDateAsync(template.Id, date))
+                {
+                    var instance = await GenerateTaskInstanceAsync(template.Id, date);
+                    newInstances.Add(await GetTaskItemByIdAsync(instance.Id));
+                }
+            }
+            
+            // 4. Return all tasks (existing + new instances)
+            return existingTasks.Concat(newInstances.Select(ToDto));
+        }
+
+        public async Task<IEnumerable<TaskItemDto>> GetActiveTemplatesAsync(Guid userId)
+        {
+            var templates = await _dbContext.Tasks
+                .Where(t => t.UserId == userId && t.IsTemplate && t.IsActive)
+                .ToListAsync();
+            
+            return templates.Select(ToDto);
+        }
+
+        public async Task<bool> HasInstanceForDateAsync(Guid templateId, DateTime date)
+        {
+            return await _dbContext.Tasks
+                .AnyAsync(t => t.ParentTaskId == templateId && t.Date.Date == date.Date);
+        }
+
+        public async Task<TaskItemDto> GenerateTaskInstanceAsync(Guid templateId, DateTime date)
+        {
+            var template = await _dbContext.Tasks.FirstOrDefaultAsync(t => t.Id == templateId);
+            if (template == null)
+                throw new ArgumentException("Template not found");
+
+            var instance = new TaskItem
+            {
+                UserId = template.UserId,
+                Title = template.Title,
+                Description = template.Description,
+                Category = template.Category,
+                OtherCategoryName = template.OtherCategoryName,
+                Date = date,
+                Time = date.Date.Add(template.Time.TimeOfDay), // Use same time as template
+                DurationMinutes = template.DurationMinutes,
+                ReminderEnabled = template.ReminderEnabled,
+                RepeatType = RepeatType.Never, // Instances don't repeat
+                CreatedBySuggestionEngine = template.CreatedBySuggestionEngine,
+                IsApproved = template.IsApproved,
+                Status = Models.TaskStatus.Pending,
+                // Recurring task fields
+                ParentTaskId = templateId,
+                IsTemplate = false,
+                IsActive = true
+            };
+
+            _dbContext.Tasks.Add(instance);
+            await _dbContext.SaveChangesAsync();
+            
+            return ToDto(instance);
+        }
+
+        private async Task<TaskItem> GetTaskItemByIdAsync(Guid taskId)
+        {
+            var task = await _dbContext.Tasks.FirstOrDefaultAsync(t => t.Id == taskId);
+            if (task == null)
+                throw new ArgumentException("Task not found");
+            return task;
+        }
+
+        private static bool ShouldGenerateInstanceForDate(TaskItemDto template, DateTime date)
+        {
+            // Check if template should generate an instance for this date
+            if (!template.IsTemplate || !template.IsActive)
+                return false;
+
+            // Check if date is within the template's date range
+            if (template.EndDate.HasValue && date > template.EndDate.Value)
+                return false;
+
+            // Check if we've exceeded max occurrences
+            if (template.MaxOccurrences.HasValue)
+            {
+                // This would require counting existing instances - simplified for now
+                // In a full implementation, you'd count existing instances
+            }
+
+            // Check if the date matches the recurrence pattern
+            return template.RepeatType switch
+            {
+                RepeatType.Day => true, // Daily - always generate
+                RepeatType.Week => date.DayOfWeek == template.Date.DayOfWeek, // Same day of week
+                RepeatType.Month => date.Day == template.Date.Day, // Same day of month
+                _ => false
+            };
         }
     }
 }

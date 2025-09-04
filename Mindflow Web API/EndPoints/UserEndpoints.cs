@@ -375,6 +375,32 @@ namespace Mindflow_Web_API.EndPoints
                 op.Description = "Simple endpoint to verify that routing is working correctly.";
                 return op;
             });
+
+            // Deactivate user account
+            usersApi.MapPost("/deactivate", async (IUserService userService, HttpContext context) =>
+            {
+                if (!context.User.Identity?.IsAuthenticated ?? true)
+                    throw ApiExceptions.Unauthorized("User is not authenticated");
+                
+                var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
+                if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+                    throw ApiExceptions.Unauthorized("Invalid user token");
+
+                var success = await userService.DeactivateAccountAsync(userId);
+                if (!success)
+                    throw ApiExceptions.NotFound("User not found");
+
+                return Results.Ok(new { 
+                    message = "Account deactivation requested successfully. Your account and all data will be permanently deleted after 7 days.",
+                    deactivatedAt = DateTime.UtcNow
+                });
+            })
+            .RequireAuthorization()
+            .WithOpenApi(op => {
+                op.Summary = "Deactivate user account";
+                op.Description = "Marks the user account for deletion. The account and all associated data will be permanently deleted after 7 days.";
+                return op;
+            });
         }
     }
 } 

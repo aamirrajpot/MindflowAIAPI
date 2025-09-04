@@ -55,7 +55,13 @@ namespace Mindflow_Web_API.Services
 				Stress = request.Stress,
 				Purpose = request.Purpose,
 				TokensEstimate = request.Text?.Length,
-				CreatedAtUtc = DateTime.UtcNow
+				CreatedAtUtc = DateTime.UtcNow,
+				// Journal-specific fields
+				Title = GenerateDefaultTitle(request.Text),
+				WordCount = CalculateWordCount(request.Text),
+				Tags = ExtractTagsFromText(request.Text),
+				IsFavorite = false,
+				Source = BrainDumpSource.Web // Brain dump comes from web/mobile app
 			};
 			_db.BrainDumpEntries.Add(entry);
 			await _db.SaveChangesAsync();
@@ -114,7 +120,11 @@ namespace Mindflow_Web_API.Services
 				RepeatType = repeatType,
 				CreatedBySuggestionEngine = true,
 				IsApproved = true, // Auto-approve since user explicitly selected it
-				Status = Models.TaskStatus.Pending
+				Status = Models.TaskStatus.Pending,
+				// Recurring task fields
+				IsTemplate = repeatType != RepeatType.Never, // Create template for recurring tasks
+				NextOccurrence = repeatType != RepeatType.Never ? CalculateNextOccurrence(taskDate, repeatType) : null,
+				IsActive = true
 			};
 
 			_db.Tasks.Add(taskItem);
@@ -424,6 +434,52 @@ namespace Mindflow_Web_API.Services
 
 			// Final fallback
 			return "User";
+		}
+
+		private static DateTime CalculateNextOccurrence(DateTime currentDate, RepeatType repeatType)
+		{
+			return repeatType switch
+			{
+				RepeatType.Day => currentDate.AddDays(1),
+				RepeatType.Week => currentDate.AddDays(7),
+				RepeatType.Month => currentDate.AddMonths(1),
+				_ => currentDate
+			};
+		}
+
+		private static string GenerateDefaultTitle(string text)
+		{
+			if (string.IsNullOrWhiteSpace(text)) return "Brain Dump Entry";
+			
+			// Take first 50 characters and clean up
+			var title = text.Substring(0, Math.Min(50, text.Length)).Trim();
+			if (title.Length < text.Length) title += "...";
+			
+			return title;
+		}
+
+		private static int CalculateWordCount(string text)
+		{
+			if (string.IsNullOrWhiteSpace(text)) return 0;
+			
+			// Simple word count - split by whitespace and count non-empty parts
+			var words = text.Split(new char[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+			return words.Length;
+		}
+
+		private static string ExtractTagsFromText(string text)
+		{
+			if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+
+			// Simple tag extraction - look for common emotional/wellness keywords
+			var commonTags = new[] { "gratitude", "anxiety", "stress", "happy", "sad", "tired", "energized", 
+								   "overwhelmed", "peaceful", "frustrated", "excited", "worried", "calm", 
+								   "morning", "evening", "work", "family", "health", "exercise", "meditation" };
+
+			var textLower = text.ToLower();
+			var foundTags = commonTags.Where(tag => textLower.Contains(tag)).ToList();
+
+			return string.Join(",", foundTags);
 		}
 	}
 }
