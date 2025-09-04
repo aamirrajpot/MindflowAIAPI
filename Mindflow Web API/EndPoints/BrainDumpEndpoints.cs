@@ -29,23 +29,60 @@ namespace Mindflow_Web_API.EndPoints
 				if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
 					return Results.Unauthorized();
 
-				// Generate suggestions (service persists entry)
-				var suggestions = await service.GetTaskSuggestionsAsync(request, maxTokens, temperature);
+				// Generate comprehensive brain dump analysis
+				var brainDumpResponse = await service.GetTaskSuggestionsAsync(userId, request, maxTokens, temperature);
 
-				// Attach user to most recent brain dump entry created in this request scope
-				var latest = await db.BrainDumpEntries.OrderByDescending(x => x.CreatedAtUtc).FirstOrDefaultAsync();
-				if (latest != null && latest.UserId == Guid.Empty)
-				{
-					latest.UserId = userId;
-					await db.SaveChangesAsync();
-				}
-
-				return Results.Ok(new { suggestions });
+				return Results.Ok(brainDumpResponse);
 			})
 			.WithOpenApi(op =>
 			{
-				op.Summary = "Get AI task suggestions from a brain dump";
-				op.Description = "Accepts free-form text and returns 3-5 structured task suggestions";
+				op.Summary = "Get comprehensive brain dump analysis";
+				op.Description = "Accepts free-form text and returns user profile summary, key themes, AI summary, and personalized task suggestions";
+				return op;
+			});
+
+			api.MapPost("/add-to-calendar", async (
+				[FromBody] AddToCalendarRequest request,
+				IBrainDumpService service,
+				HttpContext ctx) =>
+			{
+				if (!ctx.User.Identity?.IsAuthenticated ?? true)
+					return Results.Unauthorized();
+
+				// Resolve user id
+				var userIdClaim = ctx.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
+				if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+					return Results.Unauthorized();
+
+				try
+				{
+					var taskItem = await service.AddTaskToCalendarAsync(userId, request);
+
+					return Results.Ok(new
+					{
+						message = "Task added to calendar successfully",
+						taskId = taskItem.Id,
+						task = new
+						{
+							taskItem.Title,
+							taskItem.Description,
+							taskItem.Category,
+							taskItem.Date,
+							taskItem.Time,
+							taskItem.DurationMinutes,
+							taskItem.RepeatType
+						}
+					});
+				}
+				catch (ArgumentException ex)
+				{
+					return Results.BadRequest(ex.Message);
+				}
+			})
+			.WithOpenApi(op =>
+			{
+				op.Summary = "Add a suggested task to calendar";
+				op.Description = "Creates a TaskItem in the database from a task suggestion";
 				return op;
 			});
 

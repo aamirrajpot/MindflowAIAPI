@@ -148,8 +148,15 @@ namespace Mindflow_Web_API.Services
 
                     var responseContent = await response.Content.ReadAsStringAsync();
                     _logger.LogDebug("RunPod response (attempt {Attempt}): {Response}", attempt, responseContent);
+                    
+                    // Check if the response indicates the task is in progress
+                    if (responseContent.Contains("\"status\":\"IN_PROGRESS\""))
+                    {
+                        _logger.LogInformation("Task is in progress, starting polling for completion...");
+                        return await PollForCompletionAsync(responseContent, cts.Token);
+                    }
+                    
                     _logger.LogInformation("Successfully received response from RunPod after {Attempt} attempt(s)", attempt);
-
                     return responseContent;
                 }
                 catch (OperationCanceledException) when (attempt < maxRetries)
@@ -266,6 +273,85 @@ namespace Mindflow_Web_API.Services
             {
                 _logger.LogError(ex, "Error parsing urgency assessment from RunPod response");
                 return new UrgencyAssessment();
+            }
+        }
+
+        private async Task<string> PollForCompletionAsync(string initialResponse, CancellationToken cancellationToken)
+        {
+            try
+            {
+                // Parse the initial response to get the task ID
+                var initialJson = JsonSerializer.Deserialize<JsonElement>(initialResponse);
+                if (!initialJson.TryGetProperty("id", out var idElement))
+                {
+                    throw new InvalidOperationException("No task ID found in IN_PROGRESS response");
+                }
+                
+                var taskId = idElement.GetString();
+                if (string.IsNullOrEmpty(taskId))
+                {
+                    throw new InvalidOperationException("Task ID is null or empty");
+                }
+
+                _logger.LogInformation("Polling for task completion: {TaskId}", taskId);
+
+                // Poll for completion with exponential backoff
+                var maxPollingTime = TimeSpan.FromMinutes(_configuration.GetValue<int>("RunPod:MaxPollingTimeMinutes", 15));
+                var startTime = DateTime.UtcNow;
+                var pollInterval = TimeSpan.FromSeconds(_configuration.GetValue<int>("RunPod:InitialPollIntervalSeconds", 2));
+                var maxPollInterval = TimeSpan.FromSeconds(_configuration.GetValue<int>("RunPod:MaxPollIntervalSeconds", 30));
+
+                while (DateTime.UtcNow - startTime < maxPollingTime && !cancellationToken.IsCancellationRequested)
+                {
+                    try
+                    {
+                        // Wait before polling (except on first iteration)
+                        if (startTime != DateTime.UtcNow)
+                        {
+                            await Task.Delay(pollInterval, cancellationToken);
+                        }
+
+                        // Make a GET request to check status
+                        var statusResponse = await _httpClient.GetAsync($"status/{taskId}", cancellationToken);
+                        
+                        if (!statusResponse.IsSuccessStatusCode)
+                        {
+                            _logger.LogWarning("Failed to get task status: {StatusCode}", statusResponse.StatusCode);
+                            // Continue polling on status check failures
+                            pollInterval = TimeSpan.FromMilliseconds(Math.Min(pollInterval.TotalMilliseconds * 1.5, maxPollInterval.TotalMilliseconds));
+                            continue;
+                        }
+
+                        var statusContent = await statusResponse.Content.ReadAsStringAsync();
+                        _logger.LogDebug("Polling response: {Response}", statusContent);
+
+                        // Check if task is completed
+                        if (!statusContent.Contains("\"status\":\"IN_PROGRESS\""))
+                        {
+                            _logger.LogInformation("Task completed: {TaskId}", taskId);
+                            return statusContent;
+                        }
+
+                        // Increase polling interval for next iteration (exponential backoff)
+                        pollInterval = TimeSpan.FromMilliseconds(Math.Min(pollInterval.TotalMilliseconds * 1.5, maxPollInterval.TotalMilliseconds));
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Error during polling, continuing...");
+                        pollInterval = TimeSpan.FromMilliseconds(Math.Min(pollInterval.TotalMilliseconds * 1.5, maxPollInterval.TotalMilliseconds));
+                    }
+                }
+
+                throw new TimeoutException($"Task {taskId} did not complete within {maxPollingTime.TotalMinutes} minutes");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error polling for task completion");
+                throw;
             }
         }
     }
