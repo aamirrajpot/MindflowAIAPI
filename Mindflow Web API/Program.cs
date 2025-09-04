@@ -92,6 +92,7 @@ builder.Services.AddAuthentication(options =>
     };
 });
 builder.Services.AddAuthorization();
+// Note: Admin checks are enforced inline in endpoints (matching SubscriptionEndpoints pattern)
 
 // Register UserService
 builder.Services.AddScoped<IUserService, UserService>();
@@ -116,6 +117,12 @@ builder.Services.AddHttpClient<IOllamaService, OllamaService>(client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["Ollama:BaseUrl"] ?? "http://localhost:11434");
 });
+
+// Register RunPodService
+builder.Services.AddHttpClient<IRunPodService, RunPodService>();
+
+// Brain Dump service
+builder.Services.AddScoped<IBrainDumpService, BrainDumpService>();
 
 // Register SubscriptionService (fully qualify to avoid Stripe.SubscriptionService ambiguity)
 builder.Services.AddScoped<Mindflow_Web_API.Services.ISubscriptionService, Mindflow_Web_API.Services.SubscriptionService>();
@@ -179,7 +186,7 @@ catch (Exception ex)
 
         // Seed admin user
         var adminSeedService = serviceScope.ServiceProvider.GetRequiredService<IAdminSeedService>();
-        await adminSeedService.SeedAdminUserAsync();
+        await adminSeedService.SeedDefaultUsersAsync();
 
         // Seed subscription data
         var subscriptionSeedService = serviceScope.ServiceProvider.GetRequiredService<SubscriptionSeedService>();
@@ -208,6 +215,8 @@ app.MapTaskItemEndpoints();
 app.MapSubscriptionEndpoints();
 app.MapPaymentEndpoints();
 app.MapStripeEndpoints();
+app.MapRunPodEndpoints();
+app.MapBrainDumpEndpoints();
 
 app.Run();
 

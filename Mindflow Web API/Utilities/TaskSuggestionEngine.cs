@@ -1,5 +1,6 @@
 ﻿using Mindflow_Web_API.Models;
 using Mindflow_Web_API.Utilities;
+using Mindflow_Web_API.Services;
 using System.Text.Json;
 
 namespace Mindflow_Web_API.Services
@@ -143,10 +144,5 @@ namespace Mindflow_Web_API.Services
         public List<string> LongTermGoals { get; set; } = new();
     }
 
-    public class UrgencyAssessment
-    {
-        public int UrgencyLevel { get; set; } = 5;
-        public string Reasoning { get; set; } = string.Empty;
-        public string ImmediateAction { get; set; } = string.Empty;
-    }
+
 }

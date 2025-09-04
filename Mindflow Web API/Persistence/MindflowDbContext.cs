@@ -16,6 +16,7 @@ namespace Mindflow_Web_API.Persistence
         public DbSet<UserSubscription> UserSubscriptions => Set<UserSubscription>();
         public DbSet<PaymentCard> PaymentCards => Set<PaymentCard>();
         public DbSet<PaymentHistory> PaymentHistory => Set<PaymentHistory>();
+        public DbSet<BrainDumpEntry> BrainDumpEntries => Set<BrainDumpEntry>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
