@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 using Mindflow_Web_API.DTOs;
 using Mindflow_Web_API.Utilities;
 using Mindflow_Web_API.Persistence;
@@ -15,6 +16,7 @@ namespace Mindflow_Web_API.Services
 	{
 		Task<BrainDumpResponse> GetTaskSuggestionsAsync(Guid userId, BrainDumpRequest request, int maxTokens = 1000, double temperature = 0.7);
 		Task<TaskItem> AddTaskToCalendarAsync(Guid userId, AddToCalendarRequest request);
+		Task<string?> GenerateAiInsightAsync(Guid userId, Guid entryId);
 	}
 
 	public class BrainDumpService : IBrainDumpService
@@ -24,14 +26,16 @@ namespace Mindflow_Web_API.Services
 		private readonly ILogger<BrainDumpService> _logger;
 		private readonly IWellnessCheckInService _wellnessService;
 		private readonly IUserService _userService;
+		private readonly IServiceProvider _serviceProvider;
 
-		public BrainDumpService(IRunPodService runPodService, ILogger<BrainDumpService> logger, MindflowDbContext db, IWellnessCheckInService wellnessService, IUserService userService)
+		public BrainDumpService(IRunPodService runPodService, ILogger<BrainDumpService> logger, MindflowDbContext db, IWellnessCheckInService wellnessService, IUserService userService, IServiceProvider serviceProvider)
 		{
 			_runPodService = runPodService;
 			_logger = logger;
 			_db = db;
 			_wellnessService = wellnessService;
 			_userService = userService;
+			_serviceProvider = serviceProvider;
 		}
 
 		public async Task<BrainDumpResponse> GetTaskSuggestionsAsync(Guid userId, BrainDumpRequest request, int maxTokens = 1200, double temperature = 0.7)
@@ -42,6 +46,9 @@ namespace Mindflow_Web_API.Services
 			
 			// Get user's display name (FirstName LastName or UserName as fallback)
 			var userName = GetUserDisplayName(userProfile);
+			
+			// Extract tags using LLM
+			var extractedTags = await ExtractTagsFromTextAsync(request.Text ?? string.Empty);
 			
 			var prompt = BrainDumpPromptBuilder.BuildTaskSuggestionsPrompt(request, wellnessData, userName);
 
@@ -57,9 +64,9 @@ namespace Mindflow_Web_API.Services
 				TokensEstimate = request.Text?.Length,
 				CreatedAtUtc = DateTime.UtcNow,
 				// Journal-specific fields
-				Title = GenerateDefaultTitle(request.Text),
-				WordCount = CalculateWordCount(request.Text),
-				Tags = ExtractTagsFromText(request.Text),
+				Title = GenerateDefaultTitle(request.Text ?? string.Empty),
+				WordCount = CalculateWordCount(request.Text ?? string.Empty),
+				Tags = extractedTags,
 				IsFavorite = false,
 				Source = BrainDumpSource.Web // Brain dump comes from web/mobile app
 			};
@@ -81,6 +88,38 @@ namespace Mindflow_Web_API.Services
 				? string.Join("; ", brainDumpResponse.SuggestedActivities.Take(3).Select(t => t.Task))
 				: null;
 			await _db.SaveChangesAsync();
+
+			// Generate AI insight asynchronously (don't await to avoid blocking)
+			_ = Task.Run(async () =>
+			{
+				try
+				{
+					// Create a new scope for the background task to avoid disposed context issues
+					using var scope = _serviceProvider.CreateScope();
+					var dbContext = scope.ServiceProvider.GetRequiredService<MindflowDbContext>();
+					var runPodService = scope.ServiceProvider.GetRequiredService<IRunPodService>();
+					var logger = scope.ServiceProvider.GetRequiredService<ILogger<BrainDumpService>>();
+					
+					// Create a temporary service instance for the background task
+					var tempService = new BrainDumpService(runPodService, logger, dbContext, _wellnessService, _userService, _serviceProvider);
+					
+					var insight = await tempService.GenerateAiInsightAsync(userId, entry.Id);
+					if (!string.IsNullOrEmpty(insight))
+					{
+						// Update the entry in the new context
+						var entryToUpdate = await dbContext.BrainDumpEntries.FindAsync(entry.Id);
+						if (entryToUpdate != null)
+						{
+							entryToUpdate.AiInsight = insight;
+							await dbContext.SaveChangesAsync();
+						}
+					}
+				}
+				catch (Exception ex)
+				{
+					_logger.LogWarning(ex, "Failed to generate AI insight for brain dump entry {EntryId}", entry.Id);
+				}
+			});
 
 			// Add weekly trends data if available
 			brainDumpResponse.WeeklyTrends = await GetWeeklyTrendsAsync(userId);
@@ -467,7 +506,34 @@ namespace Mindflow_Web_API.Services
 			return words.Length;
 		}
 
-		private static string ExtractTagsFromText(string text)
+		private async Task<string> ExtractTagsFromTextAsync(string text)
+		{
+			if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+
+			try
+			{
+				// Use LLM for intelligent tag extraction
+				var prompt = BrainDumpPromptBuilder.BuildTagExtractionPrompt(text);
+				var response = await _runPodService.SendPromptAsync(prompt, 200, 0.3); // Lower temperature for more consistent results
+				
+				var extractedTags = BrainDumpPromptBuilder.ParseTagExtractionResponse(response, _logger);
+				
+				// Fallback to simple keyword extraction if LLM fails
+				if (string.IsNullOrWhiteSpace(extractedTags))
+				{
+					return ExtractTagsFromTextFallback(text);
+				}
+				
+				return extractedTags;
+			}
+			catch (Exception ex)
+			{
+				_logger.LogWarning(ex, "Failed to extract tags using LLM, falling back to keyword extraction");
+				return ExtractTagsFromTextFallback(text);
+			}
+		}
+
+		private static string ExtractTagsFromTextFallback(string text)
 		{
 			if (string.IsNullOrWhiteSpace(text)) return string.Empty;
 
@@ -481,6 +547,38 @@ namespace Mindflow_Web_API.Services
 
 			return string.Join(",", foundTags);
 		}
+
+		public async Task<string?> GenerateAiInsightAsync(Guid userId, Guid entryId)
+		{
+			try
+			{
+				var entry = await _db.BrainDumpEntries
+					.FirstOrDefaultAsync(e => e.Id == entryId && e.UserId == userId);
+				
+				if (entry == null) return null;
+
+				// Get recent entries for context
+				var recentEntries = await _db.BrainDumpEntries
+					.Where(e => e.UserId == userId && e.DeletedAtUtc == null && e.CreatedAtUtc >= DateTime.UtcNow.AddDays(-30))
+					.OrderByDescending(e => e.CreatedAtUtc)
+					.Take(10)
+					.ToListAsync();
+
+				var prompt = BrainDumpPromptBuilder.BuildInsightPrompt(entry, recentEntries);
+				var response = await _runPodService.SendPromptAsync(prompt, 500, 0.7);
+				
+				// Parse the response to extract insight
+				var insight = BrainDumpPromptBuilder.ParseInsightResponse(response, _logger);
+				return insight;
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Failed to generate AI insight for brain dump entry {EntryId}", entryId);
+				return null;
+			}
+		}
+
+
 	}
 }
 

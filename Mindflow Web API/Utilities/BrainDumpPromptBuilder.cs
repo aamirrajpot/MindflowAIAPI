@@ -1,4 +1,5 @@
 using Mindflow_Web_API.DTOs;
+using Mindflow_Web_API.Models;
 using System.Text;
 using System.Text.Json;
 using System.Linq;
@@ -248,6 +249,224 @@ namespace Mindflow_Web_API.Utilities
 				AiSummary = "Your brain dump has been processed and personalized task suggestions have been generated based on your input.",
 				SuggestedActivities = suggestions
 			};
+		}
+
+		public static string BuildInsightPrompt(BrainDumpEntry entry, List<BrainDumpEntry> recentEntries)
+		{
+			var recentContext = recentEntries.Count > 0 
+				? string.Join("\n", recentEntries.Take(5).Select(e => $"- {e.Text?.Substring(0, Math.Min(100, e.Text?.Length ?? 0))}..."))
+				: "No recent entries";
+
+			return $@"[INST] You are Mindflow AI, a wellness coach. Analyze this brain dump entry and provide a brief, insightful observation about patterns, emotions, or growth opportunities.
+
+Current Entry:
+Text: {entry.Text}
+Context: {entry.Context}
+Mood: {entry.Mood}/10
+Stress: {entry.Stress}/10
+Purpose: {entry.Purpose}/10
+
+Recent Context (last 30 days):
+{recentContext}
+
+Provide a single, concise insight (2-3 sentences max) that:
+- Identifies emotional patterns or themes
+- Offers gentle encouragement or perspective
+- Suggests a small actionable step if appropriate
+
+IMPORTANT: Return ONLY the insight text. Do not include any prefixes like Insight:, Here's, or explanatory text. Start directly with the insight content. [/INST]";
+		}
+
+		public static string ParseInsightResponse(string response, ILogger? logger = null)
+		{
+			try
+			{
+				// Clean up the response
+				var cleanResponse = response?.Trim() ?? string.Empty;
+				
+				// If it's wrapped in code blocks, remove them
+				if (cleanResponse.StartsWith("```") && cleanResponse.EndsWith("```"))
+				{
+					cleanResponse = cleanResponse.Substring(3, cleanResponse.Length - 6).Trim();
+				}
+				
+				// Extract text from RunPod response envelope if present
+				try
+				{
+					var runpod = JsonSerializer.Deserialize<RunpodResponse>(cleanResponse, new JsonSerializerOptions
+					{
+						PropertyNameCaseInsensitive = true
+					});
+					
+					if (runpod?.Output?.Count > 0)
+					{
+						var tokens = runpod.Output
+							.SelectMany(o => o.Choices ?? new())
+							.SelectMany(c => c.Tokens ?? new())
+							.ToList();
+						
+						if (tokens.Count > 0)
+						{
+							cleanResponse = string.Join(string.Empty, tokens);
+						}
+					}
+				}
+				catch
+				{
+					// If RunPod parsing fails, use the original response
+				}
+				
+				// Remove common prefixes that LLMs sometimes add
+				var prefixesToRemove = new[]
+				{
+					"insight:",
+					"here's",
+					"here is",
+					"the insight is:",
+					"insight is:",
+					"based on",
+					"it appears that",
+					"i notice that",
+					"i can see that"
+				};
+				
+				foreach (var prefix in prefixesToRemove)
+				{
+					if (cleanResponse.ToLower().TrimStart().StartsWith(prefix))
+					{
+						cleanResponse = cleanResponse.Substring(prefix.Length+1).Trim();
+						// Remove any leading punctuation or capitalization
+						if (cleanResponse.StartsWith(":"))
+							cleanResponse = cleanResponse.Substring(1).Trim();
+						break;
+					}
+				}
+				
+				// Return the cleaned insight
+				return cleanResponse.Length > 500 ? cleanResponse.Substring(0, 500) + "..." : cleanResponse;
+			}
+			catch (Exception ex)
+			{
+				logger?.LogWarning(ex, "Failed to parse insight response");
+				return "Insight generation temporarily unavailable.";
+			}
+		}
+
+		public static string BuildTagExtractionPrompt(string text)
+		{
+			return $@"[INST] You are an expert at analyzing text and extracting relevant tags. Analyze the following text and extract 3-5 meaningful tags that best represent the content, emotions, themes, or topics.
+
+Text: {text}
+
+Extract tags that capture:
+- Emotional states (e.g., anxious, grateful, overwhelmed)
+- Life areas (e.g., work, family, health, relationships)
+- Activities or themes (e.g., meditation, exercise, planning, reflection)
+- Time context (e.g., morning, evening, weekend)
+
+IMPORTANT: Return ONLY a comma-separated list of tags. Do not include any explanatory text, introductions, or formatting. Start your response directly with the tags.
+
+Example format: anxious,work,planning,morning [/INST]";
+		}
+
+		public static string ParseTagExtractionResponse(string response, ILogger? logger = null)
+		{
+			try
+			{
+				// Clean up the response
+				var cleanResponse = response?.Trim() ?? string.Empty;
+				
+				// If it's wrapped in code blocks, remove them
+				if (cleanResponse.StartsWith("```") && cleanResponse.EndsWith("```"))
+				{
+					cleanResponse = cleanResponse.Substring(3, cleanResponse.Length - 6).Trim();
+				}
+				
+				// Extract text from RunPod response envelope if present
+				try
+				{
+					var runpod = JsonSerializer.Deserialize<RunpodResponse>(cleanResponse, new JsonSerializerOptions
+					{
+						PropertyNameCaseInsensitive = true
+					});
+					
+					if (runpod?.Output?.Count > 0)
+					{
+						var tokens = runpod.Output
+							.SelectMany(o => o.Choices ?? new())
+							.SelectMany(c => c.Tokens ?? new())
+							.ToList();
+						
+						if (tokens.Count > 0)
+						{
+							cleanResponse = string.Join(string.Empty, tokens);
+						}
+					}
+				}
+				catch
+				{
+					// If RunPod parsing fails, use the original response
+				}
+				
+				// Remove explanatory text and extract only the tags
+				// Look for common patterns that indicate the start of actual tags
+				var tagStartPatterns = new[]
+				{
+					"here are",
+					"the tags are:",
+					"tags:",
+					"meaningful tags",
+					"relevant tags"
+				};
+				
+				foreach (var pattern in tagStartPatterns)
+				{
+					var index = cleanResponse.ToLower().IndexOf(pattern);
+					if (index >= 0)
+					{
+						// Find the colon or newline after the pattern
+						var afterPattern = cleanResponse.Substring(index + pattern.Length);
+						var colonIndex = afterPattern.IndexOf(':');
+						var newlineIndex = afterPattern.IndexOf('\n');
+						
+						var startIndex = Math.Min(
+							colonIndex >= 0 ? colonIndex + 1 : int.MaxValue,
+							newlineIndex >= 0 ? newlineIndex + 1 : int.MaxValue
+						);
+						
+						if (startIndex < int.MaxValue)
+						{
+							cleanResponse = afterPattern.Substring(startIndex).Trim();
+							break;
+						}
+					}
+				}
+				
+				// If we still have explanatory text, try to find the last line that looks like tags
+				var lines = cleanResponse.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+				var lastLine = lines.LastOrDefault()?.Trim();
+				
+				// Check if the last line looks like comma-separated tags (contains common tag words)
+				if (!string.IsNullOrEmpty(lastLine) && lastLine.Contains(','))
+				{
+					cleanResponse = lastLine;
+				}
+				
+				// Clean up the tags - remove extra whitespace and normalize
+				var tags = cleanResponse
+					.Split(',', StringSplitOptions.RemoveEmptyEntries)
+					.Select(tag => tag.Trim().ToLower())
+					.Where(tag => !string.IsNullOrWhiteSpace(tag) && tag.Length > 1) // Filter out single characters
+					.Take(5) // Limit to 5 tags max
+					.ToList();
+				
+				return string.Join(",", tags);
+			}
+			catch (Exception ex)
+			{
+				logger?.LogWarning(ex, "Failed to parse tag extraction response");
+				return string.Empty;
+			}
 		}
 	}
 }

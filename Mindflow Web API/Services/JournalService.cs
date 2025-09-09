@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Mindflow_Web_API.DTOs;
 using Mindflow_Web_API.Models;
 using Mindflow_Web_API.Persistence;
+using Mindflow_Web_API.Utilities;
 using System.Text.RegularExpressions;
 
 namespace Mindflow_Web_API.Services
@@ -252,6 +253,37 @@ namespace Mindflow_Web_API.Services
         }
 
         public async Task<List<string>> ExtractTagsAsync(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return new List<string>();
+
+            try
+            {
+                // Use LLM for intelligent tag extraction
+                var prompt = BrainDumpPromptBuilder.BuildTagExtractionPrompt(text);
+                var response = await _runPodService.SendPromptAsync(prompt, 200, 0.3); // Lower temperature for more consistent results
+                
+                var extractedTagsString = BrainDumpPromptBuilder.ParseTagExtractionResponse(response, _logger);
+                
+                // Convert comma-separated string to list
+                if (!string.IsNullOrWhiteSpace(extractedTagsString))
+                {
+                    return extractedTagsString.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                        .Select(tag => tag.Trim())
+                        .Where(tag => !string.IsNullOrWhiteSpace(tag))
+                        .ToList();
+                }
+                
+                // Fallback to simple keyword extraction if LLM fails
+                return ExtractTagsFallback(text);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to extract tags using LLM, falling back to keyword extraction");
+                return ExtractTagsFallback(text);
+            }
+        }
+
+        private static List<string> ExtractTagsFallback(string text)
         {
             if (string.IsNullOrWhiteSpace(text)) return new List<string>();
 
