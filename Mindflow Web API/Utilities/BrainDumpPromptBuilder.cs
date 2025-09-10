@@ -259,22 +259,22 @@ namespace Mindflow_Web_API.Utilities
 
 			return $@"[INST] You are Mindflow AI, a wellness coach. Analyze this brain dump entry and provide a brief, insightful observation about patterns, emotions, or growth opportunities.
 
-Current Entry:
-Text: {entry.Text}
-Context: {entry.Context}
-Mood: {entry.Mood}/10
-Stress: {entry.Stress}/10
-Purpose: {entry.Purpose}/10
+				Current Entry:
+				Text: {entry.Text}
+				Context: {entry.Context}
+				Mood: {entry.Mood}/10
+				Stress: {entry.Stress}/10
+				Purpose: {entry.Purpose}/10
 
-Recent Context (last 30 days):
-{recentContext}
+				Recent Context (last 30 days):
+				{recentContext}
 
-Provide a single, concise insight (2-3 sentences max) that:
-- Identifies emotional patterns or themes
-- Offers gentle encouragement or perspective
-- Suggests a small actionable step if appropriate
+				Provide a single, concise insight (2-3 sentences max) that:
+				- Identifies emotional patterns or themes
+				- Offers gentle encouragement or perspective
+				- Suggests a small actionable step if appropriate
 
-IMPORTANT: Return ONLY the insight text. Do not include any prefixes like Insight:, Here's, or explanatory text. Start directly with the insight content. [/INST]";
+				IMPORTANT: Return ONLY the insight text. Do not include any prefixes like Insight:, Here's, or explanatory text. Start directly with the insight content. [/INST]";
 		}
 
 		public static string ParseInsightResponse(string response, ILogger? logger = null)

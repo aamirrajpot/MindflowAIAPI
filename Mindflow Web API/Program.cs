@@ -120,6 +120,8 @@ builder.Services.AddHttpClient<IOllamaService, OllamaService>(client =>
 
 // Register RunPodService
 builder.Services.AddHttpClient<IRunPodService, RunPodService>();
+// Caching for LLM responses
+builder.Services.AddMemoryCache();
 
 // Brain Dump service
 builder.Services.AddScoped<IBrainDumpService, BrainDumpService>();

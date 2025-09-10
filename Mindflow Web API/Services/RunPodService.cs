@@ -1,5 +1,7 @@
 using System.Text;
 using System.Text.Json;
+using System.Security.Cryptography;
+using Microsoft.Extensions.Caching.Memory;
 using Mindflow_Web_API.Models;
 using Mindflow_Web_API.Utilities;
 
@@ -18,14 +20,16 @@ namespace Mindflow_Web_API.Services
         private readonly HttpClient _httpClient;
         private readonly IConfiguration _configuration;
         private readonly ILogger<RunPodService> _logger;
+        private readonly IMemoryCache _cache;
         private readonly string _runpodApiKey;
         private readonly string _runpodEndpoint;
 
-        public RunPodService(HttpClient httpClient, IConfiguration configuration, ILogger<RunPodService> logger)
+        public RunPodService(HttpClient httpClient, IConfiguration configuration, ILogger<RunPodService> logger, IMemoryCache cache)
         {
             _httpClient = httpClient;
             _configuration = configuration;
             _logger = logger;
+            _cache = cache;
             
             // Get RunPod configuration from appsettings
             _runpodApiKey = _configuration["RunPod:ApiKey"] ?? throw new InvalidOperationException("RunPod API Key not configured");
@@ -97,6 +101,17 @@ namespace Mindflow_Web_API.Services
 
         public async Task<string> SendPromptAsync(string prompt, int maxTokens = 1000, double temperature = 0.7)
         {
+            // Caching
+            var cachingEnabled = _configuration.GetValue<bool>("RunPod:EnableCache", true);
+            var cacheSeconds = _configuration.GetValue<int>("RunPod:CacheSeconds", 600);
+            var cacheKey = ComputeCacheKey(prompt, maxTokens, temperature);
+
+            if (cachingEnabled && _cache.TryGetValue(cacheKey, out string cachedResponse))
+            {
+                _logger.LogDebug("RunPod cache hit for key {Key}", cacheKey);
+                return cachedResponse;
+            }
+
             var maxRetries = _configuration.GetValue<int>("RunPod:MaxRetries", 3);
             var retryDelayMs = _configuration.GetValue<int>("RunPod:RetryDelayMs", 2000);
             var timeoutMinutes = _configuration.GetValue<int>("RunPod:TimeoutMinutes", 10);
@@ -157,6 +172,13 @@ namespace Mindflow_Web_API.Services
                     }
                     
                     _logger.LogInformation("Successfully received response from RunPod after {Attempt} attempt(s)", attempt);
+                    if (cachingEnabled)
+                    {
+                        _cache.Set(cacheKey, responseContent, new MemoryCacheEntryOptions
+                        {
+                            AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(Math.Max(10, cacheSeconds))
+                        });
+                    }
                     return responseContent;
                 }
                 catch (OperationCanceledException) when (attempt < maxRetries)
@@ -193,6 +215,16 @@ namespace Mindflow_Web_API.Services
 
             // This should never be reached, but just in case
             throw new InvalidOperationException("Unexpected error in retry loop");
+        }
+
+        private static string ComputeCacheKey(string prompt, int maxTokens, double temperature)
+        {
+            using var sha = SHA256.Create();
+            var input = $"v1|{maxTokens}|{temperature:F2}|{prompt}";
+            var bytes = Encoding.UTF8.GetBytes(input);
+            var hash = sha.ComputeHash(bytes);
+            var key = Convert.ToHexString(hash);
+            return $"runpod:{key}";
         }
 
         private RunPodResponse ParseWellnessAnalysis(string response)
