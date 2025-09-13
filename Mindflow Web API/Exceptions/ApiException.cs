@@ -27,6 +27,9 @@ namespace Mindflow_Web_API.Exceptions
         public static ApiException ValidationError(string message) => 
             new ApiException(message, HttpStatusCode.BadRequest, "VALIDATION_ERROR");
 
+        public static ApiException BadRequest(string message) => 
+            new ApiException(message, HttpStatusCode.BadRequest, "BAD_REQUEST");
+
         public static ApiException NotFound(string message) => 
             new ApiException(message, HttpStatusCode.NotFound, "NOT_FOUND");
 

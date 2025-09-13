@@ -39,4 +39,36 @@ namespace Mindflow_Web_API.DTOs
         int UrgencyLevel,
         string PersonalizedMessage
     );
+
+    // Wellness Snapshot DTOs for chart data
+    public record WellnessSnapshotDto(
+        List<WellnessDataPointDto> DataPoints,
+        WellnessTrendsDto Trends,
+        WellnessInsightsDto Insights
+    );
+
+    public record WellnessDataPointDto(
+        DateTime Date,
+        string DayOfWeek,
+        double? Mood,
+        double? Energy,
+        double? Stress,
+        int EntryCount
+    );
+
+    public record WellnessTrendsDto(
+        string MoodTrend, // "improving", "declining", "stable"
+        string EnergyTrend,
+        string StressTrend,
+        double MoodChangePercentage,
+        double EnergyChangePercentage,
+        double StressChangePercentage
+    );
+
+    public record WellnessInsightsDto(
+        List<string> MoodInsights,
+        List<string> EnergyInsights,
+        List<string> StressInsights,
+        List<string> Recommendations
+    );
 }

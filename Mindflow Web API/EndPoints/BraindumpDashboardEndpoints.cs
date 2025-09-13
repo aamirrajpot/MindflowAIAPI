@@ -1,6 +1,7 @@
 using Mindflow_Web_API.DTOs;
 using Mindflow_Web_API.Services;
 using Mindflow_Web_API.Exceptions;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Mindflow_Web_API.EndPoints
 {
@@ -67,6 +68,106 @@ namespace Mindflow_Web_API.EndPoints
 			{
 				op.Summary = "Toggle task completion for braindump dashboard";
 				op.Description = "Toggles a task's status between Pending and Completed for the authenticated user.";
+				return op;
+			});
+
+			// Wellness Snapshot endpoints for dashboard
+			var wellness = app.MapGroup("/wellness").WithTags("Wellness Snapshot");
+
+			// Get wellness snapshot for the last N days
+			wellness.MapGet("/snapshot", async (IWellnessSnapshotService wellnessService, HttpContext context, [FromQuery] int days = 7) =>
+			{
+				if (!context.User.Identity?.IsAuthenticated ?? true)
+					throw ApiExceptions.Unauthorized("User is not authenticated");
+				
+				var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
+				if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+					throw ApiExceptions.Unauthorized("Invalid user token");
+
+				if (days < 1 || days > 365)
+					throw ApiExceptions.BadRequest("Days parameter must be between 1 and 365");
+
+				var snapshot = await wellnessService.GetWellnessSnapshotAsync(userId, days);
+				return Results.Ok(snapshot);
+			})
+			.RequireAuthorization()
+			.WithOpenApi(op =>
+			{
+				op.Summary = "Get wellness snapshot";
+				op.Description = "Returns a wellness snapshot with mood, energy, and stress data over the specified number of days (default 7 days).";
+				op.Parameters[0].Description = "Number of days to include in the snapshot (1-365)";
+				return op;
+			});
+
+			// Get wellness snapshot for a specific date range
+			wellness.MapGet("/snapshot/range", async (IWellnessSnapshotService wellnessService, HttpContext context, 
+				[FromQuery] DateTime startDate, [FromQuery] DateTime endDate) =>
+			{
+				if (!context.User.Identity?.IsAuthenticated ?? true)
+					throw ApiExceptions.Unauthorized("User is not authenticated");
+				
+				var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
+				if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+					throw ApiExceptions.Unauthorized("Invalid user token");
+
+				if (startDate > endDate)
+					throw ApiExceptions.BadRequest("Start date must be before end date");
+
+				if ((endDate - startDate).Days > 365)
+					throw ApiExceptions.BadRequest("Date range cannot exceed 365 days");
+
+				var snapshot = await wellnessService.GetWellnessSnapshotForPeriodAsync(userId, startDate.Date, endDate.Date);
+				return Results.Ok(snapshot);
+			})
+			.RequireAuthorization()
+			.WithOpenApi(op =>
+			{
+				op.Summary = "Get wellness snapshot for date range";
+				op.Description = "Returns a wellness snapshot with mood, energy, and stress data for the specified date range.";
+				op.Parameters[0].Description = "Start date (YYYY-MM-DD format)";
+				op.Parameters[1].Description = "End date (YYYY-MM-DD format)";
+				return op;
+			});
+
+			// Get weekly wellness snapshot (last 7 days)
+			wellness.MapGet("/snapshot/weekly", async (IWellnessSnapshotService wellnessService, HttpContext context) =>
+			{
+				if (!context.User.Identity?.IsAuthenticated ?? true)
+					throw ApiExceptions.Unauthorized("User is not authenticated");
+				
+				var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
+				if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+					throw ApiExceptions.Unauthorized("Invalid user token");
+
+				var snapshot = await wellnessService.GetWellnessSnapshotAsync(userId, 7);
+				return Results.Ok(snapshot);
+			})
+			.RequireAuthorization()
+			.WithOpenApi(op =>
+			{
+				op.Summary = "Get weekly wellness snapshot";
+				op.Description = "Returns a wellness snapshot for the last 7 days, perfect for weekly charts.";
+				return op;
+			});
+
+			// Get monthly wellness snapshot (last 30 days)
+			wellness.MapGet("/snapshot/monthly", async (IWellnessSnapshotService wellnessService, HttpContext context) =>
+			{
+				if (!context.User.Identity?.IsAuthenticated ?? true)
+					throw ApiExceptions.Unauthorized("User is not authenticated");
+				
+				var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
+				if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+					throw ApiExceptions.Unauthorized("Invalid user token");
+
+				var snapshot = await wellnessService.GetWellnessSnapshotAsync(userId, 30);
+				return Results.Ok(snapshot);
+			})
+			.RequireAuthorization()
+			.WithOpenApi(op =>
+			{
+				op.Summary = "Get monthly wellness snapshot";
+				op.Description = "Returns a wellness snapshot for the last 30 days, perfect for monthly trend analysis.";
 				return op;
 			});
 		}

@@ -129,6 +129,9 @@ builder.Services.AddScoped<IBrainDumpService, BrainDumpService>();
 // Journal service
 builder.Services.AddScoped<IJournalService, JournalService>();
 
+// Wellness Snapshot service
+builder.Services.AddScoped<IWellnessSnapshotService, WellnessSnapshotService>();
+
 // User data cleanup service (runs weekly)
 builder.Services.AddHostedService<UserDataCleanupService>();
 
