@@ -391,16 +391,17 @@ namespace Mindflow_Web_API.EndPoints
                     throw ApiExceptions.NotFound("User not found");
 
                 return Results.Ok(new { 
-                    message = "Account deactivation requested successfully. Your account and all data will be permanently deleted after 7 days.",
+                    message = "Account deactivation initiated successfully. Your account has been deactivated and all data will be permanently deleted in the background.",
                     deactivatedAt = DateTime.UtcNow
                 });
             })
             .RequireAuthorization()
             .WithOpenApi(op => {
                 op.Summary = "Deactivate user account";
-                op.Description = "Marks the user account for deletion. The account and all associated data will be permanently deleted after 7 days.";
+                op.Description = "Deactivates the user account immediately and schedules all associated data for deletion in the background. This action cannot be undone.";
                 return op;
             });
+
         }
     }
 } 

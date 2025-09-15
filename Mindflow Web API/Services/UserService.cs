@@ -9,6 +9,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Mindflow_Web_API.Utilities;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Mindflow_Web_API.Services
 {
@@ -18,19 +19,32 @@ namespace Mindflow_Web_API.Services
         private readonly ILogger<UserService> _logger;
         private readonly IConfiguration _configuration;
         private readonly IEmailService _emailService;
+        private readonly IServiceProvider _serviceProvider;
 
-        public UserService(MindflowDbContext dbContext, ILogger<UserService> logger, IConfiguration configuration, IEmailService emailService)
+        public UserService(MindflowDbContext dbContext, ILogger<UserService> logger, IConfiguration configuration, IEmailService emailService, IServiceProvider serviceProvider)
         {
             _dbContext = dbContext;
             _logger = logger;
             _configuration = configuration;
             _emailService = emailService;
+            _serviceProvider = serviceProvider;
         }
 
         public async Task<UserDto> RegisterAsync(RegisterUserDto command)
         {
-            if (await _dbContext.Users.AnyAsync(u => u.UserName == command.UserName || u.Email == command.Email))
+            // Check for existing active users
+            if (await _dbContext.Users.AnyAsync(u => (u.UserName == command.UserName || u.Email == command.Email) && u.IsActive))
                 throw ApiExceptions.Conflict("Username or Email already exists.");
+            
+            // Check for deactivated users with same email/username
+            var deactivatedUser = await _dbContext.Users.FirstOrDefaultAsync(u => 
+                (u.UserName == command.UserName || u.Email == command.Email) && !u.IsActive);
+            
+            if (deactivatedUser != null)
+            {
+                _logger.LogWarning($"Attempted registration with deactivated user credentials: {command.UserName} / {command.Email}");
+                throw ApiExceptions.Conflict("This account has been deactivated. Please contact support if you believe this is an error.");
+            }
 
             var user = new User
             {
@@ -572,12 +586,131 @@ namespace Mindflow_Web_API.Services
             if (user == null)
                 return false;
 
-            // Mark user as deactivated with timestamp
-            user.DeactivatedAtUtc = DateTime.UtcNow;
-            user.IsActive = false;
+            try
+            {
+                // Mark user as deactivated immediately
+                user.DeactivatedAtUtc = DateTime.UtcNow;
+                user.IsActive = false;
+                await _dbContext.SaveChangesAsync();
+
+                // Start background deletion task
+                _ = Task.Run(async () => await DeleteUserDataInBackgroundAsync(userId));
+                
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to deactivate user {UserId}", userId);
+                return false;
+            }
+        }
+
+        private async Task DeleteUserDataInBackgroundAsync(Guid userId)
+        {
+            _logger.LogInformation("🗑️ Starting background deletion for user {UserId}", userId);
             
+            try
+            {
+                // Create a new scope for background operation
+                using var scope = _serviceProvider.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<MindflowDbContext>();
+                
+                await DeleteUserDataAsync(dbContext, userId);
+                _logger.LogInformation("✅ Background deletion completed for user {UserId}", userId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Background deletion failed for user {UserId}", userId);
+            }
+        }
+
+        private async Task DeleteUserDataAsync(MindflowDbContext dbContext, Guid userId)
+        {
+            _logger.LogInformation("🗑️ Deleting all data for user {UserId}", userId);
+
+            // Delete in order to respect foreign key constraints
+
+            // 1. Delete BrainDumpEntries
+            var brainDumpEntries = await _dbContext.BrainDumpEntries
+                .Where(e => e.UserId == userId)
+                .ToListAsync();
+            if (brainDumpEntries.Any())
+            {
+                _dbContext.BrainDumpEntries.RemoveRange(brainDumpEntries);
+                _logger.LogInformation("🗑️ Deleted {Count} brain dump entries", brainDumpEntries.Count);
+            }
+
+            // 2. Delete TaskItems
+            var taskItems = await _dbContext.Tasks
+                .Where(t => t.UserId == userId)
+                .ToListAsync();
+            if (taskItems.Any())
+            {
+                _dbContext.Tasks.RemoveRange(taskItems);
+                _logger.LogInformation("🗑️ Deleted {Count} task items", taskItems.Count);
+            }
+
+            // 3. Delete WellnessCheckIns
+            var wellnessCheckIns = await _dbContext.WellnessCheckIns
+                .Where(w => w.UserId == userId)
+                .ToListAsync();
+            if (wellnessCheckIns.Any())
+            {
+                _dbContext.WellnessCheckIns.RemoveRange(wellnessCheckIns);
+                _logger.LogInformation("🗑️ Deleted {Count} wellness check-ins", wellnessCheckIns.Count);
+            }
+
+            // 4. Delete UserSubscriptions
+            var userSubscriptions = await _dbContext.UserSubscriptions
+                .Where(s => s.UserId == userId)
+                .ToListAsync();
+            if (userSubscriptions.Any())
+            {
+                _dbContext.UserSubscriptions.RemoveRange(userSubscriptions);
+                _logger.LogInformation("🗑️ Deleted {Count} user subscriptions", userSubscriptions.Count);
+            }
+
+            // 5. Delete PaymentHistory
+            var paymentHistories = await _dbContext.PaymentHistory
+                .Where(p => p.UserId == userId)
+                .ToListAsync();
+            if (paymentHistories.Any())
+            {
+                _dbContext.PaymentHistory.RemoveRange(paymentHistories);
+                _logger.LogInformation("🗑️ Deleted {Count} payment histories", paymentHistories.Count);
+            }
+
+            // 6. Delete PaymentCards
+            var paymentCards = await _dbContext.PaymentCards
+                .Where(p => p.UserId == userId)
+                .ToListAsync();
+            if (paymentCards.Any())
+            {
+                _dbContext.PaymentCards.RemoveRange(paymentCards);
+                _logger.LogInformation("🗑️ Deleted {Count} payment cards", paymentCards.Count);
+            }
+
+            // 7. Delete UserOTPs
+            var userOtps = await _dbContext.UserOtps
+                .Where(o => o.UserId == userId)
+                .ToListAsync();
+            if (userOtps.Any())
+            {
+                _dbContext.UserOtps.RemoveRange(userOtps);
+                _logger.LogInformation("🗑️ Deleted {Count} user OTPs", userOtps.Count);
+            }
+
+            // 8. Finally, delete the User
+            var user = await _dbContext.Users.FindAsync(userId);
+            if (user != null)
+            {
+                _dbContext.Users.Remove(user);
+                _logger.LogInformation("🗑️ Deleted user record");
+            }
+
+            // Save all changes
             await _dbContext.SaveChangesAsync();
-            return true;
+            _logger.LogInformation("💾 All deletions saved to database for user {UserId}", userId);
         }
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 using Mindflow_Web_API.Utilities;
 
 namespace Mindflow_Web_API.DTOs
@@ -44,17 +45,25 @@ namespace Mindflow_Web_API.DTOs
 
 	public class BrainDumpResponse
 	{
+		[JsonPropertyName("userProfile")]
 		public UserProfileSummary UserProfile { get; set; } = new();
+		[JsonPropertyName("keyThemes")]
 		public List<string> KeyThemes { get; set; } = new();
+		[JsonPropertyName("aiSummary")]
 		public string AiSummary { get; set; } = string.Empty;
+		[JsonPropertyName("suggestedActivities")]
 		public List<TaskSuggestion> SuggestedActivities { get; set; } = new();
+		[JsonPropertyName("weeklyTrends")]
 		public WeeklyTrendsData? WeeklyTrends { get; set; }
 	}
 
 	public class UserProfileSummary
 	{
+		[JsonPropertyName("name")]
 		public string Name { get; set; } = string.Empty;
+		[JsonPropertyName("currentState")]
 		public string CurrentState { get; set; } = string.Empty; // e.g., "Reflective & Optimistic"
+		[JsonPropertyName("emoji")]
 		public string Emoji { get; set; } = "😊";
 	}
 
