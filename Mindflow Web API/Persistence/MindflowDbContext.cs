@@ -14,6 +14,7 @@ namespace Mindflow_Web_API.Persistence
         public DbSet<SubscriptionFeature> SubscriptionFeatures => Set<SubscriptionFeature>();
         public DbSet<PlanFeature> PlanFeatures => Set<PlanFeature>();
         public DbSet<UserSubscription> UserSubscriptions => Set<UserSubscription>();
+        public DbSet<StoreProduct> StoreProducts => Set<StoreProduct>();
         public DbSet<PaymentCard> PaymentCards => Set<PaymentCard>();
         public DbSet<PaymentHistory> PaymentHistory => Set<PaymentHistory>();
         public DbSet<BrainDumpEntry> BrainDumpEntries => Set<BrainDumpEntry>();

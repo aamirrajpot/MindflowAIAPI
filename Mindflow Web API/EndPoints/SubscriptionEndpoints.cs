@@ -278,6 +278,56 @@ namespace Mindflow_Web_API.EndPoints
                 op.Description = "Removes a feature from a subscription plan (Admin only).";
                 return op;
             });
+
+            // Apple IAP endpoints
+            subscriptionApi.MapPost("/apple/subscribe", async (AppleSubscribeRequest dto, ISubscriptionService subscriptionService, HttpContext context) =>
+            {
+                if (!context.User.Identity?.IsAuthenticated ?? true)
+                    throw ApiExceptions.Unauthorized("User is not authenticated");
+                var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier || c.Type == "sub");
+                if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+                    throw ApiExceptions.Unauthorized("Invalid user token");
+
+                var sub = await subscriptionService.ActivateAppleSubscriptionAsync(userId, dto);
+                return Results.Ok(sub);
+            })
+            .RequireAuthorization()
+            .WithOpenApi(op => {
+                op.Summary = "Apple IAP subscribe/activate";
+                op.Description = "Activates a subscription using Apple In-App Purchase transaction payloads.";
+                return op;
+            });
+
+            subscriptionApi.MapPost("/apple/restore", async (AppleRestoreRequest dto, ISubscriptionService subscriptionService, HttpContext context) =>
+            {
+                if (!context.User.Identity?.IsAuthenticated ?? true)
+                    throw ApiExceptions.Unauthorized("User is not authenticated");
+                var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier || c.Type == "sub");
+                if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+                    throw ApiExceptions.Unauthorized("Invalid user token");
+
+                var sub = await subscriptionService.RestoreAppleSubscriptionAsync(userId, dto);
+                if (sub == null) throw ApiExceptions.NotFound("No subscription could be restored");
+                return Results.Ok(sub);
+            })
+            .RequireAuthorization()
+            .WithOpenApi(op => {
+                op.Summary = "Apple IAP restore";
+                op.Description = "Restores a subscription by reconciling with Apple for the current user.";
+                return op;
+            });
+
+            subscriptionApi.MapPost("/apple/notifications", async (AppleNotificationDto dto, ISubscriptionService subscriptionService) =>
+            {
+                // Apple server notifications do not include user auth; they are signed by Apple.
+                var ok = await subscriptionService.ApplyAppleNotificationAsync(dto);
+                return ok ? Results.Ok(new { status = "ok" }) : Results.BadRequest(new { status = "failed" });
+            })
+            .WithOpenApi(op => {
+                op.Summary = "Apple Server Notifications (ASN v2)";
+                op.Description = "Receives signed notifications from Apple and updates subscription state.";
+                return op;
+            });
         }
     }
 }

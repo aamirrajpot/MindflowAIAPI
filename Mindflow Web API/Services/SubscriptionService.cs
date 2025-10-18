@@ -20,6 +20,115 @@ namespace Mindflow_Web_API.Services
             _logger = logger;
         }
 
+        // -----------------------------
+        // Provider-oriented operations
+        // Apple now, Google later. These methods do NOT require
+        // schema changes yet; they upsert the single UserSubscription
+        // row using existing columns (StartDate/EndDate/Status/PlanId).
+        // Table evolution will come in a later step.
+        // -----------------------------
+
+        // Activates or refreshes a subscription for Apple purchases.
+        // Assumes the request was validated against Apple (JWS or Server API)
+        // and includes the mapped productId and an expiry.
+        public async Task<UserSubscriptionDto> ActivateAppleSubscriptionAsync(Guid userId, AppleSubscribeRequest dto)
+        {
+            // Map Apple product to an internal plan id
+            var planId = await MapProductToPlanIdAsync(dto.ProductId, provider: SubscriptionProvider.Apple, environment: dto.Environment ?? "production");
+
+            // Cancel any existing active subscription (single active at a time)
+            var existing = await _dbContext.UserSubscriptions
+                .FirstOrDefaultAsync(us => us.UserId == userId && us.Status == SubscriptionStatus.Active);
+            if (existing != null)
+            {
+                existing.Status = SubscriptionStatus.Cancelled;
+                existing.EndDate = DateTime.UtcNow;
+            }
+
+            var now = DateTime.UtcNow;
+            var userSubscription = new UserSubscription
+            {
+                UserId = userId,
+                PlanId = planId,
+                StartDate = now,
+                EndDate = dto.ExpiresAtUtc, // legacy field
+                Status = SubscriptionStatus.Active,
+                // Provider fields
+                Provider = SubscriptionProvider.Apple,
+                ProductId = dto.ProductId,
+                OriginalTransactionId = dto.OriginalTransactionId,
+                LatestTransactionId = dto.TransactionId,
+                ExpiresAtUtc = dto.ExpiresAtUtc,
+                AutoRenewEnabled = true,
+                Environment = dto.Environment ?? "production",
+                AppAccountToken = dto.AppAccountToken,
+                RawTransactionPayload = dto.SignedTransactionJws,
+                RawRenewalPayload = dto.SignedRenewalInfoJws
+            };
+
+            await _dbContext.UserSubscriptions.AddAsync(userSubscription);
+            await _dbContext.SaveChangesAsync();
+
+            _logger.LogInformation("Apple subscription activated for user {UserId} with product {ProductId}", userId, dto.ProductId);
+            return await ToUserSubscriptionDtoAsync(userSubscription);
+        }
+
+        // Restores an Apple subscription (e.g., re-install, new device)
+        // Fetches latest state from Apple and mirrors it into our single row model.
+        public async Task<UserSubscriptionDto?> RestoreAppleSubscriptionAsync(Guid userId, AppleRestoreRequest dto)
+        {
+            // Resolve plan id from product
+            var planId = await MapProductToPlanIdAsync(dto.ProductId, provider: SubscriptionProvider.Apple, environment: dto.Environment ?? "production");
+
+            // Find active subscription for this user
+            var current = await _dbContext.UserSubscriptions
+                .FirstOrDefaultAsync(us => us.UserId == userId && us.Status == SubscriptionStatus.Active);
+
+            if (current == null)
+            {
+                // Nothing active; create new from restore payload
+                var now = DateTime.UtcNow;
+                var created = new UserSubscription
+                {
+                    UserId = userId,
+                    PlanId = planId,
+                    StartDate = now,
+                    EndDate = dto.ExpiresAtUtc,
+                    Status = SubscriptionStatus.Active
+                };
+                await _dbContext.UserSubscriptions.AddAsync(created);
+                await _dbContext.SaveChangesAsync();
+                _logger.LogInformation("Apple subscription restored for user {UserId} with product {ProductId}", userId, dto.ProductId);
+                return await ToUserSubscriptionDtoAsync(created);
+            }
+
+            // Update existing active row
+            current.PlanId = planId;
+            current.EndDate = dto.ExpiresAtUtc; // legacy
+            current.Status = SubscriptionStatus.Active;
+            current.Provider = SubscriptionProvider.Apple;
+            current.ProductId = dto.ProductId;
+            current.OriginalTransactionId = dto.OriginalTransactionId;
+            current.LatestTransactionId = dto.OriginalTransactionId; // if unknown, keep original
+            current.ExpiresAtUtc = dto.ExpiresAtUtc;
+            current.AutoRenewEnabled = true;
+            current.Environment = dto.Environment ?? "production";
+            await _dbContext.SaveChangesAsync();
+            _logger.LogInformation("Apple subscription refreshed for user {UserId} with product {ProductId}", userId, dto.ProductId);
+            return await ToUserSubscriptionDtoAsync(current);
+        }
+
+        // Placeholder for Apple Server Notification processing.
+        // For the current schema, we only adjust EndDate/Status.
+        public Task<bool> ApplyAppleNotificationAsync(AppleNotificationDto notification)
+        {
+            // Implementation placeholder: in the next steps, when provider columns are added,
+            // we will locate the correct subscription by original transaction id.
+            // For now, we log and no-op to keep flow incremental.
+            _logger.LogInformation("Received Apple server notification payload (length {Len})", notification.SignedPayload?.Length ?? 0);
+            return Task.FromResult(true);
+        }
+
         // Subscription Plans
         public async Task<SubscriptionPlanDto> CreatePlanAsync(CreateSubscriptionPlanDto dto)
         {
@@ -398,6 +507,18 @@ namespace Mindflow_Web_API.Services
                 userSubscription.Status,
                 plan
             );
+        }
+
+        // Maps a store product identifier to an internal plan id.
+        // Temporary strategy: match by plan Name; refine later with explicit mapping table.
+        private async Task<Guid> MapProductToPlanIdAsync(string productId, SubscriptionProvider provider, string environment)
+        {
+            var map = await _dbContext.Set<StoreProduct>()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(sp => sp.ProductId == productId && sp.Provider == provider && sp.Environment == environment);
+            if (map == null)
+                throw new InvalidOperationException($"No StoreProduct mapping for {provider} product '{productId}' in env '{environment}'.");
+            return map.PlanId;
         }
     }
 }

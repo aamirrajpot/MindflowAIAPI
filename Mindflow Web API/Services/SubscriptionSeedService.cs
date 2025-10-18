@@ -1,3 +1,4 @@
+
 using Mindflow_Web_API.DTOs;
 using Mindflow_Web_API.Models;
 using Mindflow_Web_API.Persistence;
@@ -9,13 +10,77 @@ namespace Mindflow_Web_API.Services
     {
         private readonly MindflowDbContext _dbContext;
         private readonly ILogger<SubscriptionSeedService> _logger;
+        private readonly IConfiguration _configuration;
 
-        public SubscriptionSeedService(MindflowDbContext dbContext, ILogger<SubscriptionSeedService> logger)
+
+        public SubscriptionSeedService(MindflowDbContext dbContext, ILogger<SubscriptionSeedService> logger,IConfiguration configuration)
         {
             _dbContext = dbContext;
             _logger = logger;
+            _configuration = configuration;
+
+        }
+        public async Task SeedSubscriptionDataAsync(CancellationToken cancellationToken = default)
+        {
+            await SeedStoreProductsAsync(cancellationToken);
         }
 
+        private async Task SeedStoreProductsAsync(CancellationToken ct)
+        {
+            var section = _configuration.GetSection("StoreProducts");
+            if (!section.Exists())
+            {
+                _logger.LogInformation("No StoreProducts configuration found; skipping StoreProduct seeding.");
+                return;
+            }
+
+            await SeedProviderAsync(SubscriptionProvider.Apple, section.GetSection("Apple"), ct);
+            await SeedProviderAsync(SubscriptionProvider.Google, section.GetSection("Google"), ct);
+        }
+
+        private async Task SeedProviderAsync(SubscriptionProvider provider, IConfigurationSection providerSection, CancellationToken ct)
+        {
+            if (!providerSection.Exists()) return;
+
+            foreach (var envSection in providerSection.GetChildren()) // e.g., production, sandbox
+            {
+                var environment = envSection.Key;
+                var items = envSection.Get<List<StoreProductSeedItem>>() ?? new();
+                foreach (var item in items)
+                {
+                    var plan = await _dbContext.SubscriptionPlans.AsNoTracking().FirstOrDefaultAsync(p => p.Name == item.PlanName, ct);
+                    if (plan == null)
+                    {
+                        _logger.LogWarning("StoreProduct seed skipped: plan '{PlanName}' not found for {Provider} {Environment} {ProductId}", item.PlanName, provider, environment, item.ProductId);
+                        continue;
+                    }
+
+                    var existing = await _dbContext.Set<StoreProduct>()
+                        .FirstOrDefaultAsync(sp => sp.Provider == provider && sp.Environment == environment && sp.ProductId == item.ProductId, ct);
+
+                    if (existing == null)
+                    {
+                        await _dbContext.Set<StoreProduct>().AddAsync(new StoreProduct
+                        {
+                            Provider = provider,
+                            Environment = environment,
+                            ProductId = item.ProductId,
+                            PlanId = plan.Id
+                        }, ct);
+                        _logger.LogInformation("Seeded StoreProduct {Provider} {Environment} {ProductId} -> plan {PlanName}", provider, environment, item.ProductId, item.PlanName);
+                    }
+                    else if (existing.PlanId != plan.Id)
+                    {
+                        existing.PlanId = plan.Id;
+                        _logger.LogInformation("Updated StoreProduct {Provider} {Environment} {ProductId} -> plan {PlanName}", provider, environment, item.ProductId, item.PlanName);
+                    }
+                }
+            }
+
+            await _dbContext.SaveChangesAsync(ct);
+        }
+
+        private record StoreProductSeedItem(string ProductId, string PlanName);
         public async Task SeedSubscriptionDataAsync()
         {
             try

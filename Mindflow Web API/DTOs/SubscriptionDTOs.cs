@@ -4,6 +4,28 @@ using System.Collections.Generic;
 
 namespace Mindflow_Web_API.DTOs
 {
+     public record AppleSubscribeRequest(
+        string ProductId,
+        DateTime? ExpiresAtUtc,
+        string SignedTransactionJws,
+        string? SignedRenewalInfoJws,
+        string TransactionId,
+        string OriginalTransactionId,
+        Guid? AppAccountToken,
+        string? Environment
+    );
+
+    public record AppleRestoreRequest(
+        string ProductId,
+        DateTime? ExpiresAtUtc,
+        string OriginalTransactionId,
+        Guid? AppAccountToken,
+        string? Environment
+    );
+
+    public record AppleNotificationDto(
+        string SignedPayload
+    );
     // Subscription Plan DTOs
     public record SubscriptionPlanDto(
         Guid Id,

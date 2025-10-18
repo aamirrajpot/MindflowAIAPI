@@ -7,6 +7,11 @@ namespace Mindflow_Web_API.Services
 {
     public interface ISubscriptionService
     {
+         // Provider-oriented
+        Task<UserSubscriptionDto> ActivateAppleSubscriptionAsync(Guid userId, AppleSubscribeRequest dto);
+        Task<UserSubscriptionDto?> RestoreAppleSubscriptionAsync(Guid userId, AppleRestoreRequest dto);
+        Task<bool> ApplyAppleNotificationAsync(AppleNotificationDto notification);
+
         // Subscription Plans
         Task<SubscriptionPlanDto> CreatePlanAsync(CreateSubscriptionPlanDto dto);
         Task<SubscriptionPlanDto?> GetPlanByIdAsync(Guid planId);

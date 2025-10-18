@@ -77,19 +77,30 @@ namespace Mindflow_Web_API.Services
             if (keys == null || keys.Keys == null || !keys.Keys.Any())
                 throw ApiExceptions.InternalServerError("Unable to retrieve Apple public keys.");
 
+            // Prefer selecting the exact JWK by 'kid' from the token header when available
+            var kid = jwt.Header.TryGetValue("kid", out var kidObj) ? kidObj?.ToString() : null;
+            var matchedKey = kid == null ? null : keys.Keys.FirstOrDefault(k => string.Equals(k.Kid, kid, StringComparison.Ordinal));
+
             var validationParameters = new TokenValidationParameters
             {
                 ValidIssuer = "https://appleid.apple.com",
                 ValidAudience = _configuration["Apple:ClientId"] ?? "", // Set your Apple client ID here
-                IssuerSigningKeys = keys.Keys.Select(k => new RsaSecurityKey(new System.Security.Cryptography.RSAParameters
-                {
-                    Modulus = Microsoft.IdentityModel.Tokens.Base64UrlEncoder.DecodeBytes(k.N),
-                    Exponent = Microsoft.IdentityModel.Tokens.Base64UrlEncoder.DecodeBytes(k.E)
-                })),
+                IssuerSigningKeys = matchedKey != null
+                    ? new[] { new RsaSecurityKey(new System.Security.Cryptography.RSAParameters
+                        {
+                            Modulus = Microsoft.IdentityModel.Tokens.Base64UrlEncoder.DecodeBytes(matchedKey.N),
+                            Exponent = Microsoft.IdentityModel.Tokens.Base64UrlEncoder.DecodeBytes(matchedKey.E)
+                        }) }
+                    : keys.Keys.Select(k => new RsaSecurityKey(new System.Security.Cryptography.RSAParameters
+                        {
+                            Modulus = Microsoft.IdentityModel.Tokens.Base64UrlEncoder.DecodeBytes(k.N),
+                            Exponent = Microsoft.IdentityModel.Tokens.Base64UrlEncoder.DecodeBytes(k.E)
+                        })),
                 ValidateIssuerSigningKey = true,
                 ValidateIssuer = true,
                 ValidateAudience = true,
-                ValidateLifetime = true
+                ValidateLifetime = true,
+                ClockSkew = TimeSpan.FromMinutes(2)
             };
 
             handler.ValidateToken(command.IdToken, validationParameters, out var validatedToken);
@@ -100,18 +111,27 @@ namespace Mindflow_Web_API.Services
             var lastName = jwt2.Claims.FirstOrDefault(c => c.Type == "family_name")?.Value;
             var sub = jwt2.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
 
-            if (string.IsNullOrEmpty(email))
-                throw ApiExceptions.ValidationError("Invalid Apple ID token: email not found.");
+            if (string.IsNullOrEmpty(email) && string.IsNullOrEmpty(sub))
+                throw ApiExceptions.ValidationError("Invalid Apple ID token: neither email nor sub found.");
 
-            // Check if user exists by email
-            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == email);
+            // Check if user exists by email first
+            var user = !string.IsNullOrEmpty(email)
+                ? await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == email)
+                : null;
+
+            // If not found and we have sub, try by sub
+            if (user == null && !string.IsNullOrEmpty(sub))
+            {
+                user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Sub == sub);
+            }
+
             bool isNewUser = false;
             if (user == null)
             {
                 // Create new user
                 user = User.Create(
-                    userName: email,
-                    email: email,
+                    userName: email ?? sub ?? Guid.NewGuid().ToString(),
+                    email: email ?? (!string.IsNullOrEmpty(sub) ? $"{sub}@privaterelay.appleid.com" : string.Empty),
                     firstName: firstName ?? string.Empty,
                     lastName: lastName ?? string.Empty,
                     emailConfirmed: true,
@@ -123,6 +143,15 @@ namespace Mindflow_Web_API.Services
                 await _dbContext.Users.AddAsync(user);
                 await _dbContext.SaveChangesAsync();
                 isNewUser = true;
+            }
+            else
+            {
+                // If user was found by email but Sub is not stored yet, bind it for future logins
+                if (string.IsNullOrEmpty(user.Sub) && !string.IsNullOrEmpty(sub))
+                {
+                    user.Sub = sub;
+                    await _dbContext.SaveChangesAsync();
+                }
             }
 
             // Generate JWT
