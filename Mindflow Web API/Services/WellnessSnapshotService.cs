@@ -74,13 +74,14 @@ namespace Mindflow_Web_API.Services
             var validEnergyPoints = dataPoints.Where(p => p.Energy.HasValue).ToList();
             var validStressPoints = dataPoints.Where(p => p.Stress.HasValue).ToList();
 
-            var moodTrend = CalculateTrend(validMoodPoints.Select(p => p.Mood!.Value).ToList());
-            var energyTrend = CalculateTrend(validEnergyPoints.Select(p => p.Energy!.Value).ToList());
-            var stressTrend = CalculateTrend(validStressPoints.Select(p => p.Stress!.Value).ToList());
+            // Only calculate trends if we have enough data points
+            var moodTrend = validMoodPoints.Count >= 2 ? CalculateTrend(validMoodPoints.Select(p => p.Mood!.Value).ToList()) : "stable";
+            var energyTrend = validEnergyPoints.Count >= 2 ? CalculateTrend(validEnergyPoints.Select(p => p.Energy!.Value).ToList()) : "stable";
+            var stressTrend = validStressPoints.Count >= 2 ? CalculateTrend(validStressPoints.Select(p => p.Stress!.Value).ToList()) : "stable";
 
-            var moodChangePercentage = CalculateChangePercentage(validMoodPoints.Select(p => p.Mood!.Value).ToList());
-            var energyChangePercentage = CalculateChangePercentage(validEnergyPoints.Select(p => p.Energy!.Value).ToList());
-            var stressChangePercentage = CalculateChangePercentage(validStressPoints.Select(p => p.Stress!.Value).ToList());
+            var moodChangePercentage = validMoodPoints.Count >= 2 ? CalculateChangePercentage(validMoodPoints.Select(p => p.Mood!.Value).ToList()) : 0;
+            var energyChangePercentage = validEnergyPoints.Count >= 2 ? CalculateChangePercentage(validEnergyPoints.Select(p => p.Energy!.Value).ToList()) : 0;
+            var stressChangePercentage = validStressPoints.Count >= 2 ? CalculateChangePercentage(validStressPoints.Select(p => p.Stress!.Value).ToList()) : 0;
 
             return new WellnessTrendsDto(
                 MoodTrend: moodTrend,
@@ -99,10 +100,16 @@ namespace Mindflow_Web_API.Services
             var midPoint = values.Count / 2;
             if (midPoint == 0) return "stable"; // Handle edge case where count is 1
 
-            var firstHalf = values.Take(midPoint).Average();
-            var secondHalf = values.Skip(midPoint).Average();
+            var firstHalf = values.Take(midPoint).ToList();
+            var secondHalf = values.Skip(midPoint).ToList();
 
-            var change = secondHalf - firstHalf;
+            // Ensure both halves have data before calculating averages
+            if (!firstHalf.Any() || !secondHalf.Any()) return "stable";
+
+            var firstHalfAvg = firstHalf.Average();
+            var secondHalfAvg = secondHalf.Average();
+
+            var change = secondHalfAvg - firstHalfAvg;
             var threshold = 0.5; // Minimum change to consider significant
 
             if (change > threshold) return "improving";
@@ -129,10 +136,26 @@ namespace Mindflow_Web_API.Services
             var stressInsights = new List<string>();
             var recommendations = new List<string>();
 
+            // Safety check for null or empty dataPoints
+            if (dataPoints == null || !dataPoints.Any())
+            {
+                return new WellnessInsightsDto(
+                    new List<string> { "Start your wellness journey by creating your first brain dump entry." },
+                    new List<string> { "Begin tracking your energy levels through journaling." },
+                    new List<string> { "Start monitoring your stress levels through journaling." },
+                    new List<string> { "Welcome! Start your wellness journey by creating your first brain dump entry." }
+                );
+            }
+
             // Get valid data points for each metric
             var validMoodPoints = dataPoints.Where(p => p.Mood.HasValue).ToList();
             var validEnergyPoints = dataPoints.Where(p => p.Energy.HasValue).ToList();
             var validStressPoints = dataPoints.Where(p => p.Stress.HasValue).ToList();
+
+            // Additional safety checks
+            if (validMoodPoints == null) validMoodPoints = new List<WellnessDataPointDto>();
+            if (validEnergyPoints == null) validEnergyPoints = new List<WellnessDataPointDto>();
+            if (validStressPoints == null) validStressPoints = new List<WellnessDataPointDto>();
 
             // Mood insights
             if (validMoodPoints.Any())
