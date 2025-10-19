@@ -96,8 +96,11 @@ namespace Mindflow_Web_API.Services
         {
             if (values.Count < 2) return "stable";
 
-            var firstHalf = values.Take(values.Count / 2).Average();
-            var secondHalf = values.Skip(values.Count / 2).Average();
+            var midPoint = values.Count / 2;
+            if (midPoint == 0) return "stable"; // Handle edge case where count is 1
+
+            var firstHalf = values.Take(midPoint).Average();
+            var secondHalf = values.Skip(midPoint).Average();
 
             var change = secondHalf - firstHalf;
             var threshold = 0.5; // Minimum change to consider significant
@@ -126,32 +129,58 @@ namespace Mindflow_Web_API.Services
             var stressInsights = new List<string>();
             var recommendations = new List<string>();
 
+            // Get valid data points for each metric
+            var validMoodPoints = dataPoints.Where(p => p.Mood.HasValue).ToList();
+            var validEnergyPoints = dataPoints.Where(p => p.Energy.HasValue).ToList();
+            var validStressPoints = dataPoints.Where(p => p.Stress.HasValue).ToList();
+
             // Mood insights
-            var avgMood = dataPoints.Where(p => p.Mood.HasValue).Average(p => p.Mood!.Value);
-            if (avgMood < 3)
-                moodInsights.Add("Your mood has been consistently low. Consider reaching out for support.");
-            else if (avgMood > 7)
-                moodInsights.Add("You've been in great spirits! Keep up the positive momentum.");
+            if (validMoodPoints.Any())
+            {
+                var avgMood = validMoodPoints.Average(p => p.Mood!.Value);
+                if (avgMood < 3)
+                    moodInsights.Add("Your mood has been consistently low. Consider reaching out for support.");
+                else if (avgMood > 7)
+                    moodInsights.Add("You've been in great spirits! Keep up the positive momentum.");
+                else
+                    moodInsights.Add("Your mood has been relatively stable with room for improvement.");
+            }
             else
-                moodInsights.Add("Your mood has been relatively stable with room for improvement.");
+            {
+                moodInsights.Add("Start journaling to track your mood and gain insights into your emotional patterns.");
+            }
 
             // Energy insights
-            var avgEnergy = dataPoints.Where(p => p.Energy.HasValue).Average(p => p.Energy!.Value);
-            if (avgEnergy < 3)
-                energyInsights.Add("Your energy levels have been low. Consider reviewing your sleep and nutrition.");
-            else if (avgEnergy > 7)
-                energyInsights.Add("You've been feeling energetic! Maintain your current routine.");
+            if (validEnergyPoints.Any())
+            {
+                var avgEnergy = validEnergyPoints.Average(p => p.Energy!.Value);
+                if (avgEnergy < 3)
+                    energyInsights.Add("Your energy levels have been low. Consider reviewing your sleep and nutrition.");
+                else if (avgEnergy > 7)
+                    energyInsights.Add("You've been feeling energetic! Maintain your current routine.");
+                else
+                    energyInsights.Add("Your energy levels are moderate. Small lifestyle adjustments could help boost them.");
+            }
             else
-                energyInsights.Add("Your energy levels are moderate. Small lifestyle adjustments could help boost them.");
+            {
+                energyInsights.Add("Begin tracking your energy levels through journaling to identify patterns and optimize your daily routine.");
+            }
 
             // Stress insights
-            var avgStress = dataPoints.Where(p => p.Stress.HasValue).Average(p => p.Stress!.Value);
-            if (avgStress > 7)
-                stressInsights.Add("You've been experiencing high stress levels. Consider stress management techniques.");
-            else if (avgStress < 3)
-                stressInsights.Add("You've been managing stress well. Keep up the good work!");
+            if (validStressPoints.Any())
+            {
+                var avgStress = validStressPoints.Average(p => p.Stress!.Value);
+                if (avgStress > 7)
+                    stressInsights.Add("You've been experiencing high stress levels. Consider stress management techniques.");
+                else if (avgStress < 3)
+                    stressInsights.Add("You've been managing stress well. Keep up the good work!");
+                else
+                    stressInsights.Add("Your stress levels are moderate. Continue monitoring and managing as needed.");
+            }
             else
-                stressInsights.Add("Your stress levels are moderate. Continue monitoring and managing as needed.");
+            {
+                stressInsights.Add("Start monitoring your stress levels through journaling to better understand your triggers and coping strategies.");
+            }
 
             // Recommendations based on trends
             if (trends.MoodTrend == "declining")
@@ -165,7 +194,12 @@ namespace Mindflow_Web_API.Services
 
             // General recommendations
             var totalEntries = dataPoints.Sum(p => p.EntryCount);
-            if (totalEntries < 3)
+            if (totalEntries == 0)
+            {
+                recommendations.Add("Welcome! Start your wellness journey by creating your first brain dump entry.");
+                recommendations.Add("Regular journaling helps track patterns and provides valuable insights into your mental health.");
+            }
+            else if (totalEntries < 3)
                 recommendations.Add("Consider journaling more frequently to better track your wellness patterns.");
             else if (totalEntries > 10)
                 recommendations.Add("You're doing great with consistent journaling! This helps track your wellness journey.");
