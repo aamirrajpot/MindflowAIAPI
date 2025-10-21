@@ -592,7 +592,7 @@ namespace Mindflow_Web_API.Services
                 user.DeactivatedAtUtc = DateTime.UtcNow;
                 user.IsActive = false;
                 await _dbContext.SaveChangesAsync();
-
+    
                 // Start background deletion task
                 _ = Task.Run(async () => await DeleteUserDataInBackgroundAsync(userId));
                 
@@ -631,85 +631,85 @@ namespace Mindflow_Web_API.Services
             // Delete in order to respect foreign key constraints
 
             // 1. Delete BrainDumpEntries
-            var brainDumpEntries = await _dbContext.BrainDumpEntries
+            var brainDumpEntries = await dbContext.BrainDumpEntries
                 .Where(e => e.UserId == userId)
                 .ToListAsync();
             if (brainDumpEntries.Any())
             {
-                _dbContext.BrainDumpEntries.RemoveRange(brainDumpEntries);
+                dbContext.BrainDumpEntries.RemoveRange(brainDumpEntries);
                 _logger.LogInformation("🗑️ Deleted {Count} brain dump entries", brainDumpEntries.Count);
             }
 
             // 2. Delete TaskItems
-            var taskItems = await _dbContext.Tasks
+            var taskItems = await dbContext.Tasks
                 .Where(t => t.UserId == userId)
                 .ToListAsync();
             if (taskItems.Any())
             {
-                _dbContext.Tasks.RemoveRange(taskItems);
+                dbContext.Tasks.RemoveRange(taskItems);
                 _logger.LogInformation("🗑️ Deleted {Count} task items", taskItems.Count);
             }
 
             // 3. Delete WellnessCheckIns
-            var wellnessCheckIns = await _dbContext.WellnessCheckIns
+            var wellnessCheckIns = await dbContext.WellnessCheckIns
                 .Where(w => w.UserId == userId)
                 .ToListAsync();
             if (wellnessCheckIns.Any())
             {
-                _dbContext.WellnessCheckIns.RemoveRange(wellnessCheckIns);
+                dbContext.WellnessCheckIns.RemoveRange(wellnessCheckIns);
                 _logger.LogInformation("🗑️ Deleted {Count} wellness check-ins", wellnessCheckIns.Count);
             }
 
             // 4. Delete UserSubscriptions
-            var userSubscriptions = await _dbContext.UserSubscriptions
+            var userSubscriptions = await dbContext.UserSubscriptions
                 .Where(s => s.UserId == userId)
                 .ToListAsync();
             if (userSubscriptions.Any())
             {
-                _dbContext.UserSubscriptions.RemoveRange(userSubscriptions);
+                dbContext.UserSubscriptions.RemoveRange(userSubscriptions);
                 _logger.LogInformation("🗑️ Deleted {Count} user subscriptions", userSubscriptions.Count);
             }
 
             // 5. Delete PaymentHistory
-            var paymentHistories = await _dbContext.PaymentHistory
+            var paymentHistories = await dbContext.PaymentHistory
                 .Where(p => p.UserId == userId)
                 .ToListAsync();
             if (paymentHistories.Any())
             {
-                _dbContext.PaymentHistory.RemoveRange(paymentHistories);
+                dbContext.PaymentHistory.RemoveRange(paymentHistories);
                 _logger.LogInformation("🗑️ Deleted {Count} payment histories", paymentHistories.Count);
             }
 
             // 6. Delete PaymentCards
-            var paymentCards = await _dbContext.PaymentCards
+            var paymentCards = await dbContext.PaymentCards
                 .Where(p => p.UserId == userId)
                 .ToListAsync();
             if (paymentCards.Any())
             {
-                _dbContext.PaymentCards.RemoveRange(paymentCards);
+                dbContext.PaymentCards.RemoveRange(paymentCards);
                 _logger.LogInformation("🗑️ Deleted {Count} payment cards", paymentCards.Count);
             }
 
             // 7. Delete UserOTPs
-            var userOtps = await _dbContext.UserOtps
+            var userOtps = await dbContext.UserOtps
                 .Where(o => o.UserId == userId)
                 .ToListAsync();
             if (userOtps.Any())
             {
-                _dbContext.UserOtps.RemoveRange(userOtps);
+                dbContext.UserOtps.RemoveRange(userOtps);
                 _logger.LogInformation("🗑️ Deleted {Count} user OTPs", userOtps.Count);
             }
 
             // 8. Finally, delete the User
-            var user = await _dbContext.Users.FindAsync(userId);
+            var user = await dbContext.Users.FindAsync(userId);
             if (user != null)
             {
-                _dbContext.Users.Remove(user);
+                dbContext.Users.Remove(user);
                 _logger.LogInformation("🗑️ Deleted user record");
             }
 
             // Save all changes
-            await _dbContext.SaveChangesAsync();
+            await dbContext.SaveChangesAsync();
             _logger.LogInformation("💾 All deletions saved to database for user {UserId}", userId);
         }
     }
