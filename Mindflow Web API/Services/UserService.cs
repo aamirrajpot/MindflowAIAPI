@@ -19,15 +19,13 @@ namespace Mindflow_Web_API.Services
         private readonly ILogger<UserService> _logger;
         private readonly IConfiguration _configuration;
         private readonly IEmailService _emailService;
-        private readonly IServiceProvider _serviceProvider;
 
-        public UserService(MindflowDbContext dbContext, ILogger<UserService> logger, IConfiguration configuration, IEmailService emailService, IServiceProvider serviceProvider)
+        public UserService(MindflowDbContext dbContext, ILogger<UserService> logger, IConfiguration configuration, IEmailService emailService)
         {
             _dbContext = dbContext;
             _logger = logger;
             _configuration = configuration;
             _emailService = emailService;
-            _serviceProvider = serviceProvider;
         }
 
         public async Task<UserDto> RegisterAsync(RegisterUserDto command)
@@ -593,8 +591,8 @@ namespace Mindflow_Web_API.Services
                 user.IsActive = false;
                 await _dbContext.SaveChangesAsync();
     
-                // Start background deletion task
-                _ = Task.Run(async () => await DeleteUserDataInBackgroundAsync(userId));
+                // Delete user data immediately (synchronously)
+                await DeleteUserDataAsync(_dbContext, userId);
                 
                 return true;
             }
@@ -605,31 +603,6 @@ namespace Mindflow_Web_API.Services
             }
         }
 
-        private async Task DeleteUserDataInBackgroundAsync(Guid userId)
-        {
-            _logger.LogInformation("🗑️ Starting background deletion for user {UserId}", userId);
-            
-            try
-            {
-                // Create a new scope for background operation
-                var scope = _serviceProvider.CreateScope();
-                try
-                {
-                    var dbContext = scope.ServiceProvider.GetRequiredService<MindflowDbContext>();
-                    
-                    await DeleteUserDataAsync(dbContext, userId);
-                    _logger.LogInformation("✅ Background deletion completed for user {UserId}", userId);
-                }
-                finally
-                {
-                    scope.Dispose();
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "❌ Background deletion failed for user {UserId}", userId);
-            }
-        }
 
         private async Task DeleteUserDataAsync(MindflowDbContext dbContext, Guid userId)
         {
