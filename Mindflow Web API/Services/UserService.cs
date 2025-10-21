@@ -612,11 +612,18 @@ namespace Mindflow_Web_API.Services
             try
             {
                 // Create a new scope for background operation
-                using var scope = _serviceProvider.CreateScope();
-                var dbContext = scope.ServiceProvider.GetRequiredService<MindflowDbContext>();
-                
-                await DeleteUserDataAsync(dbContext, userId);
-                _logger.LogInformation("✅ Background deletion completed for user {UserId}", userId);
+                var scope = _serviceProvider.CreateScope();
+                try
+                {
+                    var dbContext = scope.ServiceProvider.GetRequiredService<MindflowDbContext>();
+                    
+                    await DeleteUserDataAsync(dbContext, userId);
+                    _logger.LogInformation("✅ Background deletion completed for user {UserId}", userId);
+                }
+                finally
+                {
+                    scope.Dispose();
+                }
             }
             catch (Exception ex)
             {
@@ -631,6 +638,7 @@ namespace Mindflow_Web_API.Services
             // Delete in order to respect foreign key constraints
 
             // 1. Delete BrainDumpEntries
+            _logger.LogInformation("🗑️ Querying brain dump entries for user {UserId}", userId);
             var brainDumpEntries = await dbContext.BrainDumpEntries
                 .Where(e => e.UserId == userId)
                 .ToListAsync();
@@ -641,6 +649,7 @@ namespace Mindflow_Web_API.Services
             }
 
             // 2. Delete TaskItems
+            _logger.LogInformation("🗑️ Querying task items for user {UserId}", userId);
             var taskItems = await dbContext.Tasks
                 .Where(t => t.UserId == userId)
                 .ToListAsync();
@@ -651,6 +660,7 @@ namespace Mindflow_Web_API.Services
             }
 
             // 3. Delete WellnessCheckIns
+            _logger.LogInformation("🗑️ Querying wellness check-ins for user {UserId}", userId);
             var wellnessCheckIns = await dbContext.WellnessCheckIns
                 .Where(w => w.UserId == userId)
                 .ToListAsync();
@@ -661,6 +671,7 @@ namespace Mindflow_Web_API.Services
             }
 
             // 4. Delete UserSubscriptions
+            _logger.LogInformation("🗑️ Querying user subscriptions for user {UserId}", userId);
             var userSubscriptions = await dbContext.UserSubscriptions
                 .Where(s => s.UserId == userId)
                 .ToListAsync();
@@ -671,6 +682,7 @@ namespace Mindflow_Web_API.Services
             }
 
             // 5. Delete PaymentHistory
+            _logger.LogInformation("🗑️ Querying payment history for user {UserId}", userId);
             var paymentHistories = await dbContext.PaymentHistory
                 .Where(p => p.UserId == userId)
                 .ToListAsync();
@@ -681,6 +693,7 @@ namespace Mindflow_Web_API.Services
             }
 
             // 6. Delete PaymentCards
+            _logger.LogInformation("🗑️ Querying payment cards for user {UserId}", userId);
             var paymentCards = await dbContext.PaymentCards
                 .Where(p => p.UserId == userId)
                 .ToListAsync();
@@ -691,6 +704,7 @@ namespace Mindflow_Web_API.Services
             }
 
             // 7. Delete UserOTPs
+            _logger.LogInformation("🗑️ Querying user OTPs for user {UserId}", userId);
             var userOtps = await dbContext.UserOtps
                 .Where(o => o.UserId == userId)
                 .ToListAsync();
@@ -701,6 +715,7 @@ namespace Mindflow_Web_API.Services
             }
 
             // 8. Finally, delete the User
+            _logger.LogInformation("🗑️ Querying user record for user {UserId}", userId);
             var user = await dbContext.Users.FindAsync(userId);
             if (user != null)
             {
@@ -709,6 +724,7 @@ namespace Mindflow_Web_API.Services
             }
 
             // Save all changes
+            _logger.LogInformation("💾 Saving all deletions to database for user {UserId}", userId);
             await dbContext.SaveChangesAsync();
             _logger.LogInformation("💾 All deletions saved to database for user {UserId}", userId);
         }
