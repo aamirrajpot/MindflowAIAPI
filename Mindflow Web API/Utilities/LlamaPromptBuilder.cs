@@ -386,6 +386,10 @@ namespace Mindflow_Web_API.Utilities
         public string Duration { get; set; } = "";
         [JsonPropertyName("notes")]
         public string Notes { get; set; } = "";
+        [JsonPropertyName("priority")]
+        public string Priority { get; set; } = "Medium";
+        [JsonPropertyName("suggestedTime")]
+        public string SuggestedTime { get; set; } = "";
     }
 
     public class RunpodResponse

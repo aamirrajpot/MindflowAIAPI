@@ -172,6 +172,187 @@ namespace Mindflow_Web_API.Services
 			return taskItem;
 		}
 
+		public async Task<List<TaskItem>> AddMultipleTasksToCalendarAsync(Guid userId, List<TaskSuggestion> suggestions, DTOs.WellnessCheckInDto? wellnessData = null)
+		{
+			var createdTasks = new List<TaskItem>();
+			
+			// Get user's wellness data if not provided
+			if (wellnessData == null)
+				wellnessData = await _wellnessService.GetAsync(userId);
+
+			// Sort tasks by priority (High -> Medium -> Low)
+			var sortedSuggestions = suggestions.OrderBy(s => s.Priority switch
+			{
+				"High" => 1,
+				"Medium" => 2,
+				"Low" => 3,
+				_ => 2
+			}).ToList();
+
+			// Schedule tasks across available time slots
+			var scheduledTasks = ScheduleTasksAcrossTimeSlots(sortedSuggestions, wellnessData);
+
+			foreach (var scheduledTask in scheduledTasks)
+			{
+				var taskItem = new TaskItem
+				{
+					UserId = userId,
+					Title = scheduledTask.Suggestion.Task,
+					Description = scheduledTask.Suggestion.Notes,
+					Category = DetermineTaskCategory(scheduledTask.Suggestion.Task, scheduledTask.Suggestion.Notes),
+					OtherCategoryName = "AI Suggested",
+					Date = scheduledTask.Date,
+					Time = scheduledTask.Date.Date.Add(scheduledTask.Time),
+					DurationMinutes = ParseDurationToMinutes(scheduledTask.Suggestion.Duration),
+					ReminderEnabled = true,
+					RepeatType = MapFrequencyToRepeatType(scheduledTask.Suggestion.Frequency),
+					CreatedBySuggestionEngine = true,
+					IsApproved = true,
+					Status = Models.TaskStatus.Pending,
+					IsTemplate = false,
+					IsActive = true
+				};
+
+				_db.Tasks.Add(taskItem);
+				createdTasks.Add(taskItem);
+			}
+
+			await _db.SaveChangesAsync();
+			return createdTasks;
+		}
+
+		private List<ScheduledTask> ScheduleTasksAcrossTimeSlots(List<TaskSuggestion> suggestions, DTOs.WellnessCheckInDto? wellnessData)
+		{
+			var scheduledTasks = new List<ScheduledTask>();
+			var currentDate = DateTime.Today;
+			var currentTime = TimeSpan.Zero;
+
+			// Parse available time slots
+			var weekdaySlots = ParseTimeSlots(wellnessData?.WeekdayStartTime, wellnessData?.WeekdayEndTime, wellnessData?.WeekdayStartShift, wellnessData?.WeekdayEndShift);
+			var weekendSlots = ParseTimeSlots(wellnessData?.WeekendStartTime, wellnessData?.WeekendEndTime, wellnessData?.WeekendStartShift, wellnessData?.WeekendEndShift);
+
+			foreach (var suggestion in suggestions)
+			{
+				var duration = ParseDurationToMinutes(suggestion.Duration);
+				
+				// Try to use AI-suggested time first, fallback to system calculation
+				var (date, time) = TryUseAISuggestedTime(suggestion, currentDate, currentTime, duration, weekdaySlots, weekendSlots);
+				
+				scheduledTasks.Add(new ScheduledTask
+				{
+					Suggestion = suggestion,
+					Date = date,
+					Time = time
+				});
+
+				// Update current time for next task (add duration + 15 minutes buffer)
+				currentTime = time.Add(TimeSpan.FromMinutes(duration + 15));
+				currentDate = date;
+			}
+
+			return scheduledTasks;
+		}
+
+		private (DateTime date, TimeSpan time) TryUseAISuggestedTime(TaskSuggestion suggestion, DateTime currentDate, TimeSpan currentTime, int durationMinutes, (TimeSpan start, TimeSpan end) weekdaySlots, (TimeSpan start, TimeSpan end) weekendSlots)
+		{
+			// If AI provided a specific time suggestion, try to use it
+			if (!string.IsNullOrEmpty(suggestion.SuggestedTime))
+			{
+				var aiTime = ParseAISuggestedTime(suggestion.SuggestedTime);
+				if (aiTime.HasValue)
+				{
+					// Check if AI-suggested time fits within available slots
+					var isWeekend = currentDate.DayOfWeek == DayOfWeek.Saturday || currentDate.DayOfWeek == DayOfWeek.Sunday;
+					var slots = isWeekend ? weekendSlots : weekdaySlots;
+					
+					if (aiTime.Value >= slots.start && aiTime.Value.Add(TimeSpan.FromMinutes(durationMinutes)) <= slots.end)
+					{
+						return (currentDate, aiTime.Value);
+					}
+				}
+			}
+
+			// Fallback to system-calculated optimal time
+			return FindNextAvailableSlot(currentDate, currentTime, durationMinutes, weekdaySlots, weekendSlots);
+		}
+
+		private TimeSpan? ParseAISuggestedTime(string suggestedTime)
+		{
+			// Parse AI-suggested time strings like "Morning", "Afternoon", "Evening", "9:00 AM", etc.
+			suggestedTime = suggestedTime.Trim().ToLower();
+			
+			// Handle specific times like "9:00 AM", "2:30 PM"
+			if (TimeSpan.TryParse(suggestedTime, out var specificTime))
+			{
+				return specificTime;
+			}
+			
+			// Handle time periods
+			return suggestedTime switch
+			{
+				"morning" => new TimeSpan(9, 0, 0),   // 9:00 AM
+				"afternoon" => new TimeSpan(14, 0, 0), // 2:00 PM
+				"evening" => new TimeSpan(18, 0, 0),   // 6:00 PM
+				"weekend" => new TimeSpan(10, 0, 0),   // 10:00 AM (weekend start)
+				"weekday" => new TimeSpan(9, 0, 0),    // 9:00 AM (weekday start)
+				_ => null // Unknown format, let system decide
+			};
+		}
+
+		private (TimeSpan start, TimeSpan end) ParseTimeSlots(string? startTime, string? endTime, string? startShift, string? endShift)
+		{
+			if (string.IsNullOrEmpty(startTime) || string.IsNullOrEmpty(endTime))
+				return (new TimeSpan(9, 0, 0), new TimeSpan(17, 0, 0)); // Default 9 AM to 5 PM
+
+			var start = ParseTimeString(startTime, startShift);
+			var end = ParseTimeString(endTime, endShift);
+			
+			return (start, end);
+		}
+
+
+		private (DateTime date, TimeSpan time) FindNextAvailableSlot(DateTime currentDate, TimeSpan currentTime, int durationMinutes, (TimeSpan start, TimeSpan end) weekdaySlots, (TimeSpan start, TimeSpan end) weekendSlots)
+		{
+			var date = currentDate;
+			var time = currentTime;
+			var maxAttempts = 14; // Try for 2 weeks
+			var attempt = 0;
+
+			while (attempt < maxAttempts)
+			{
+				var isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
+				var slots = isWeekend ? weekendSlots : weekdaySlots;
+
+				// Check if current time is within available slots
+				if (time >= slots.start && time.Add(TimeSpan.FromMinutes(durationMinutes)) <= slots.end)
+				{
+					return (date, time);
+				}
+
+				// Move to next available time
+				if (time < slots.start)
+				{
+					time = slots.start;
+				}
+				else if (time.Add(TimeSpan.FromMinutes(durationMinutes)) > slots.end)
+				{
+					// Move to next day
+					date = date.AddDays(1);
+					time = slots.start;
+				}
+				else
+				{
+					// Move to next time slot
+					time = time.Add(TimeSpan.FromMinutes(30)); // 30-minute increments
+				}
+
+				attempt++;
+			}
+
+			// Fallback: return current date/time if no slot found
+			return (currentDate, currentTime);
+		}
+
 		private async Task<WeeklyTrendsData?> GetWeeklyTrendsAsync(Guid userId)
 		{
 			try
@@ -577,9 +758,14 @@ namespace Mindflow_Web_API.Services
 				return null;
 			}
 		}
-
-
 	}
+}
+
+public class ScheduledTask
+{
+	public TaskSuggestion Suggestion { get; set; } = new();
+	public DateTime Date { get; set; }
+	public TimeSpan Time { get; set; }
 }
 
 
