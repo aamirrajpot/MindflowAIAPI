@@ -43,6 +43,12 @@ namespace Mindflow_Web_API.DTOs
 		public bool ReminderEnabled { get; set; } = false;
 	}
 
+	public class AddMultipleTasksRequest
+	{
+		[Required]
+		public List<TaskSuggestion> Suggestions { get; set; } = new();
+	}
+
 	public class BrainDumpResponse
 	{
 		[JsonPropertyName("userProfile")]

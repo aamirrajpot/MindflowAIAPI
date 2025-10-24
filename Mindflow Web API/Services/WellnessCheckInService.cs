@@ -234,6 +234,66 @@ namespace Mindflow_Web_API.Services
             );
         }
 
+        private async Task<WellnessAnalysisDto> GenerateSimpleSummaryAsync(Guid userId, WellnessCheckInDto wellnessData)
+        {
+            try
+            {
+                // Convert DTO to model for the prompt
+                var wellnessModel = WellnessCheckIn.Create(
+                    userId,
+                    wellnessData.MoodLevel,
+                    wellnessData.CheckInDate,
+                    wellnessData.ReminderEnabled,
+                    wellnessData.ReminderTime,
+                    wellnessData.AgeRange,
+                    wellnessData.FocusAreas,
+                    wellnessData.StressNotes,
+                    wellnessData.ThoughtTrackingMethod,
+                    wellnessData.SupportAreas,
+                    wellnessData.SelfCareFrequency,
+                    wellnessData.ToughDayMessage,
+                    wellnessData.CopingMechanisms,
+                    wellnessData.JoyPeaceSources,
+                    wellnessData.WeekdayStartTime,
+                    wellnessData.WeekdayStartShift,
+                    wellnessData.WeekdayEndTime,
+                    wellnessData.WeekdayEndShift,
+                    wellnessData.WeekendStartTime,
+                    wellnessData.WeekendStartShift,
+                    wellnessData.WeekendEndTime,
+                    wellnessData.WeekendEndShift
+                );
+
+                // Build a simplified prompt for faster processing
+                var prompt = BuildSimpleWellnessPrompt(wellnessModel);
+
+                // Call RunPod service with reduced tokens for faster response
+                var response = await _runPodService.SendPromptAsync(prompt, 400, 0.5); // Reduced tokens and temperature
+
+                // Parse the AI response
+                var analysis = ParseWellnessAnalysisResponse(response);
+
+                return analysis;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to generate simple wellness summary for user {UserId}", userId);
+                
+                // Return fallback data if AI fails
+                return new WellnessAnalysisDto(
+                    $"Current mood: {wellnessData.MoodLevel}",
+                    "Moderate stress level",
+                    wellnessData.SupportAreas?.Take(2).ToList() ?? new List<string> { "emotional support", "stress management" },
+                    wellnessData.CopingMechanisms?.Take(2).ToList() ?? new List<string> { "deep breathing", "meditation" },
+                    new List<string> { "Take breaks", "Practice self-care", "Connect with others" },
+                    "Track daily mood and stress levels",
+                    3, // Default moderate urgency
+                    new List<string> { "Practice mindfulness", "Get adequate sleep", "Stay connected" },
+                    new List<string> { "Build resilience", "Maintain work-life balance" }
+                );
+            }
+        }
+
         private async Task<WellnessAnalysisResponse> GenerateAnalysisAsync(Guid userId, WellnessCheckInDto wellnessData)
         {
             try
@@ -294,17 +354,17 @@ namespace Mindflow_Web_API.Services
             if (wellnessData == null)
                 throw ApiExceptions.NotFound("Wellness check-in not found");
 
-            // Generate analysis
-            var analysis = await GenerateAnalysisAsync(userId, wellnessData);
+            // Use simplified analysis for faster response
+            var analysis = await GenerateSimpleSummaryAsync(userId, wellnessData);
 
             // Extract primary focus from focus areas
             var primaryFocus = wellnessData.FocusAreas?.FirstOrDefault() ?? "general wellness";
             
             // Get top support needs
-            var topSupportNeeds = analysis.Analysis.SupportNeeds.Take(2).ToList();
+            var topSupportNeeds = analysis.SupportNeeds.Take(2).ToList();
             
             // Get recommended actions
-            var recommendedActions = analysis.Analysis.ImmediateActions.Take(3).ToList();
+            var recommendedActions = analysis.ImmediateActions.Take(3).ToList();
 
             // Create personalized message
             var personalizedMessage = $"Based on your focus on {primaryFocus} and {wellnessData.SelfCareFrequency ?? "regular"} self-care routine, we've tailored MindFlow AI to support your mental wellness journey.";
@@ -315,9 +375,39 @@ namespace Mindflow_Web_API.Services
                 wellnessData.SupportAreas?.Length ?? 0,
                 topSupportNeeds,
                 recommendedActions,
-                analysis.Analysis.UrgencyLevel,
+                analysis.UrgencyLevel,
                 personalizedMessage
             );
+        }
+
+        private string BuildSimpleWellnessPrompt(WellnessCheckIn checkIn)
+        {
+            // Simplified prompt focusing only on essential data for summary
+            var prompt = $@"[INST] Provide a brief wellness summary based on this check-in data:
+
+**Key Information:**
+- Mood: {checkIn.MoodLevel}
+- Focus Areas: {string.Join(", ", checkIn.FocusAreas ?? new string[0])}
+- Support Areas: {string.Join(", ", checkIn.SupportAreas ?? new string[0])}
+- Self-Care Frequency: {checkIn.SelfCareFrequency ?? "Not specified"}
+- Stress Notes: {checkIn.StressNotes ?? "None"}
+
+**Required Response (JSON format):**
+{{
+  ""moodAssessment"": ""Brief mood description"",
+  ""stressLevel"": ""Brief stress level"",
+  ""supportNeeds"": [""Need 1"", ""Need 2""],
+  ""copingStrategies"": [""Strategy 1"", ""Strategy 2""],
+  ""selfCareSuggestions"": [""Suggestion 1"", ""Suggestion 2""],
+  ""progressTracking"": ""Brief tracking advice"",
+  ""urgencyLevel"": 3,
+  ""immediateActions"": [""Action 1"", ""Action 2"", ""Action 3""],
+  ""longTermGoals"": [""Goal 1"", ""Goal 2""]
+}}
+
+Keep responses concise and practical. Focus on actionable items. [/INST]";
+
+            return prompt;
         }
 
         private WellnessAnalysisDto ParseWellnessAnalysisResponse(string response)

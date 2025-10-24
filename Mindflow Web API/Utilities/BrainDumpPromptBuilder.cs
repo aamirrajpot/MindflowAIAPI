@@ -168,12 +168,11 @@ namespace Mindflow_Web_API.Utilities
             sb.Append("  * Total: Always return 6–8 activities (no fewer than 6).\n");
             sb.Append("  * Each activity must be written as a direct suggestion to the user (e.g., 'Call your mother', 'Donate clothes to Goodwill').\n");
             sb.Append("  * Keep each task short, specific, and realistic within available time slots.\n");
-            sb.Append("  * TIME SCHEDULING:\n");
-            sb.Append("    - Use suggestedTime to indicate optimal scheduling within available slots.\n");
-            sb.Append("    - For suggestedTime, use: 'Morning' (9 AM), 'Afternoon' (2 PM), 'Evening' (6 PM), or specific times like '9:30 AM'.\n");
-            sb.Append("    - Schedule high-priority tasks earlier in the day.\n");
-            sb.Append("    - Consider task duration when suggesting times (don't overlap tasks).\n");
-            sb.Append("    - Distribute tasks across weekdays vs weekends based on task type.\n");
+            sb.Append("  * TIME SCHEDULING (OPTIONAL):\n");
+            sb.Append("    - Use suggestedTime to indicate optimal time preference (not required).\n");
+            sb.Append("    - For suggestedTime, use: 'Morning', 'Afternoon', 'Evening', or specific times like '9:30 AM'.\n");
+            sb.Append("    - Focus on task content and priority - scheduling will be handled automatically.\n");
+            sb.Append("    - Only suggest time if it's important for the task type (e.g., 'Morning' for exercise).\n");
 
 
             sb.Append("Output only the JSON object. Do not include any text outside JSON. [/INST]");
