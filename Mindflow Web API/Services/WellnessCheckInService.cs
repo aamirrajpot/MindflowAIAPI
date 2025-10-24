@@ -238,6 +238,13 @@ namespace Mindflow_Web_API.Services
         {
             try
             {
+                // Validate wellness data before processing
+                if (wellnessData == null || string.IsNullOrEmpty(wellnessData.MoodLevel))
+                {
+                    _logger.LogWarning("Wellness data is null or incomplete for user {UserId}", userId);
+                    return GetDefaultAnalysis();
+                }
+
                 // Convert DTO to model for the prompt
                 var wellnessModel = WellnessCheckIn.Create(
                     userId,
@@ -280,18 +287,23 @@ namespace Mindflow_Web_API.Services
                 _logger.LogError(ex, "Failed to generate simple wellness summary for user {UserId}", userId);
                 
                 // Return fallback data if AI fails
-                return new WellnessAnalysisDto(
-                    $"Current mood: {wellnessData.MoodLevel}",
-                    "Moderate stress level",
-                    wellnessData.SupportAreas?.Take(2).ToList() ?? new List<string> { "emotional support", "stress management" },
-                    wellnessData.CopingMechanisms?.Take(2).ToList() ?? new List<string> { "deep breathing", "meditation" },
-                    new List<string> { "Take breaks", "Practice self-care", "Connect with others" },
-                    "Track daily mood and stress levels",
-                    3, // Default moderate urgency
-                    new List<string> { "Practice mindfulness", "Get adequate sleep", "Stay connected" },
-                    new List<string> { "Build resilience", "Maintain work-life balance" }
-                );
+                return GetDefaultAnalysis();
             }
+        }
+
+        private WellnessAnalysisDto GetDefaultAnalysis()
+        {
+            return new WellnessAnalysisDto(
+                "Mood assessment is being processed",
+                "Moderate stress level",
+                new List<string> { "emotional support", "stress management" },
+                new List<string> { "deep breathing", "meditation" },
+                new List<string> { "Take breaks", "Practice self-care", "Connect with others" },
+                "Track daily mood and stress levels",
+                3, // Default moderate urgency
+                new List<string> { "Practice mindfulness", "Get adequate sleep", "Stay connected" },
+                new List<string> { "Build resilience", "Maintain work-life balance" }
+            );
         }
 
         private async Task<WellnessAnalysisResponse> GenerateAnalysisAsync(Guid userId, WellnessCheckInDto wellnessData)
@@ -353,6 +365,21 @@ namespace Mindflow_Web_API.Services
             var wellnessData = await GetAsync(userId);
             if (wellnessData == null)
                 throw ApiExceptions.NotFound("Wellness check-in not found");
+
+            // Check if this is a default/empty wellness check-in (no real data)
+            if (wellnessData.UserId == Guid.Empty || string.IsNullOrEmpty(wellnessData.MoodLevel))
+            {
+                // Return a default summary for users who haven't completed their wellness check-in
+                return new WellnessSummaryDto(
+                    "general wellness",
+                    "regular",
+                    0,
+                    new List<string> { "Complete your wellness check-in", "Set up your preferences" },
+                    new List<string> { "Complete wellness questionnaire", "Set your availability", "Choose your focus areas" },
+                    1, // Low urgency
+                    "Complete your wellness check-in to get personalized recommendations and support tailored to your needs."
+                );
+            }
 
             // Use simplified analysis for faster response
             var analysis = await GenerateSimpleSummaryAsync(userId, wellnessData);
