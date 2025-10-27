@@ -87,15 +87,15 @@ namespace Mindflow_Web_API.Services
                 ValidAudience = _configuration["Apple:ClientId"] ?? "", // Set your Apple client ID here
                 IssuerSigningKeys = matchedKey != null
                     ? new[] { new RsaSecurityKey(new System.Security.Cryptography.RSAParameters
-                        {
-                            Modulus = Microsoft.IdentityModel.Tokens.Base64UrlEncoder.DecodeBytes(matchedKey.N),
-                            Exponent = Microsoft.IdentityModel.Tokens.Base64UrlEncoder.DecodeBytes(matchedKey.E)
-                        }) }
+                            {
+                                Modulus = Microsoft.IdentityModel.Tokens.Base64UrlEncoder.DecodeBytes(matchedKey.N),
+                                Exponent = Microsoft.IdentityModel.Tokens.Base64UrlEncoder.DecodeBytes(matchedKey.E)
+                            }) }
                     : keys.Keys.Select(k => new RsaSecurityKey(new System.Security.Cryptography.RSAParameters
-                        {
-                            Modulus = Microsoft.IdentityModel.Tokens.Base64UrlEncoder.DecodeBytes(k.N),
-                            Exponent = Microsoft.IdentityModel.Tokens.Base64UrlEncoder.DecodeBytes(k.E)
-                        })),
+                    {
+                        Modulus = Microsoft.IdentityModel.Tokens.Base64UrlEncoder.DecodeBytes(k.N),
+                        Exponent = Microsoft.IdentityModel.Tokens.Base64UrlEncoder.DecodeBytes(k.E)
+                    })),
                 ValidateIssuerSigningKey = true,
                 ValidateIssuer = true,
                 ValidateAudience = true,
@@ -110,6 +110,15 @@ namespace Mindflow_Web_API.Services
             var firstName = jwt2.Claims.FirstOrDefault(c => c.Type == "given_name")?.Value;
             var lastName = jwt2.Claims.FirstOrDefault(c => c.Type == "family_name")?.Value;
             var sub = jwt2.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
+
+            // Log extracted Apple token claims for diagnostics (structured logging)
+            _logger.LogInformation(
+                "Apple ID Token claims extracted: email={Email}, given_name={GivenName}, family_name={FamilyName}, sub={Sub}",
+                email ?? string.Empty,
+                firstName ?? string.Empty,
+                lastName ?? string.Empty,
+                sub ?? string.Empty
+            );
 
             if (string.IsNullOrEmpty(email) && string.IsNullOrEmpty(sub))
                 throw ApiExceptions.ValidationError("Invalid Apple ID token: neither email nor sub found.");
