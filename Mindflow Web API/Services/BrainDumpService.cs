@@ -144,8 +144,8 @@ namespace Mindflow_Web_API.Services
 			// Get user's wellness data for available time slots
 			var wellnessData = await _wellnessService.GetAsync(userId);
 			
-			// Use the new smart scheduling logic
-			var (taskDate, taskTime) = DetermineOptimalScheduleWithTimeSlots(request, wellnessData, durationMinutes);
+		// Use the new smart scheduling logic
+		var (taskDate, taskTime) = await DetermineOptimalScheduleWithTimeSlotsAsync(request, wellnessData, durationMinutes, userId);
 
 			// Create TaskItem
 			var taskItem = new TaskItem
@@ -224,61 +224,78 @@ namespace Mindflow_Web_API.Services
 			return createdTasks;
 		}
 
-		private List<ScheduledTask> ScheduleTasksAcrossTimeSlots(List<TaskSuggestion> suggestions, DTOs.WellnessCheckInDto? wellnessData)
+	private List<ScheduledTask> ScheduleTasksAcrossTimeSlots(List<TaskSuggestion> suggestions, DTOs.WellnessCheckInDto? wellnessData)
+	{
+		var scheduledTasks = new List<ScheduledTask>();
+		
+		_logger.LogInformation("Starting task scheduling for {TaskCount} tasks", suggestions.Count);
+		
+		// Parse available time slots
+		var weekdaySlots = ParseTimeSlots(wellnessData?.WeekdayStartTime, wellnessData?.WeekdayEndTime, wellnessData?.WeekdayStartShift, wellnessData?.WeekdayEndShift);
+		var weekendSlots = ParseTimeSlots(wellnessData?.WeekendStartTime, wellnessData?.WeekendEndTime, wellnessData?.WeekendStartShift, wellnessData?.WeekendEndShift);
+
+		_logger.LogInformation("Weekday slots: {WeekdayStart} to {WeekdayEnd}", weekdaySlots.start, weekdaySlots.end);
+		_logger.LogInformation("Weekend slots: {WeekendStart} to {WeekendEnd}", weekendSlots.start, weekendSlots.end);
+
+		// Create a time slot manager to track available slots
+		var slotManager = new TimeSlotManager(weekdaySlots, weekendSlots);
+		
+		// Sort tasks by priority and duration for optimal scheduling
+		var sortedSuggestions = suggestions.OrderBy(s => s.Priority switch
 		{
-			var scheduledTasks = new List<ScheduledTask>();
+			"High" => 1,
+			"Medium" => 2,
+			"Low" => 3,
+			_ => 2
+		}).ThenBy(s => ParseDurationToMinutes(s.Duration)).ToList();
+
+		_logger.LogInformation("Task scheduling order: {TaskOrder}", 
+			string.Join(", ", sortedSuggestions.Select(s => $"{s.Task} ({s.Priority})")));
+
+		foreach (var suggestion in sortedSuggestions)
+		{
+			var duration = ParseDurationToMinutes(suggestion.Duration);
 			
-			// Parse available time slots
-			var weekdaySlots = ParseTimeSlots(wellnessData?.WeekdayStartTime, wellnessData?.WeekdayEndTime, wellnessData?.WeekdayStartShift, wellnessData?.WeekdayEndShift);
-			var weekendSlots = ParseTimeSlots(wellnessData?.WeekendStartTime, wellnessData?.WeekendEndTime, wellnessData?.WeekendStartShift, wellnessData?.WeekendEndShift);
-
-			// Create a time slot manager to track available slots
-			var slotManager = new TimeSlotManager(weekdaySlots, weekendSlots);
+			_logger.LogDebug("Scheduling task: {Task} (Duration: {Duration}min, Priority: {Priority}, SuggestedTime: {SuggestedTime})", 
+				suggestion.Task, duration, suggestion.Priority, suggestion.SuggestedTime ?? "None");
 			
-			// Sort tasks by priority and duration for optimal scheduling
-			var sortedSuggestions = suggestions.OrderBy(s => s.Priority switch
+			// Find the best available slot for this task
+			var (date, time) = FindBestAvailableSlot(suggestion, duration, slotManager);
+			
+			_logger.LogDebug("Scheduled {Task} for {Date} at {Time}", suggestion.Task, date.ToString("yyyy-MM-dd"), time);
+			
+			scheduledTasks.Add(new ScheduledTask
 			{
-				"High" => 1,
-				"Medium" => 2,
-				"Low" => 3,
-				_ => 2
-			}).ThenBy(s => ParseDurationToMinutes(s.Duration)).ToList();
+				Suggestion = suggestion,
+				Date = date,
+				Time = time
+			});
 
-			foreach (var suggestion in sortedSuggestions)
-			{
-				var duration = ParseDurationToMinutes(suggestion.Duration);
-				
-				// Find the best available slot for this task
-				var (date, time) = FindBestAvailableSlot(suggestion, duration, slotManager);
-				
-				scheduledTasks.Add(new ScheduledTask
-				{
-					Suggestion = suggestion,
-					Date = date,
-					Time = time
-				});
-
-				// Reserve this time slot
-				slotManager.ReserveSlot(date, time, duration);
-			}
-
-			return scheduledTasks;
+			// Reserve this time slot
+			slotManager.ReserveSlot(date, time, duration);
 		}
 
-		private (DateTime date, TimeSpan time) DetermineOptimalScheduleWithTimeSlots(AddToCalendarRequest request, DTOs.WellnessCheckInDto? wellnessData, int durationMinutes)
+		_logger.LogInformation("Completed scheduling {ScheduledCount} tasks", scheduledTasks.Count);
+		return scheduledTasks;
+	}
+
+		private async Task<(DateTime date, TimeSpan time)> DetermineOptimalScheduleWithTimeSlotsAsync(AddToCalendarRequest request, DTOs.WellnessCheckInDto? wellnessData, int durationMinutes, Guid userId)
 		{
 			// Parse available time slots from wellness data
 			var weekdaySlots = ParseTimeSlots(wellnessData?.WeekdayStartTime, wellnessData?.WeekdayEndTime, wellnessData?.WeekdayStartShift, wellnessData?.WeekdayEndShift);
 			var weekendSlots = ParseTimeSlots(wellnessData?.WeekendStartTime, wellnessData?.WeekendEndTime, wellnessData?.WeekendStartShift, wellnessData?.WeekendEndShift);
 
-			// Create time slot manager
-			var slotManager = new TimeSlotManager(weekdaySlots, weekendSlots);
+			_logger.LogDebug("Determining optimal schedule for task with duration {Duration} minutes", durationMinutes);
+			_logger.LogDebug("Weekday slots: {WeekdayStart} to {WeekdayEnd}", weekdaySlots.start, weekdaySlots.end);
+			_logger.LogDebug("Weekend slots: {WeekendStart} to {WeekendEnd}", weekendSlots.start, weekendSlots.end);
 
 			// If user provided specific date and time, try to use it
 			if (request.Date.HasValue && request.Time.HasValue)
 			{
 				var userDate = request.Date.Value;
 				var userTime = request.Time.Value;
+				
+				_logger.LogDebug("User provided specific date and time: {Date} at {Time}", userDate.ToString("yyyy-MM-dd"), userTime);
 				
 				// Check if the user's preferred time fits within available slots
 				var isWeekend = userDate.DayOfWeek == DayOfWeek.Saturday || userDate.DayOfWeek == DayOfWeek.Sunday;
@@ -287,11 +304,19 @@ namespace Mindflow_Web_API.Services
 				if (userTime >= slots.start && userTime.Add(TimeSpan.FromMinutes(durationMinutes)) <= slots.end)
 				{
 					// Check if this time slot is available
-					if (IsTimeSlotAvailable(userDate, userTime, durationMinutes, slotManager))
+					if (await IsTimeSlotAvailableAsync(userDate, userTime, durationMinutes, userId))
 					{
-						slotManager.ReserveSlot(userDate, userTime, durationMinutes);
+						_logger.LogDebug("User's preferred time slot is available");
 						return (userDate, userTime);
 					}
+					else
+					{
+						_logger.LogDebug("User's preferred time slot is not available, finding alternative");
+					}
+				}
+				else
+				{
+					_logger.LogDebug("User's preferred time is outside available slots");
 				}
 			}
 
@@ -302,11 +327,17 @@ namespace Mindflow_Web_API.Services
 				var isWeekend = userDate.DayOfWeek == DayOfWeek.Saturday || userDate.DayOfWeek == DayOfWeek.Sunday;
 				var slots = isWeekend ? weekendSlots : weekdaySlots;
 				
-				var availableTime = FindAvailableTimeInDay(userDate, slots, durationMinutes, slotManager);
+				_logger.LogDebug("User provided specific date: {Date}, finding best time", userDate.ToString("yyyy-MM-dd"));
+				
+				var availableTime = await FindAvailableTimeInDayAsync(userDate, slots, durationMinutes, userId);
 				if (availableTime != TimeSpan.Zero)
 				{
-					slotManager.ReserveSlot(userDate, availableTime, durationMinutes);
+					_logger.LogDebug("Found available time on user's preferred date: {Time}", availableTime);
 					return (userDate, availableTime);
+				}
+				else
+				{
+					_logger.LogDebug("No available time found on user's preferred date");
 				}
 			}
 
@@ -314,17 +345,20 @@ namespace Mindflow_Web_API.Services
 			if (request.Time.HasValue)
 			{
 				var userTime = request.Time.Value;
-				var (date, time) = slotManager.FindSlotMatchingTime(userTime, durationMinutes);
+				_logger.LogDebug("User provided specific time: {Time}, finding next available date", userTime);
+				
+				var (date, time) = await FindNextAvailableDateForTimeAsync(userTime, durationMinutes, weekdaySlots, weekendSlots, userId);
 				if (date != DateTime.MinValue)
 				{
-					slotManager.ReserveSlot(date, time, durationMinutes);
+					_logger.LogDebug("Found next available date for user's preferred time: {Date}", date.ToString("yyyy-MM-dd"));
 					return (date, time);
 				}
 			}
 
 			// No specific preferences - find optimal date and time
-			var (optimalDate, optimalTime) = slotManager.FindNextAvailableSlot(durationMinutes);
-			slotManager.ReserveSlot(optimalDate, optimalTime, durationMinutes);
+			_logger.LogDebug("No user preferences, finding optimal date and time");
+			var (optimalDate, optimalTime) = await FindNextAvailableSlotAsync(durationMinutes, weekdaySlots, weekendSlots, userId);
+			_logger.LogDebug("Found optimal slot: {Date} at {Time}", optimalDate.ToString("yyyy-MM-dd"), optimalTime);
 			return (optimalDate, optimalTime);
 		}
 
@@ -349,31 +383,126 @@ namespace Mindflow_Web_API.Services
 			return slotManager.FindNextAvailableSlot(durationMinutes);
 		}
 
-		private bool IsTimeSlotAvailable(DateTime date, TimeSpan time, int durationMinutes, TimeSlotManager slotManager)
+	private async Task<bool> IsTimeSlotAvailableAsync(DateTime date, TimeSpan time, int durationMinutes, Guid userId)
+	{
+		try
 		{
-			// This is a simplified check - in a real implementation, you'd want to check against existing tasks in the database
-			// For now, we'll use the slot manager's internal tracking
-			return true; // Placeholder - would need to implement proper conflict checking
-		}
-
-		private TimeSpan FindAvailableTimeInDay(DateTime date, (TimeSpan start, TimeSpan end) slots, int durationMinutes, TimeSlotManager slotManager)
-		{
-			var currentTime = slots.start;
-			var endTime = slots.end;
-
-			while (currentTime.Add(TimeSpan.FromMinutes(durationMinutes)) <= endTime)
+			var newTaskStart = date.Date.Add(time);
+			var newTaskEnd = newTaskStart.AddMinutes(durationMinutes);
+			
+			_logger.LogDebug("Checking availability for new task: {StartTime} to {EndTime}", newTaskStart, newTaskEnd);
+			
+			// Check for existing tasks that overlap with this time slot
+			var conflictingTasks = await _db.Tasks
+				.Where(t => t.UserId == userId 
+					&& t.IsActive 
+					&& t.Date.Date == date.Date)
+				.ToListAsync();
+			
+			foreach (var existingTask in conflictingTasks)
 			{
-				if (IsTimeSlotAvailable(date, currentTime, durationMinutes, slotManager))
+				var existingTaskStart = existingTask.Time;
+				var existingTaskEnd = existingTaskStart.AddMinutes(existingTask.DurationMinutes);
+				
+				_logger.LogDebug("Checking against existing task: {StartTime} to {EndTime}", existingTaskStart, existingTaskEnd);
+				
+				// Check for overlap with 15-minute buffer
+				var bufferMinutes = 15;
+				var newTaskStartWithBuffer = newTaskStart.AddMinutes(-bufferMinutes);
+				var newTaskEndWithBuffer = newTaskEnd.AddMinutes(bufferMinutes);
+				var existingTaskStartWithBuffer = existingTaskStart.AddMinutes(-bufferMinutes);
+				var existingTaskEndWithBuffer = existingTaskEnd.AddMinutes(bufferMinutes);
+				
+				// Two tasks conflict if their buffered time ranges overlap
+				bool hasOverlap = (newTaskStartWithBuffer < existingTaskEndWithBuffer) && (newTaskEndWithBuffer > existingTaskStartWithBuffer);
+				
+				if (hasOverlap)
 				{
-					return currentTime;
+					_logger.LogDebug("CONFLICT DETECTED: New task {NewStart}-{NewEnd} overlaps with existing task {ExistingStart}-{ExistingEnd}", 
+						newTaskStartWithBuffer, newTaskEndWithBuffer, existingTaskStartWithBuffer, existingTaskEndWithBuffer);
+					return false;
 				}
+			}
+			
+			_logger.LogDebug("No conflicts found for time slot {Time}", time);
+			return true;
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(ex, "Error checking time slot availability for {Date} at {Time}", date, time);
+			return false; // Conservative approach - assume slot is not available if we can't check
+		}
+	}
 
-				// Move to next 30-minute slot
-				currentTime = currentTime.Add(TimeSpan.FromMinutes(30));
+	private async Task<TimeSpan> FindAvailableTimeInDayAsync(DateTime date, (TimeSpan start, TimeSpan end) slots, int durationMinutes, Guid userId)
+	{
+		var currentTime = slots.start;
+		var endTime = slots.end;
+
+		while (currentTime.Add(TimeSpan.FromMinutes(durationMinutes)) <= endTime)
+		{
+			if (await IsTimeSlotAvailableAsync(date, currentTime, durationMinutes, userId))
+			{
+				return currentTime;
 			}
 
-			return TimeSpan.Zero;
+			// Move to next 30-minute slot
+			currentTime = currentTime.Add(TimeSpan.FromMinutes(30));
 		}
+
+		return TimeSpan.Zero;
+	}
+
+	private async Task<(DateTime date, TimeSpan time)> FindNextAvailableDateForTimeAsync(TimeSpan preferredTime, int durationMinutes, (TimeSpan start, TimeSpan end) weekdaySlots, (TimeSpan start, TimeSpan end) weekendSlots, Guid userId)
+	{
+		var startDate = DateTime.Today.AddDays(1);
+		var maxDays = 14;
+
+		for (int dayOffset = 0; dayOffset < maxDays; dayOffset++)
+		{
+			var date = startDate.AddDays(dayOffset);
+			var isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
+			var slots = isWeekend ? weekendSlots : weekdaySlots;
+
+			// Check if preferred time fits within available slots
+			if (preferredTime >= slots.start && preferredTime.Add(TimeSpan.FromMinutes(durationMinutes)) <= slots.end)
+			{
+				// Check if this time slot is available
+				if (await IsTimeSlotAvailableAsync(date, preferredTime, durationMinutes, userId))
+				{
+					return (date, preferredTime);
+				}
+			}
+		}
+
+		return (DateTime.MinValue, TimeSpan.Zero);
+	}
+
+	private async Task<(DateTime date, TimeSpan time)> FindNextAvailableSlotAsync(int durationMinutes, (TimeSpan start, TimeSpan end) weekdaySlots, (TimeSpan start, TimeSpan end) weekendSlots, Guid userId)
+	{
+		var startDate = DateTime.Today.AddDays(1); // Start from tomorrow
+		var maxDays = 14; // Look ahead 2 weeks
+
+		for (int dayOffset = 0; dayOffset < maxDays; dayOffset++)
+		{
+			var date = startDate.AddDays(dayOffset);
+			var isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
+			var slots = isWeekend ? weekendSlots : weekdaySlots;
+
+			// Find available time within the day's slots
+			var availableTime = await FindAvailableTimeInDayAsync(date, slots, durationMinutes, userId);
+			if (availableTime != TimeSpan.Zero)
+			{
+				return (date, availableTime);
+			}
+		}
+
+		// Fallback: return tomorrow at start of available slots
+		var fallbackDate = DateTime.Today.AddDays(1);
+		var fallbackIsWeekend = fallbackDate.DayOfWeek == DayOfWeek.Saturday || fallbackDate.DayOfWeek == DayOfWeek.Sunday;
+		var fallbackSlots = fallbackIsWeekend ? weekendSlots : weekdaySlots;
+		return (fallbackDate, fallbackSlots.start);
+	}
 
 		private (DateTime date, TimeSpan time) TryUseAISuggestedTime(TaskSuggestion suggestion, DateTime currentDate, TimeSpan currentTime, int durationMinutes, (TimeSpan start, TimeSpan end) weekdaySlots, (TimeSpan start, TimeSpan end) weekendSlots)
 		{
@@ -398,39 +527,72 @@ namespace Mindflow_Web_API.Services
 			return FindNextAvailableSlot(currentDate, currentTime, durationMinutes, weekdaySlots, weekendSlots);
 		}
 
-		private TimeSpan? ParseAISuggestedTime(string suggestedTime)
+	private TimeSpan? ParseAISuggestedTime(string suggestedTime)
+	{
+		// Parse AI-suggested time strings like "Morning", "Afternoon", "Evening", "9:00 AM", etc.
+		suggestedTime = suggestedTime.Trim();
+		
+		// Handle specific times like "9:00 AM", "2:30 PM" - FIXED PARSING
+		if (suggestedTime.Contains("AM") || suggestedTime.Contains("PM"))
 		{
-			// Parse AI-suggested time strings like "Morning", "Afternoon", "Evening", "9:00 AM", etc.
-			suggestedTime = suggestedTime.Trim().ToLower();
+			// Extract time and AM/PM parts
+			var timePart = suggestedTime.Replace("AM", "").Replace("PM", "").Trim();
+			var isPM = suggestedTime.ToUpper().Contains("PM");
 			
-			// Handle specific times like "9:00 AM", "2:30 PM"
-			if (TimeSpan.TryParse(suggestedTime, out var specificTime))
+			if (TimeSpan.TryParse(timePart, out var time))
 			{
-				return specificTime;
+				if (isPM && time.Hours >= 1 && time.Hours <= 12)
+				{
+					time = time.Add(new TimeSpan(12, 0, 0));
+				}
+				else if (!isPM && time.Hours == 12)
+				{
+					time = time.Subtract(new TimeSpan(12, 0, 0));
+				}
+				return time;
 			}
-			
-			// Handle time periods
-			return suggestedTime switch
-			{
-				"morning" => new TimeSpan(9, 0, 0),   // 9:00 AM
-				"afternoon" => new TimeSpan(14, 0, 0), // 2:00 PM
-				"evening" => new TimeSpan(18, 0, 0),   // 6:00 PM
-				"weekend" => new TimeSpan(10, 0, 0),   // 10:00 AM (weekend start)
-				"weekday" => new TimeSpan(9, 0, 0),    // 9:00 AM (weekday start)
-				_ => null // Unknown format, let system decide
-			};
 		}
-
-		private (TimeSpan start, TimeSpan end) ParseTimeSlots(string? startTime, string? endTime, string? startShift, string? endShift)
+		
+		// Handle 24-hour format times like "09:00", "17:00"
+		if (TimeSpan.TryParse(suggestedTime, out var time24))
 		{
-			if (string.IsNullOrEmpty(startTime) || string.IsNullOrEmpty(endTime))
-				return (new TimeSpan(9, 0, 0), new TimeSpan(17, 0, 0)); // Default 9 AM to 5 PM
-
-			var start = ParseTimeString(startTime, startShift);
-			var end = ParseTimeString(endTime, endShift);
-			
-			return (start, end);
+			return time24;
 		}
+		
+		// Handle time periods
+		var timeLower = suggestedTime.ToLower();
+		return timeLower switch
+		{
+			"morning" => new TimeSpan(9, 0, 0),   // 9:00 AM
+			"afternoon" => new TimeSpan(14, 0, 0), // 2:00 PM
+			"evening" => new TimeSpan(18, 0, 0),   // 6:00 PM
+			"weekend" => new TimeSpan(10, 0, 0),   // 10:00 AM (weekend start)
+			"weekday" => new TimeSpan(9, 0, 0),    // 9:00 AM (weekday start)
+			_ => null // Unknown format, let system decide
+		};
+	}
+
+	private (TimeSpan start, TimeSpan end) ParseTimeSlots(string? startTime, string? endTime, string? startShift, string? endShift)
+	{
+		if (string.IsNullOrEmpty(startTime) || string.IsNullOrEmpty(endTime))
+		{
+			_logger.LogWarning("Missing time data, using default slots: 9 AM to 5 PM");
+			return (new TimeSpan(9, 0, 0), new TimeSpan(17, 0, 0)); // Default 9 AM to 5 PM
+		}
+
+		var start = ParseTimeString(startTime, startShift);
+		var end = ParseTimeString(endTime, endShift);
+		
+		// Validate that start is before end
+		if (start >= end)
+		{
+			_logger.LogWarning("Invalid time slots: start {StartTime} is not before end {EndTime}, using defaults", start, end);
+			return (new TimeSpan(9, 0, 0), new TimeSpan(17, 0, 0));
+		}
+		
+		_logger.LogDebug("Parsed time slots: {StartTime} to {EndTime}", start, end);
+		return (start, end);
+	}
 
 
 		private (DateTime date, TimeSpan time) FindNextAvailableSlot(DateTime currentDate, TimeSpan currentTime, int durationMinutes, (TimeSpan start, TimeSpan end) weekdaySlots, (TimeSpan start, TimeSpan end) weekendSlots)
@@ -707,35 +869,47 @@ namespace Mindflow_Web_API.Services
 			return (targetDate, time);
 		}
 
-		private static TimeSpan ParseTimeString(string? timeStr, string? shift)
+	private static TimeSpan ParseTimeString(string? timeStr, string? shift)
+	{
+		if (string.IsNullOrWhiteSpace(timeStr))
+			return new TimeSpan(9, 0, 0); // Default 9 AM
+
+		// Parse time like "09:30" or "9:30"
+		if (TimeSpan.TryParse(timeStr, out var time))
 		{
-			if (string.IsNullOrWhiteSpace(timeStr))
-				return new TimeSpan(9, 0, 0); // Default 9 AM
-
-			// Parse time like "09:30" or "9:30"
-			if (TimeSpan.TryParse(timeStr, out var time))
+			// Handle AM/PM shift - FIXED LOGIC
+			if (!string.IsNullOrWhiteSpace(shift))
 			{
-				// Handle AM/PM shift
-				if (!string.IsNullOrWhiteSpace(shift))
-				{
-					var isPM = shift.ToUpper().Contains("PM");
-					var isAM = shift.ToUpper().Contains("AM");
-					
-					if (isPM && time.Hours < 12)
-					{
-						time = time.Add(new TimeSpan(12, 0, 0)); // Add 12 hours for PM
-					}
-					else if (isAM && time.Hours == 12)
-					{
-						time = time.Subtract(new TimeSpan(12, 0, 0)); // Subtract 12 hours for 12 AM
-					}
-				}
+				var shiftUpper = shift.ToUpper();
+				var isPM = shiftUpper.Contains("PM");
+				var isAM = shiftUpper.Contains("AM");
 				
-				return time;
+				if (isPM)
+				{
+					// For PM times, add 12 hours if it's not already in 24-hour format
+					// But only if the time is in 12-hour format (1-12)
+					if (time.Hours >= 1 && time.Hours <= 12)
+					{
+						time = time.Add(new TimeSpan(12, 0, 0));
+					}
+					// If it's already in 24-hour format (13-23), don't modify
+				}
+				else if (isAM)
+				{
+					// For AM times, if it's 12:xx AM, convert to 00:xx
+					if (time.Hours == 12)
+					{
+						time = time.Subtract(new TimeSpan(12, 0, 0));
+					}
+					// If it's 1-11 AM, it's already correct in 24-hour format
+				}
 			}
-
-			return new TimeSpan(9, 0, 0); // Default fallback
+			
+			return time;
 		}
+
+		return new TimeSpan(9, 0, 0); // Default fallback
+	}
 
 		private static TimeSpan GetOptimalTimeInRange(TimeSpan startTime, TimeSpan endTime)
 		{
