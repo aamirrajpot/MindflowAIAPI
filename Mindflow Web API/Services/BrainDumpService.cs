@@ -644,27 +644,56 @@ namespace Mindflow_Web_API.Services
 	{
 		if (string.IsNullOrEmpty(startTime) || string.IsNullOrEmpty(endTime))
 		{
-			_logger.LogWarning("Missing time data, using default slots: 9 AM to 5 PM");
-			return (new TimeSpan(9, 0, 0), new TimeSpan(17, 0, 0)); // Default 9 AM to 5 PM
+			_logger.LogWarning("Missing time data, using default slots: 9 AM to 5 PM UTC");
+			return (new TimeSpan(14, 0, 0), new TimeSpan(22, 0, 0)); // Default 9 AM to 5 PM US Eastern = 2 PM to 10 PM UTC
 		}
 
-		_logger.LogDebug("Parsing time slots - Start: {StartTime} {StartShift}, End: {EndTime} {EndShift}", 
+		_logger.LogDebug("Parsing time slots - Start: {StartTime} {StartShift}, End: {EndTime} {EndShift} (US Eastern)", 
 			startTime, startShift, endTime, endShift);
 
-		var start = ParseTimeString(startTime, startShift);
-		var end = ParseTimeString(endTime, endShift);
+		// Parse as US Eastern Time
+		var startEastern = ParseTimeString(startTime, startShift);
+		var endEastern = ParseTimeString(endTime, endShift);
 		
-		_logger.LogDebug("Parsed time slots - Start: {StartTime}, End: {EndTime}", start, end);
+		_logger.LogDebug("Parsed US Eastern time slots - Start: {StartTime}, End: {EndTime}", startEastern, endEastern);
+		
+		// Convert US Eastern to UTC (assuming EST/EDT - we'll use EST for simplicity)
+		// US Eastern is UTC-5 (EST) or UTC-4 (EDT) - using UTC-5 for consistency
+		var utcOffset = TimeSpan.FromHours(5); // UTC-5 for US Eastern Standard Time
+		var startUtc = ConvertEasternToUtc(startEastern, utcOffset);
+		var endUtc = ConvertEasternToUtc(endEastern, utcOffset);
+		
+		_logger.LogDebug("Converted to UTC time slots - Start: {StartTime}, End: {EndTime}", startUtc, endUtc);
 		
 		// Validate that start is before end
-		if (start >= end)
+		if (startUtc >= endUtc)
 		{
-			_logger.LogWarning("Invalid time slots: start {StartTime} is not before end {EndTime}, using defaults", start, end);
-			return (new TimeSpan(9, 0, 0), new TimeSpan(17, 0, 0));
+			_logger.LogWarning("Invalid time slots after UTC conversion: start {StartTime} is not before end {EndTime}, using defaults", startUtc, endUtc);
+			return (new TimeSpan(14, 0, 0), new TimeSpan(22, 0, 0)); // Default 9 AM to 5 PM US Eastern = 2 PM to 10 PM UTC
 		}
 		
-		_logger.LogDebug("Final parsed time slots: {StartTime} to {EndTime}", start, end);
-		return (start, end);
+		_logger.LogDebug("Final UTC time slots: {StartTime} to {EndTime}", startUtc, endUtc);
+		return (startUtc, endUtc);
+	}
+
+	/// <summary>
+	/// Converts US Eastern Time to UTC by adding the UTC offset.
+	/// </summary>
+	private static TimeSpan ConvertEasternToUtc(TimeSpan easternTime, TimeSpan utcOffset)
+	{
+		var utcTime = easternTime.Add(utcOffset);
+		
+		// Handle day boundary crossing
+		if (utcTime.TotalMinutes < 0)
+		{
+			utcTime = utcTime.Add(TimeSpan.FromDays(1));
+		}
+		else if (utcTime.TotalMinutes >= 1440) // 24 hours
+		{
+			utcTime = utcTime.Subtract(TimeSpan.FromDays(1));
+		}
+		
+		return utcTime;
 	}
 
 

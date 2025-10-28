@@ -144,20 +144,20 @@ namespace Mindflow_Web_API.Utilities
 
             if (wellnessData != null)
             {
-                // Normalize any incoming AM/PM + shift strings to 24h UTC-style for the prompt
-                var wdStart = NormalizeUtcClockString(wellnessData.WeekdayStartTime, wellnessData.WeekdayStartShift);
-                var wdEnd = NormalizeUtcClockString(wellnessData.WeekdayEndTime, wellnessData.WeekdayEndShift);
-                var weStart = NormalizeUtcClockString(wellnessData.WeekendStartTime, wellnessData.WeekendStartShift);
-                var weEnd = NormalizeUtcClockString(wellnessData.WeekendEndTime, wellnessData.WeekendEndShift);
+                // Convert US Eastern times to UTC for the prompt
+                var wdStartUtc = ConvertUsEasternToUtcString(wellnessData.WeekdayStartTime, wellnessData.WeekdayStartShift);
+                var wdEndUtc = ConvertUsEasternToUtcString(wellnessData.WeekdayEndTime, wellnessData.WeekdayEndShift);
+                var weStartUtc = ConvertUsEasternToUtcString(wellnessData.WeekendStartTime, wellnessData.WeekendStartShift);
+                var weEndUtc = ConvertUsEasternToUtcString(wellnessData.WeekendEndTime, wellnessData.WeekendEndShift);
 
                 sb.Append("=== AVAILABLE TIME SLOTS (UTC, for realistic scheduling only) ===\n");
-                if (!string.IsNullOrWhiteSpace(wdStart) && !string.IsNullOrWhiteSpace(wdEnd))
+                if (!string.IsNullOrWhiteSpace(wdStartUtc) && !string.IsNullOrWhiteSpace(wdEndUtc))
                 {
-                    sb.Append($"- Weekdays (UTC): {wdStart} to {wdEnd}\n");
+                    sb.Append($"- Weekdays (UTC): {wdStartUtc} to {wdEndUtc}\n");
                 }
-                if (!string.IsNullOrWhiteSpace(weStart) && !string.IsNullOrWhiteSpace(weEnd))
+                if (!string.IsNullOrWhiteSpace(weStartUtc) && !string.IsNullOrWhiteSpace(weEndUtc))
                 {
-                    sb.Append($"- Weekends (UTC): {weStart} to {weEnd}\n");
+                    sb.Append($"- Weekends (UTC): {weStartUtc} to {weEndUtc}\n");
                 }
                 sb.Append("\n");
             }
@@ -463,6 +463,53 @@ Example format: anxious,work,planning,morning [/INST]";
             }
 
             return parsed.ToString("hh\\:mm");
+        }
+
+        /// <summary>
+        /// Converts US Eastern Time to UTC string for AI prompt display.
+        /// Assumes US Eastern Standard Time (UTC-5).
+        /// </summary>
+        private static string? ConvertUsEasternToUtcString(string? time, string? shift)
+        {
+            if (string.IsNullOrWhiteSpace(time)) return null;
+
+            // Parse the time string (e.g., "3:00" + "PM")
+            var t = time.Trim();
+            var upper = (shift ?? string.Empty).Trim().ToUpperInvariant();
+            var isPM = upper.Contains("PM") || t.ToUpperInvariant().Contains("PM");
+            var isAM = upper.Contains("AM") || t.ToUpperInvariant().Contains("AM");
+
+            t = t.Replace("AM", "", StringComparison.OrdinalIgnoreCase)
+                 .Replace("PM", "", StringComparison.OrdinalIgnoreCase)
+                 .Trim();
+
+            if (!TimeSpan.TryParse(t, out var easternTime)) return null;
+
+            // Convert AM/PM to 24-hour format
+            if (isPM && easternTime.Hours >= 1 && easternTime.Hours <= 12)
+            {
+                easternTime = easternTime.Add(new TimeSpan(12, 0, 0));
+            }
+            else if (isAM && easternTime.Hours == 12)
+            {
+                easternTime = easternTime.Subtract(new TimeSpan(12, 0, 0));
+            }
+
+            // Convert US Eastern to UTC (UTC-5 for EST)
+            var utcOffset = TimeSpan.FromHours(5);
+            var utcTime = easternTime.Add(utcOffset);
+
+            // Handle day boundary crossing
+            if (utcTime.TotalMinutes < 0)
+            {
+                utcTime = utcTime.Add(TimeSpan.FromDays(1));
+            }
+            else if (utcTime.TotalMinutes >= 1440) // 24 hours
+            {
+                utcTime = utcTime.Subtract(TimeSpan.FromDays(1));
+            }
+
+            return utcTime.ToString("hh\\:mm");
         }
 
 		public static string ParseTagExtractionResponse(string response, ILogger? logger = null)
