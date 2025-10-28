@@ -205,7 +205,10 @@ namespace Mindflow_Web_API.Services
 			var wellnessData = await _wellnessService.GetAsync(userId);
 			
 		// Use the new smart scheduling logic
-		var (taskDate, taskTime) = await DetermineOptimalScheduleWithTimeSlotsAsync(request, wellnessData, durationMinutes, userId);
+			var (taskDate, taskTime) = await DetermineOptimalScheduleWithTimeSlotsAsync(request, wellnessData, durationMinutes, userId);
+
+			// Compose UTC datetime for storage/return
+			var utcDateTime = DateTime.SpecifyKind(taskDate.Date.Add(taskTime), DateTimeKind.Utc);
 
 			// Create TaskItem
 			var taskItem = new TaskItem
@@ -215,8 +218,8 @@ namespace Mindflow_Web_API.Services
 				Description = request.Notes,
 				Category = category,
 				OtherCategoryName = category == TaskCategory.Other ? "AI Suggested" : null,
-				Date = taskDate,
-				Time = taskDate.Date.Add(taskTime), // Combine date and time
+				Date = utcDateTime.Date,
+				Time = utcDateTime, // UTC
 				DurationMinutes = durationMinutes,
 				ReminderEnabled = request.ReminderEnabled,
 				RepeatType = repeatType,
@@ -225,7 +228,7 @@ namespace Mindflow_Web_API.Services
 				Status = Models.TaskStatus.Pending,
 				// Recurring task fields
 				IsTemplate = repeatType != RepeatType.Never, // Create template for recurring tasks
-				NextOccurrence = repeatType != RepeatType.Never ? CalculateNextOccurrence(taskDate, repeatType) : null,
+				NextOccurrence = repeatType != RepeatType.Never ? CalculateNextOccurrence(utcDateTime, repeatType) : null,
 				IsActive = true
 			};
 
@@ -264,8 +267,8 @@ namespace Mindflow_Web_API.Services
 					Description = scheduledTask.Suggestion.Notes,
 					Category = DetermineTaskCategory(scheduledTask.Suggestion.Task, scheduledTask.Suggestion.Notes),
 					OtherCategoryName = "AI Suggested",
-					Date = scheduledTask.Date,
-					Time = scheduledTask.Date.Date.Add(scheduledTask.Time),
+					Date = DateTime.SpecifyKind(scheduledTask.Date.Date.Add(scheduledTask.Time), DateTimeKind.Utc).Date,
+					Time = DateTime.SpecifyKind(scheduledTask.Date.Date.Add(scheduledTask.Time), DateTimeKind.Utc),
 					DurationMinutes = ParseDurationToMinutes(scheduledTask.Suggestion.Duration),
 					ReminderEnabled = true,
 					RepeatType = MapFrequencyToRepeatType(scheduledTask.Suggestion.Frequency),
@@ -443,20 +446,21 @@ namespace Mindflow_Web_API.Services
 			return slotManager.FindNextAvailableSlot(durationMinutes);
 		}
 
-	private async Task<bool> IsTimeSlotAvailableAsync(DateTime date, TimeSpan time, int durationMinutes, Guid userId)
+		private async Task<bool> IsTimeSlotAvailableAsync(DateTime date, TimeSpan time, int durationMinutes, Guid userId)
 	{
 		try
 		{
-			var newTaskStart = date.Date.Add(time);
+				// Treat input as UTC for comparisons
+				var newTaskStart = DateTime.SpecifyKind(date.Date.Add(time), DateTimeKind.Utc);
 			var newTaskEnd = newTaskStart.AddMinutes(durationMinutes);
 			
 			_logger.LogDebug("Checking availability for new task: {StartTime} to {EndTime}", newTaskStart, newTaskEnd);
 			
 			// Check for existing tasks that overlap with this time slot
-			var conflictingTasks = await _db.Tasks
+				var conflictingTasks = await _db.Tasks
 				.Where(t => t.UserId == userId 
 					&& t.IsActive 
-					&& t.Date.Date == date.Date)
+						&& t.Date.Date == newTaskStart.Date)
 				.ToListAsync();
 			
 			foreach (var existingTask in conflictingTasks)
