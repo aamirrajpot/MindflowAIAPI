@@ -208,7 +208,11 @@ namespace Mindflow_Web_API.Services
 			var (taskDate, taskTime) = await DetermineOptimalScheduleWithTimeSlotsAsync(request, wellnessData, durationMinutes, userId);
 
 			// Compose UTC datetime for storage/return
+			// Note: taskTime is already in UTC format from the scheduling logic
 			var utcDateTime = DateTime.SpecifyKind(taskDate.Date.Add(taskTime), DateTimeKind.Utc);
+
+			_logger.LogInformation("Creating task '{TaskTitle}' for user {UserId} at {TaskDate} {TaskTime} UTC", 
+				request.Task, userId, taskDate.ToString("yyyy-MM-dd"), taskTime);
 
 			// Create TaskItem
 			var taskItem = new TaskItem
@@ -644,8 +648,13 @@ namespace Mindflow_Web_API.Services
 			return (new TimeSpan(9, 0, 0), new TimeSpan(17, 0, 0)); // Default 9 AM to 5 PM
 		}
 
+		_logger.LogDebug("Parsing time slots - Start: {StartTime} {StartShift}, End: {EndTime} {EndShift}", 
+			startTime, startShift, endTime, endShift);
+
 		var start = ParseTimeString(startTime, startShift);
 		var end = ParseTimeString(endTime, endShift);
+		
+		_logger.LogDebug("Parsed time slots - Start: {StartTime}, End: {EndTime}", start, end);
 		
 		// Validate that start is before end
 		if (start >= end)
@@ -654,7 +663,7 @@ namespace Mindflow_Web_API.Services
 			return (new TimeSpan(9, 0, 0), new TimeSpan(17, 0, 0));
 		}
 		
-		_logger.LogDebug("Parsed time slots: {StartTime} to {EndTime}", start, end);
+		_logger.LogDebug("Final parsed time slots: {StartTime} to {EndTime}", start, end);
 		return (start, end);
 	}
 
@@ -933,7 +942,7 @@ namespace Mindflow_Web_API.Services
 			return (targetDate, time);
 		}
 
-	private static TimeSpan ParseTimeString(string? timeStr, string? shift)
+		private static TimeSpan ParseTimeString(string? timeStr, string? shift)
 	{
 		if (string.IsNullOrWhiteSpace(timeStr))
 			return new TimeSpan(9, 0, 0); // Default 9 AM
@@ -974,6 +983,36 @@ namespace Mindflow_Web_API.Services
 
 		return new TimeSpan(9, 0, 0); // Default fallback
 	}
+
+		/// <summary>
+		/// Converts user's local time slot to UTC time for storage.
+		/// This is critical for proper timezone handling.
+		/// </summary>
+		private static TimeSpan ConvertLocalTimeSlotToUtc(TimeSpan localTime, int? timeZoneOffsetMinutes = null)
+		{
+			// If no timezone offset provided, assume the time is already in UTC
+			if (!timeZoneOffsetMinutes.HasValue)
+			{
+				return localTime;
+			}
+
+			// Convert local time to UTC by subtracting the timezone offset
+			// Example: 3PM local (UTC+5) = 10AM UTC
+			var offset = TimeSpan.FromMinutes(timeZoneOffsetMinutes.Value);
+			var utcTime = localTime.Subtract(offset);
+			
+			// Handle day boundary crossing
+			if (utcTime.TotalMinutes < 0)
+			{
+				utcTime = utcTime.Add(TimeSpan.FromDays(1));
+			}
+			else if (utcTime.TotalMinutes >= 1440) // 24 hours
+			{
+				utcTime = utcTime.Subtract(TimeSpan.FromDays(1));
+			}
+			
+			return utcTime;
+		}
 
 		private static TimeSpan GetOptimalTimeInRange(TimeSpan startTime, TimeSpan endTime)
 		{
