@@ -298,6 +298,11 @@ namespace Mindflow_Web_API.Services
 		_logger.LogInformation("Starting task scheduling for {TaskCount} tasks", suggestions.Count);
 		
 		// Parse available time slots
+		_logger.LogInformation("[DEBUG] Wellness data: WeekdayStartTime='{WeekdayStartTime}', WeekdayEndTime='{WeekdayEndTime}', WeekdayStartShift='{WeekdayStartShift}', WeekdayEndShift='{WeekdayEndShift}'", 
+			wellnessData?.WeekdayStartTime, wellnessData?.WeekdayEndTime, wellnessData?.WeekdayStartShift, wellnessData?.WeekdayEndShift);
+		_logger.LogInformation("[DEBUG] Wellness data: WeekendStartTime='{WeekendStartTime}', WeekendEndTime='{WeekendEndTime}', WeekendStartShift='{WeekendStartShift}', WeekendEndShift='{WeekendEndShift}'", 
+			wellnessData?.WeekendStartTime, wellnessData?.WeekendEndTime, wellnessData?.WeekendStartShift, wellnessData?.WeekendEndShift);
+		
 		var weekdaySlots = ParseTimeSlots(wellnessData?.WeekdayStartTime, wellnessData?.WeekdayEndTime, wellnessData?.WeekdayStartShift, wellnessData?.WeekdayEndShift);
 		var weekendSlots = ParseTimeSlots(wellnessData?.WeekendStartTime, wellnessData?.WeekendEndTime, wellnessData?.WeekendStartShift, wellnessData?.WeekendEndShift);
 
@@ -650,8 +655,12 @@ namespace Mindflow_Web_API.Services
 
 	private static (TimeSpan start, TimeSpan end) ParseTimeSlots(string? startTime, string? endTime, string? startShift, string? endShift)
 	{
+		// Add debugging - we'll use Console.WriteLine since this is a static method
+		Console.WriteLine($"[DEBUG] ParseTimeSlots called with: startTime='{startTime}', endTime='{endTime}', startShift='{startShift}', endShift='{endShift}'");
+		
 		if (string.IsNullOrEmpty(startTime) || string.IsNullOrEmpty(endTime))
 		{
+			Console.WriteLine("[DEBUG] Missing time data, using default slots: 9 AM to 5 PM US Eastern = 2 PM to 10 PM UTC");
 			return (new TimeSpan(14, 0, 0), new TimeSpan(22, 0, 0)); // Default 9 AM to 5 PM US Eastern = 2 PM to 10 PM UTC
 		}
 
@@ -659,11 +668,15 @@ namespace Mindflow_Web_API.Services
 		var startEastern = ParseTimeString(startTime, startShift);
 		var endEastern = ParseTimeString(endTime, endShift);
 		
+		Console.WriteLine($"[DEBUG] Parsed US Eastern time slots - Start: {startEastern}, End: {endEastern}");
+		
 		// Convert US Eastern to UTC (assuming EST/EDT - we'll use EST for simplicity)
 		// US Eastern is UTC-5 (EST) or UTC-4 (EDT) - using UTC-5 for consistency
 		var utcOffset = TimeSpan.FromHours(5); // UTC-5 for US Eastern Standard Time
 		var startUtc = ConvertEasternToUtc(startEastern, utcOffset);
 		var endUtc = ConvertEasternToUtc(endEastern, utcOffset);
+		
+		Console.WriteLine($"[DEBUG] Converted to UTC time slots - Start: {startUtc}, End: {endUtc}");
 		
 		// Validate that start is before end (handle day boundary crossing)
 		if (startUtc >= endUtc)
@@ -673,12 +686,16 @@ namespace Mindflow_Web_API.Services
 			var isDayBoundaryCrossing = startUtc.TotalMinutes > endUtc.TotalMinutes && 
 				(startUtc.TotalMinutes >= 22 * 60 || endUtc.TotalMinutes <= 2 * 60); // After 10 PM or before 2 AM
 			
+			Console.WriteLine($"[DEBUG] Day boundary check - isDayBoundaryCrossing: {isDayBoundaryCrossing}");
+			
 			if (!isDayBoundaryCrossing)
 			{
+				Console.WriteLine("[DEBUG] Invalid time slots after UTC conversion, using defaults");
 				return (new TimeSpan(14, 0, 0), new TimeSpan(22, 0, 0)); // Default 9 AM to 5 PM US Eastern = 2 PM to 10 PM UTC
 			}
 		}
 		
+		Console.WriteLine($"[DEBUG] Final UTC time slots: {startUtc} to {endUtc}");
 		return (startUtc, endUtc);
 	}
 
