@@ -74,14 +74,41 @@ namespace Mindflow_Web_API.Services
 			_db.BrainDumpEntries.Add(entry);
 			await _db.SaveChangesAsync();
 
-			var response = await _runPodService.SendPromptAsync(prompt, maxTokens, temperature);
+			BrainDumpResponse? brainDumpResponse = null;
+			string response = string.Empty;
+			int attempt = 0;
+			int maxAttempts = 3; // initial + 2 retries
+			double currentTemperature = temperature;
+			bool forceMinimumActivities = false;
+			while (attempt < maxAttempts)
+			{
+				response = await _runPodService.SendPromptAsync(prompt, maxTokens, currentTemperature);
+				brainDumpResponse = BrainDumpPromptBuilder.ParseBrainDumpResponse(response, _logger);
+				
+				var hasActivities = brainDumpResponse != null && brainDumpResponse.SuggestedActivities != null && brainDumpResponse.SuggestedActivities.Count > 0;
+				if (brainDumpResponse != null && hasActivities)
+				{
+					break; // success
+				}
 
-			// Parse enhanced response
-			var brainDumpResponse = BrainDumpPromptBuilder.ParseBrainDumpResponse(response, _logger);
-			
+				attempt++;
+				_logger.LogWarning("BrainDump suggestions empty (attempt {Attempt}/{Max}). Retrying with stricter prompt.", attempt, maxAttempts);
+				// Tighten prompt and reduce temperature for determinism
+				forceMinimumActivities = true;
+				currentTemperature = Math.Max(0.2, currentTemperature - 0.2);
+				prompt = BrainDumpPromptBuilder.BuildTaskSuggestionsPrompt(request, wellnessData, userName, forceMinimumActivities);
+			}
+
 			if (brainDumpResponse == null)
 			{
 				throw new InvalidOperationException("Failed to parse AI response");
+			}
+
+			// If still no activities after retries, synthesize a minimal fallback list
+			if (brainDumpResponse.SuggestedActivities == null || brainDumpResponse.SuggestedActivities.Count == 0)
+			{
+				_logger.LogWarning("AI returned no SuggestedActivities after retries. Generating fallback suggestions.");
+				brainDumpResponse.SuggestedActivities = GenerateFallbackActivities(request);
 			}
 
 			// Save preview
@@ -126,6 +153,39 @@ namespace Mindflow_Web_API.Services
 			brainDumpResponse.WeeklyTrends = await GetWeeklyTrendsAsync(userId);
 
 			return brainDumpResponse;
+		}
+
+		private static List<TaskSuggestion> GenerateFallbackActivities(BrainDumpRequest request)
+		{
+			var text = (request.Text ?? string.Empty).ToLower();
+			var list = new List<TaskSuggestion>();
+			// Basic heuristics to generate 4 concise tasks
+			if (text.Contains("anxiety") || text.Contains("stress") || text.Contains("overwhelm"))
+			{
+				list.Add(new TaskSuggestion { Task = "Do a 5-minute deep breathing session", Frequency = "Once today", Duration = "5 minutes", Notes = "Helps lower cortisol and reset focus", Priority = "High", SuggestedTime = "Afternoon" });
+			}
+			if (text.Contains("sleep"))
+			{
+				list.Add(new TaskSuggestion { Task = "Prepare a simple wind-down routine", Frequency = "Tonight", Duration = "10 minutes", Notes = "Light stretch, no screens for 30 minutes", Priority = "Medium", SuggestedTime = "Evening" });
+			}
+			if (text.Contains("email") || text.Contains("inbox") || text.Contains("admin"))
+			{
+				list.Add(new TaskSuggestion { Task = "Clear your top 5 emails", Frequency = "Once today", Duration = "15 minutes", Notes = "Reply or archive; schedule longer replies", Priority = "Medium", SuggestedTime = "Morning" });
+			}
+			if (text.Contains("call") || text.Contains("doctor") || text.Contains("appointment"))
+			{
+				list.Add(new TaskSuggestion { Task = "Schedule the pending appointment", Frequency = "Once today", Duration = "10 minutes", Notes = "Pick a date within 2 weeks", Priority = "High", SuggestedTime = "Morning" });
+			}
+			// Always include two general-purpose wellness tasks if list is short
+			if (list.Count < 4)
+			{
+				list.Add(new TaskSuggestion { Task = "Take a 10-minute walk", Frequency = "Once today", Duration = "10 minutes", Notes = "Gentle movement boosts mood and clarity", Priority = "Medium", SuggestedTime = "Afternoon" });
+			}
+			if (list.Count < 4)
+			{
+				list.Add(new TaskSuggestion { Task = "Write 3 lines of reflection", Frequency = "Once today", Duration = "5 minutes", Notes = "Capture one worry and one win", Priority = "Low", SuggestedTime = "Evening" });
+			}
+			return list.Take(6).ToList();
 		}
 
 		public async Task<TaskItem> AddTaskToCalendarAsync(Guid userId, AddToCalendarRequest request)

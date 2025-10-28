@@ -96,7 +96,7 @@ namespace Mindflow_Web_API.Utilities
         //	return sb.ToString();
         //}
 
-        public static string BuildTaskSuggestionsPrompt(BrainDumpRequest request, DTOs.WellnessCheckInDto? wellnessData = null, string? userName = null)
+        public static string BuildTaskSuggestionsPrompt(BrainDumpRequest request, DTOs.WellnessCheckInDto? wellnessData = null, string? userName = null, bool forceMinimumActivities = false)
         {
             var sb = new StringBuilder();
             sb.Append("[INST] You are a supportive wellness assistant that analyzes brain dumps and creates personalized insights and activities. ");
@@ -160,12 +160,17 @@ namespace Mindflow_Web_API.Utilities
             sb.Append("- Extract emotional state ONLY from the brain dump (not wellness data).\n");
             sb.Append("- Key Themes must directly reflect concerns expressed in the brain dump (should be mostly of 2 words).\n");
             sb.Append("- Suggested Activities:\n");
-            sb.Append("  * Identify ALL important and concrete tasks mentioned in the brain dump (at least 4–6 tasks).\n");
-            sb.Append("  * ALSO add 1–2 wellness/self-care tasks based on Mood, Stress, and Purpose scores.\n");
+            sb.Append("  * Identify ALL important and concrete tasks mentioned in the brain dump.\n");
+            sb.Append("  * Include EVERY explicit task from the user's text as its own separate activity. Do not omit or merge them.\n");
+            sb.Append("  * ALSO add wellness/self-care tasks based on Mood, Stress, and Purpose scores when needed.\n");
             sb.Append("  * Always order tasks so that higher-priority or urgent items appear first (e.g., health, time-sensitive, financial).\n");
             sb.Append("  * Do not merge multiple tasks into one generic suggestion — list them separately.\n");
             sb.Append("  * Do not invent meta-tasks such as 'make a to-do list' or 'organize your calendar' — only return actionable tasks that the user can directly do.\n");
-            sb.Append("  * Total: Always return 6–8 activities (no fewer than 6).\n");
+            if (forceMinimumActivities)
+            {
+                sb.Append("  * Total: You MUST return 6–8 activities (no fewer than 6).\n");
+                sb.Append("  * Prioritize including ALL explicit tasks from the brain dump first. If fewer than 6 explicit tasks exist, add focused wellness/self-care tasks to reach 6–8 total.\n");
+            }
             sb.Append("  * Each activity must be written as a direct suggestion to the user (e.g., 'Call your mother', 'Donate clothes to Goodwill').\n");
             sb.Append("  * Keep each task short, specific, and realistic within available time slots.\n");
             sb.Append("  * TIME SCHEDULING (OPTIONAL):\n");
