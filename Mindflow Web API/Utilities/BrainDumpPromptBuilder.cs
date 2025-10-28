@@ -144,14 +144,20 @@ namespace Mindflow_Web_API.Utilities
 
             if (wellnessData != null)
             {
-                sb.Append("=== AVAILABLE TIME SLOTS (for realistic scheduling only) ===\n");
-                if (!string.IsNullOrWhiteSpace(wellnessData.WeekdayStartTime))
+                // Normalize any incoming AM/PM + shift strings to 24h UTC-style for the prompt
+                var wdStart = NormalizeUtcClockString(wellnessData.WeekdayStartTime, wellnessData.WeekdayStartShift);
+                var wdEnd = NormalizeUtcClockString(wellnessData.WeekdayEndTime, wellnessData.WeekdayEndShift);
+                var weStart = NormalizeUtcClockString(wellnessData.WeekendStartTime, wellnessData.WeekendStartShift);
+                var weEnd = NormalizeUtcClockString(wellnessData.WeekendEndTime, wellnessData.WeekendEndShift);
+
+                sb.Append("=== AVAILABLE TIME SLOTS (UTC, for realistic scheduling only) ===\n");
+                if (!string.IsNullOrWhiteSpace(wdStart) && !string.IsNullOrWhiteSpace(wdEnd))
                 {
-                    sb.Append($"- Weekdays: {wellnessData.WeekdayStartTime} {wellnessData.WeekdayStartShift} to {wellnessData.WeekdayEndTime} {wellnessData.WeekdayEndShift}\n");
+                    sb.Append($"- Weekdays (UTC): {wdStart} to {wdEnd}\n");
                 }
-                if (!string.IsNullOrWhiteSpace(wellnessData.WeekendStartTime))
+                if (!string.IsNullOrWhiteSpace(weStart) && !string.IsNullOrWhiteSpace(weEnd))
                 {
-                    sb.Append($"- Weekends: {wellnessData.WeekendStartTime} {wellnessData.WeekendStartShift} to {wellnessData.WeekendEndTime} {wellnessData.WeekendEndShift}\n");
+                    sb.Append($"- Weekends (UTC): {weStart} to {weEnd}\n");
                 }
                 sb.Append("\n");
             }
@@ -424,6 +430,40 @@ IMPORTANT: Return ONLY a comma-separated list of tags. Do not include any explan
 
 Example format: anxious,work,planning,morning [/INST]";
 		}
+
+        private static string? NormalizeUtcClockString(string? time, string? shift)
+        {
+            if (string.IsNullOrWhiteSpace(time)) return null;
+
+            // If already 24h like "05:00" → return as-is
+            if (TimeSpan.TryParse(time, out var ts))
+            {
+                return ts.ToString("hh\\:mm");
+            }
+
+            // If client passes AM/PM + optional shift, coerce to 24h
+            var t = time.Trim();
+            var upper = (shift ?? string.Empty).Trim().ToUpperInvariant();
+            var isPM = upper.Contains("PM") || t.ToUpperInvariant().Contains("PM");
+            var isAM = upper.Contains("AM") || t.ToUpperInvariant().Contains("AM");
+
+            t = t.Replace("AM", "", StringComparison.OrdinalIgnoreCase)
+                 .Replace("PM", "", StringComparison.OrdinalIgnoreCase)
+                 .Trim();
+
+            if (!TimeSpan.TryParse(t, out var parsed)) return time; // fallback
+
+            if (isPM && parsed.Hours >= 1 && parsed.Hours <= 12)
+            {
+                parsed = parsed.Add(new TimeSpan(12, 0, 0));
+            }
+            else if (isAM && parsed.Hours == 12)
+            {
+                parsed = parsed.Subtract(new TimeSpan(12, 0, 0));
+            }
+
+            return parsed.ToString("hh\\:mm");
+        }
 
 		public static string ParseTagExtractionResponse(string response, ILogger? logger = null)
 		{

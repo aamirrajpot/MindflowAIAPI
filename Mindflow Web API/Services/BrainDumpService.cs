@@ -519,7 +519,7 @@ namespace Mindflow_Web_API.Services
 
 	private async Task<(DateTime date, TimeSpan time)> FindNextAvailableDateForTimeAsync(TimeSpan preferredTime, int durationMinutes, (TimeSpan start, TimeSpan end) weekdaySlots, (TimeSpan start, TimeSpan end) weekendSlots, Guid userId)
 	{
-		var startDate = DateTime.Today.AddDays(1);
+		var startDate = DateTime.UtcNow.Date.AddDays(1);
 		var maxDays = 14;
 
 		for (int dayOffset = 0; dayOffset < maxDays; dayOffset++)
@@ -544,7 +544,7 @@ namespace Mindflow_Web_API.Services
 
 	private async Task<(DateTime date, TimeSpan time)> FindNextAvailableSlotAsync(int durationMinutes, (TimeSpan start, TimeSpan end) weekdaySlots, (TimeSpan start, TimeSpan end) weekendSlots, Guid userId)
 	{
-		var startDate = DateTime.Today.AddDays(1); // Start from tomorrow
+		var startDate = DateTime.UtcNow.Date.AddDays(1); // Start from tomorrow (UTC)
 		var maxDays = 14; // Look ahead 2 weeks
 
 		for (int dayOffset = 0; dayOffset < maxDays; dayOffset++)
@@ -562,7 +562,7 @@ namespace Mindflow_Web_API.Services
 		}
 
 		// Fallback: return tomorrow at start of available slots
-		var fallbackDate = DateTime.Today.AddDays(1);
+		var fallbackDate = DateTime.UtcNow.Date.AddDays(1);
 		var fallbackIsWeekend = fallbackDate.DayOfWeek == DayOfWeek.Saturday || fallbackDate.DayOfWeek == DayOfWeek.Sunday;
 		var fallbackSlots = fallbackIsWeekend ? weekendSlots : weekdaySlots;
 		return (fallbackDate, fallbackSlots.start);
@@ -879,12 +879,12 @@ namespace Mindflow_Web_API.Services
 		private static DateTime GetNextAvailableDate(TimeSpan preferredTime, DTOs.WellnessCheckInDto? wellnessData)
 		{
 			if (wellnessData == null)
-				return DateTime.Today.AddDays(1); // Tomorrow
+				return DateTime.UtcNow.Date.AddDays(1); // Tomorrow (UTC)
 
 			// Check next 7 days for availability
 			for (int i = 1; i <= 7; i++)
 			{
-				var checkDate = DateTime.Today.AddDays(i);
+				var checkDate = DateTime.UtcNow.Date.AddDays(i);
 				var isWeekend = checkDate.DayOfWeek == DayOfWeek.Saturday || checkDate.DayOfWeek == DayOfWeek.Sunday;
 				
 				TimeSpan startTime, endTime;
@@ -907,22 +907,22 @@ namespace Mindflow_Web_API.Services
 			}
 
 			// Fallback to tomorrow with optimal time
-			return DateTime.Today.AddDays(1);
+			return DateTime.UtcNow.Date.AddDays(1);
 		}
 
 		private static (DateTime date, TimeSpan time) GetOptimalDateTime(DTOs.WellnessCheckInDto? wellnessData)
 		{
 			if (wellnessData == null)
-				return (DateTime.Today.AddDays(1), new TimeSpan(9, 0, 0));
+				return (DateTime.UtcNow.Date.AddDays(1), new TimeSpan(9, 0, 0));
 
 			// Prefer weekdays for productivity tasks, weekends for relaxation
-			var isWeekend = DateTime.Today.DayOfWeek == DayOfWeek.Saturday || DateTime.Today.DayOfWeek == DayOfWeek.Sunday;
-			var targetDate = DateTime.Today.AddDays(1); // Start with tomorrow
+			var isWeekend = DateTime.UtcNow.DayOfWeek == DayOfWeek.Saturday || DateTime.UtcNow.DayOfWeek == DayOfWeek.Sunday;
+			var targetDate = DateTime.UtcNow.Date.AddDays(1); // Start with tomorrow (UTC)
 
 			// If today is weekend, prefer next weekday
 			if (isWeekend)
 			{
-				targetDate = DateTime.Today.AddDays(1);
+				targetDate = DateTime.UtcNow.Date.AddDays(1);
 				while (targetDate.DayOfWeek == DayOfWeek.Saturday || targetDate.DayOfWeek == DayOfWeek.Sunday)
 				{
 					targetDate = targetDate.AddDays(1);
