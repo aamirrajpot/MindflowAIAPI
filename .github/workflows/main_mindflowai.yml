@@ -48,10 +48,10 @@ jobs:
         with:
           name: .net-app
           
-       - name: Clean old files
-         run: |
-               echo "Cleaning old local files..."
-               Get-ChildItem -Path . -Recurse -Force | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
+      - name: Clean old files
+        run: |
+             echo "Cleaning old local files..."
+             Get-ChildItem -Path . -Recurse -Force | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
       
       - name: Login to Azure
         uses: azure/login@v2
