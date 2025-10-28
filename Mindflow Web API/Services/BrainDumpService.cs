@@ -600,42 +600,50 @@ namespace Mindflow_Web_API.Services
 		// Parse AI-suggested time strings like "Morning", "Afternoon", "Evening", "9:00 AM", etc.
 		suggestedTime = suggestedTime.Trim();
 		
-		// Handle specific times like "9:00 AM", "2:30 PM" - FIXED PARSING
+		// Handle specific times like "9:00 AM", "2:30 PM" - Convert US Eastern to UTC
 		if (suggestedTime.Contains("AM") || suggestedTime.Contains("PM"))
 		{
 			// Extract time and AM/PM parts
 			var timePart = suggestedTime.Replace("AM", "").Replace("PM", "").Trim();
 			var isPM = suggestedTime.ToUpper().Contains("PM");
 			
-			if (TimeSpan.TryParse(timePart, out var time))
+			if (TimeSpan.TryParse(timePart, out var easternTime))
 			{
-				if (isPM && time.Hours >= 1 && time.Hours <= 12)
+				// Convert AM/PM to 24-hour format
+				if (isPM && easternTime.Hours >= 1 && easternTime.Hours <= 12)
 				{
-					time = time.Add(new TimeSpan(12, 0, 0));
+					easternTime = easternTime.Add(new TimeSpan(12, 0, 0));
 				}
-				else if (!isPM && time.Hours == 12)
+				else if (!isPM && easternTime.Hours == 12)
 				{
-					time = time.Subtract(new TimeSpan(12, 0, 0));
+					easternTime = easternTime.Subtract(new TimeSpan(12, 0, 0));
 				}
-				return time;
+				
+				// Convert US Eastern to UTC
+				var offset1 = TimeSpan.FromHours(5); // UTC-5 for US Eastern Standard Time
+				return ConvertEasternToUtc(easternTime, offset1);
 			}
 		}
 		
-		// Handle 24-hour format times like "09:00", "17:00"
-		if (TimeSpan.TryParse(suggestedTime, out var time24))
+		// Handle 24-hour format times like "09:00", "17:00" - Convert US Eastern to UTC
+		if (TimeSpan.TryParse(suggestedTime, out var easternTime24))
 		{
-			return time24;
+			// Convert US Eastern to UTC
+			var offset2 = TimeSpan.FromHours(5); // UTC-5 for US Eastern Standard Time
+			return ConvertEasternToUtc(easternTime24, offset2);
 		}
 		
-		// Handle time periods
+		// Handle time periods - Convert US Eastern times to UTC
 		var timeLower = suggestedTime.ToLower();
+		var utcOffset = TimeSpan.FromHours(5); // UTC-5 for US Eastern Standard Time
+		
 		return timeLower switch
 		{
-			"morning" => new TimeSpan(9, 0, 0),   // 9:00 AM
-			"afternoon" => new TimeSpan(14, 0, 0), // 2:00 PM
-			"evening" => new TimeSpan(18, 0, 0),   // 6:00 PM
-			"weekend" => new TimeSpan(10, 0, 0),   // 10:00 AM (weekend start)
-			"weekday" => new TimeSpan(9, 0, 0),    // 9:00 AM (weekday start)
+			"morning" => ConvertEasternToUtc(new TimeSpan(9, 0, 0), utcOffset),   // 9:00 AM US Eastern = 2:00 PM UTC
+			"afternoon" => ConvertEasternToUtc(new TimeSpan(14, 0, 0), utcOffset), // 2:00 PM US Eastern = 7:00 PM UTC
+			"evening" => ConvertEasternToUtc(new TimeSpan(18, 0, 0), utcOffset),     // 6:00 PM US Eastern = 11:00 PM UTC
+			"weekend" => ConvertEasternToUtc(new TimeSpan(10, 0, 0), utcOffset),    // 10:00 AM US Eastern = 3:00 PM UTC
+			"weekday" => ConvertEasternToUtc(new TimeSpan(9, 0, 0), utcOffset),     // 9:00 AM US Eastern = 2:00 PM UTC
 			_ => null // Unknown format, let system decide
 		};
 	}
@@ -657,10 +665,18 @@ namespace Mindflow_Web_API.Services
 		var startUtc = ConvertEasternToUtc(startEastern, utcOffset);
 		var endUtc = ConvertEasternToUtc(endEastern, utcOffset);
 		
-		// Validate that start is before end
+		// Validate that start is before end (handle day boundary crossing)
 		if (startUtc >= endUtc)
 		{
-			return (new TimeSpan(14, 0, 0), new TimeSpan(22, 0, 0)); // Default 9 AM to 5 PM US Eastern = 2 PM to 10 PM UTC
+			// Check if this is a day boundary crossing (e.g., 22:00 to 01:00 next day)
+			// This is valid for time slots that span midnight
+			var isDayBoundaryCrossing = startUtc.TotalMinutes > endUtc.TotalMinutes && 
+				(startUtc.TotalMinutes >= 22 * 60 || endUtc.TotalMinutes <= 2 * 60); // After 10 PM or before 2 AM
+			
+			if (!isDayBoundaryCrossing)
+			{
+				return (new TimeSpan(14, 0, 0), new TimeSpan(22, 0, 0)); // Default 9 AM to 5 PM US Eastern = 2 PM to 10 PM UTC
+			}
 		}
 		
 		return (startUtc, endUtc);
