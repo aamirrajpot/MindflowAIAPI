@@ -207,12 +207,26 @@ namespace Mindflow_Web_API.Services
 		// Use the new smart scheduling logic
 			var (taskDate, taskTime) = await DetermineOptimalScheduleWithTimeSlotsAsync(request, wellnessData, durationMinutes, userId);
 
+			// Prevent stacking: if chosen time is occupied, move forward in 30-minute increments
+			var adjustedDate = taskDate;
+			var adjustedTime = taskTime;
+			while (!await IsTimeSlotAvailableAsync(adjustedDate, adjustedTime, durationMinutes, userId))
+			{
+				adjustedTime = adjustedTime.Add(TimeSpan.FromMinutes(30));
+				// If we cross past midnight, move to next day 00:00
+				if (adjustedTime.TotalMinutes >= 24 * 60)
+				{
+					adjustedDate = adjustedDate.AddDays(1);
+					adjustedTime = TimeSpan.Zero;
+				}
+			}
+
 			// Compose UTC datetime for storage/return
 			// Note: taskTime is already in UTC format from the scheduling logic
-			var utcDateTime = DateTime.SpecifyKind(taskDate.Date.Add(taskTime), DateTimeKind.Utc);
+			var utcDateTime = DateTime.SpecifyKind(adjustedDate.Date.Add(adjustedTime), DateTimeKind.Utc);
 
 			_logger.LogInformation("Creating task '{TaskTitle}' for user {UserId} at {TaskDate} {TaskTime} UTC", 
-				request.Task, userId, taskDate.ToString("yyyy-MM-dd"), taskTime);
+				request.Task, userId, adjustedDate.ToString("yyyy-MM-dd"), adjustedTime);
 
 			// Create TaskItem
 			var taskItem = new TaskItem
