@@ -523,21 +523,38 @@ namespace Mindflow_Web_API.Services
 
 	private async Task<TimeSpan> FindAvailableTimeInDayAsync(DateTime date, (TimeSpan start, TimeSpan end) slots, int durationMinutes, Guid userId)
 	{
-		var currentTime = slots.start;
-		var endTime = slots.end;
+    // Handle windows that may cross midnight (e.g., 22:00 -> 01:00)
+    var start = slots.start;
+    var end = slots.end;
 
-		while (currentTime.Add(TimeSpan.FromMinutes(durationMinutes)) <= endTime)
-		{
-			if (await IsTimeSlotAvailableAsync(date, currentTime, durationMinutes, userId))
-			{
-				return currentTime;
-			}
+    // Local function to scan a single segment [segStart, segEnd)
+    async Task<TimeSpan> ScanAsync(TimeSpan segStart, TimeSpan segEnd)
+    {
+        var t = segStart;
+        while (t.Add(TimeSpan.FromMinutes(durationMinutes)) <= segEnd)
+        {
+            if (await IsTimeSlotAvailableAsync(date, t, durationMinutes, userId))
+            {
+                return t;
+            }
+            t = t.Add(TimeSpan.FromMinutes(30));
+        }
+        return TimeSpan.Zero;
+    }
 
-			// Move to next 30-minute slot
-			currentTime = currentTime.Add(TimeSpan.FromMinutes(30));
-		}
+    // Case 1: simple same-day window
+    if (end > start)
+    {
+        var found = await ScanAsync(start, end);
+        return found;
+    }
 
-		return TimeSpan.Zero;
+    // Case 2: window crosses midnight → scan [start, 24:00) then [00:00, end)
+    var first = await ScanAsync(start, new TimeSpan(24, 0, 0));
+    if (first != TimeSpan.Zero) return first;
+
+    var second = await ScanAsync(TimeSpan.Zero, end);
+    return second;
 	}
 
 	private async Task<(DateTime date, TimeSpan time)> FindNextAvailableDateForTimeAsync(TimeSpan preferredTime, int durationMinutes, (TimeSpan start, TimeSpan end) weekdaySlots, (TimeSpan start, TimeSpan end) weekendSlots, Guid userId)
@@ -1308,21 +1325,33 @@ public class TimeSlotManager
 
 	private TimeSpan FindAvailableTimeInDay(DateTime date, (TimeSpan start, TimeSpan end) slots, int durationMinutes)
 	{
-		var currentTime = slots.start;
-		var endTime = slots.end;
+		// Handle windows that may cross midnight (e.g., 22:00 -> 01:00)
+		var start = slots.start;
+		var end = slots.end;
 
-		while (currentTime.Add(TimeSpan.FromMinutes(durationMinutes)) <= endTime)
+		TimeSpan Scan(TimeSpan segStart, TimeSpan segEnd)
 		{
-			if (IsTimeSlotAvailable(date, currentTime, durationMinutes))
+			var t = segStart;
+			while (t.Add(TimeSpan.FromMinutes(durationMinutes)) <= segEnd)
 			{
-				return currentTime;
+				if (IsTimeSlotAvailable(date, t, durationMinutes))
+				{
+					return t;
+				}
+				t = t.Add(TimeSpan.FromMinutes(30));
 			}
-
-			// Move to next 30-minute slot
-			currentTime = currentTime.Add(TimeSpan.FromMinutes(30));
+			return TimeSpan.Zero;
 		}
 
-		return TimeSpan.Zero;
+		if (end > start)
+		{
+			return Scan(start, end);
+		}
+
+		var first = Scan(start, new TimeSpan(24, 0, 0));
+		if (first != TimeSpan.Zero) return first;
+
+		return Scan(TimeSpan.Zero, end);
 	}
 
     private bool IsTimeSlotAvailable(DateTime date, TimeSpan time, int durationMinutes)
