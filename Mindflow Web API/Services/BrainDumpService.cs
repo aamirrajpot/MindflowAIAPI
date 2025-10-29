@@ -1229,9 +1229,9 @@ public class TimeSlotManager
 		_reservedSlots = new Dictionary<DateTime, List<(TimeSpan start, TimeSpan end)>>();
 	}
 
-	public (DateTime date, TimeSpan time) FindNextAvailableSlot(int durationMinutes)
+    public (DateTime date, TimeSpan time) FindNextAvailableSlot(int durationMinutes)
 	{
-		var startDate = DateTime.Today.AddDays(1); // Start from tomorrow
+        var startDate = DateTime.UtcNow.Date.AddDays(1); // Start from tomorrow (UTC)
 		var maxDays = 14; // Look ahead 2 weeks
 
 		for (int dayOffset = 0; dayOffset < maxDays; dayOffset++)
@@ -1248,16 +1248,16 @@ public class TimeSlotManager
 			}
 		}
 
-		// Fallback: return tomorrow at start of available slots
-		var fallbackDate = DateTime.Today.AddDays(1);
+        // Fallback: return tomorrow at start of available slots
+        var fallbackDate = DateTime.UtcNow.Date.AddDays(1);
 		var fallbackIsWeekend = fallbackDate.DayOfWeek == DayOfWeek.Saturday || fallbackDate.DayOfWeek == DayOfWeek.Sunday;
 		var fallbackSlots = fallbackIsWeekend ? _weekendSlots : _weekdaySlots;
 		return (fallbackDate, fallbackSlots.start);
 	}
 
-	public (DateTime date, TimeSpan time) FindSlotMatchingTime(TimeSpan preferredTime, int durationMinutes)
+    public (DateTime date, TimeSpan time) FindSlotMatchingTime(TimeSpan preferredTime, int durationMinutes)
 	{
-		var startDate = DateTime.Today.AddDays(1);
+        var startDate = DateTime.UtcNow.Date.AddDays(1);
 		var maxDays = 14;
 
 		for (int dayOffset = 0; dayOffset < maxDays; dayOffset++)
@@ -1280,15 +1280,16 @@ public class TimeSlotManager
 		return (DateTime.MinValue, TimeSpan.Zero);
 	}
 
-	public void ReserveSlot(DateTime date, TimeSpan time, int durationMinutes)
+    public void ReserveSlot(DateTime date, TimeSpan time, int durationMinutes)
 	{
-		if (!_reservedSlots.ContainsKey(date))
+        var dateKey = date.Date; // normalize to date-only key (UTC date)
+        if (!_reservedSlots.ContainsKey(dateKey))
 		{
-			_reservedSlots[date] = new List<(TimeSpan start, TimeSpan end)>();
+            _reservedSlots[dateKey] = new List<(TimeSpan start, TimeSpan end)>();
 		}
 
 		var endTime = time.Add(TimeSpan.FromMinutes(durationMinutes + _bufferMinutes));
-		_reservedSlots[date].Add((time, endTime));
+        _reservedSlots[dateKey].Add((time, endTime));
 	}
 
 	private TimeSpan FindAvailableTimeInDay(DateTime date, (TimeSpan start, TimeSpan end) slots, int durationMinutes)
@@ -1310,15 +1311,16 @@ public class TimeSlotManager
 		return TimeSpan.Zero;
 	}
 
-	private bool IsTimeSlotAvailable(DateTime date, TimeSpan time, int durationMinutes)
+    private bool IsTimeSlotAvailable(DateTime date, TimeSpan time, int durationMinutes)
 	{
-		if (!_reservedSlots.ContainsKey(date))
+        var dateKey = date.Date; // normalize to date-only key (UTC date)
+        if (!_reservedSlots.ContainsKey(dateKey))
 			return true;
 
 		var requestedStart = time;
 		var requestedEnd = time.Add(TimeSpan.FromMinutes(durationMinutes + _bufferMinutes));
 
-		foreach (var reservedSlot in _reservedSlots[date])
+        foreach (var reservedSlot in _reservedSlots[dateKey])
 		{
 			// Check for overlap
 			if (requestedStart < reservedSlot.end && requestedEnd > reservedSlot.start)
