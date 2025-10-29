@@ -68,13 +68,15 @@ namespace Mindflow_Web_API.Services
                     .FromSqlRaw(@"
                         SELECT * FROM Tasks 
                         WHERE UserId = {0} 
-                        AND DATE(Date) = DATE({1})", userId, date.Value)
+                        AND DATE(Date) = DATE({1})
+                        ORDER BY Time ASC", userId, date.Value)
                     .ToListAsync();
             }
             else
             {
                 tasks = await _dbContext.Tasks
                     .Where(t => t.UserId == userId)
+                    .OrderBy(t => t.Time)
                     .ToListAsync();
             }
             
