@@ -264,6 +264,20 @@ namespace Mindflow_Web_API.Services
 
 			foreach (var scheduledTask in scheduledTasks)
 			{
+				// Ensure tasks in this batch do not stack at the same time; nudge forward in 30-min steps
+				var durationMinutes = ParseDurationToMinutes(scheduledTask.Suggestion.Duration);
+				var candidateDate = scheduledTask.Date;
+				var candidateTime = scheduledTask.Time;
+				
+				// Move forward until there is no conflict with already created tasks and DB tasks
+				while (
+					createdTasks.Any(t => t.Date == DateTime.SpecifyKind(candidateDate.Date, DateTimeKind.Utc) && t.Time.TimeOfDay == candidateTime)
+					|| !(await IsTimeSlotAvailableAsync(candidateDate, candidateTime, durationMinutes, userId))
+				)
+				{
+					candidateTime = candidateTime.Add(TimeSpan.FromMinutes(30));
+				}
+
 				var taskItem = new TaskItem
 				{
 					UserId = userId,
@@ -271,9 +285,9 @@ namespace Mindflow_Web_API.Services
 					Description = scheduledTask.Suggestion.Notes,
 					Category = DetermineTaskCategory(scheduledTask.Suggestion.Task, scheduledTask.Suggestion.Notes),
 					OtherCategoryName = "AI Suggested",
-					Date = DateTime.SpecifyKind(scheduledTask.Date.Date.Add(scheduledTask.Time), DateTimeKind.Utc).Date,
-					Time = DateTime.SpecifyKind(scheduledTask.Date.Date.Add(scheduledTask.Time), DateTimeKind.Utc),
-					DurationMinutes = ParseDurationToMinutes(scheduledTask.Suggestion.Duration),
+					Date = DateTime.SpecifyKind(candidateDate.Date.Add(candidateTime), DateTimeKind.Utc).Date,
+					Time = DateTime.SpecifyKind(candidateDate.Date.Add(candidateTime), DateTimeKind.Utc),
+					DurationMinutes = durationMinutes,
 					ReminderEnabled = true,
 					RepeatType = MapFrequencyToRepeatType(scheduledTask.Suggestion.Frequency),
 					CreatedBySuggestionEngine = true,
