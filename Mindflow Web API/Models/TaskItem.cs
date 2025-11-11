@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel.DataAnnotations;
 
 namespace Mindflow_Web_API.Models
 {
@@ -25,6 +26,15 @@ namespace Mindflow_Web_API.Models
         public int? MaxOccurrences { get; set; } // Optional limit on number of occurrences
         public DateTime? EndDate { get; set; } // Optional end date for recurring tasks
         public bool IsActive { get; set; } = true; // Whether the recurring series is active
+        
+        // Brain dump linking fields (Actionable Value feature)
+        public Guid? SourceBrainDumpEntryId { get; set; } // Link to BrainDumpEntry that created this task
+        [MaxLength(500)]
+        public string? SourceTextExcerpt { get; set; } // Excerpt from brain dump that inspired this task (max 500 chars)
+        [MaxLength(50)]
+        public string? LifeArea { get; set; } // Life area: "Work", "Family", "Health", "Relationships", "Personal", etc.
+        [MaxLength(50)]
+        public string? EmotionTag { get; set; } // Emotion tag: "Anxious", "Grateful", "Overwhelmed", etc.
     }
 
     public enum TaskStatus

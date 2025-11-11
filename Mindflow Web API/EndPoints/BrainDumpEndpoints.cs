@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Mindflow_Web_API.DTOs;
 using Mindflow_Web_API.Services;
 using Mindflow_Web_API.Persistence;
@@ -71,7 +72,12 @@ namespace Mindflow_Web_API.EndPoints
 							taskItem.Date,
 							taskItem.Time,
 							taskItem.DurationMinutes,
-							taskItem.RepeatType
+							taskItem.RepeatType,
+							// Brain dump linking fields (Actionable Value feature)
+							taskItem.SourceBrainDumpEntryId,
+							taskItem.SourceTextExcerpt,
+							taskItem.LifeArea,
+							taskItem.EmotionTag
 						}
 					});
 				}
@@ -102,7 +108,7 @@ namespace Mindflow_Web_API.EndPoints
 
 				try
 				{
-					var taskItems = await service.AddMultipleTasksToCalendarAsync(userId, request.Suggestions);
+					var taskItems = await service.AddMultipleTasksToCalendarAsync(userId, request.Suggestions, null, request.BrainDumpEntryId);
 
 					return Results.Ok(new
 					{
@@ -117,7 +123,11 @@ namespace Mindflow_Web_API.EndPoints
 							Date = t.Date,
 							Time = t.Time,
 							DurationMinutes = t.DurationMinutes,
-							RepeatType = t.RepeatType
+							RepeatType = t.RepeatType,
+							SourceBrainDumpEntryId = t.SourceBrainDumpEntryId,
+							SourceTextExcerpt = t.SourceTextExcerpt,
+							LifeArea = t.LifeArea,
+							EmotionTag = t.EmotionTag
 						}).ToList()
 					});
 				}

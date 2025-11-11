@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Mindflow_Web_API.Models;
+using System.Text.Json;
 
 namespace Mindflow_Web_API.Persistence.Configurations
 {
@@ -24,6 +25,12 @@ namespace Mindflow_Web_API.Persistence.Configurations
 
             builder.Property(w => w.CheckInDate)
                    .IsRequired();
+
+            builder.Property(w => w.ReminderTime)
+                   .HasMaxLength(20);
+
+            builder.Property(w => w.AgeRange)
+                   .HasMaxLength(20);
 
             builder.Property(w => w.WeekdayStartTime)
                    .HasMaxLength(10);
@@ -49,32 +56,12 @@ namespace Mindflow_Web_API.Persistence.Configurations
             builder.Property(w => w.WeekendEndShift)
                    .HasMaxLength(2);
 
-            builder.Property(w => w.ReminderTime)
-                   .HasMaxLength(20);
-
-            builder.Property(w => w.AgeRange)
-                   .HasMaxLength(20);
-
-            builder.Property(w => w.FocusAreas);
-
-            builder.Property(w => w.StressNotes)
-                   .HasMaxLength(500);
-
-            builder.Property(w => w.ThoughtTrackingMethod)
-                   .HasMaxLength(50);
-
-            builder.Property(w => w.SupportAreas);
-
-            builder.Property(w => w.SelfCareFrequency)
-                   .HasMaxLength(20);
-
-            builder.Property(w => w.ToughDayMessage)
-                   .HasMaxLength(500);
-
-            builder.Property(w => w.CopingMechanisms);
-
-            builder.Property(w => w.JoyPeaceSources)
-                   .HasMaxLength(500);
+            // Configure Questions dictionary as JSON column
+            builder.Property(w => w.Questions)
+                   .HasConversion(
+                       v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                       v => JsonSerializer.Deserialize<Dictionary<string, object>>(v, (JsonSerializerOptions?)null) ?? new Dictionary<string, object>())
+                   .HasColumnType("TEXT");
 
             builder.Property(w => w.Created)
                    .IsRequired()

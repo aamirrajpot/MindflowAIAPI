@@ -41,12 +41,18 @@ namespace Mindflow_Web_API.DTOs
 		public DateTime? Date { get; set; }
 		public TimeSpan? Time { get; set; }
 		public bool ReminderEnabled { get; set; } = false;
+		
+		// Brain dump linking (Actionable Value feature)
+		public Guid? BrainDumpEntryId { get; set; } // Link to the brain dump entry that created this task
 	}
 
 	public class AddMultipleTasksRequest
 	{
 		[Required]
 		public List<TaskSuggestion> Suggestions { get; set; } = new();
+		
+		// Brain dump linking (Actionable Value feature)
+		public Guid? BrainDumpEntryId { get; set; } // Link to the brain dump entry that created these tasks
 	}
 
 	public class BrainDumpResponse
@@ -61,6 +67,20 @@ namespace Mindflow_Web_API.DTOs
 		public List<TaskSuggestion> SuggestedActivities { get; set; } = new();
 		[JsonPropertyName("weeklyTrends")]
 		public WeeklyTrendsData? WeeklyTrends { get; set; }
+		// New fields for meaningful insights
+		[JsonPropertyName("insights")]
+		public List<string>? Insights { get; set; } // e.g., "Your stress mentions dropped 20% this week"
+		[JsonPropertyName("patterns")]
+		public List<string>? Patterns { get; set; } // e.g., "You've mentioned exhaustion 3 times this week"
+		[JsonPropertyName("progressMetrics")]
+		public ProgressMetricsDto? ProgressMetrics { get; set; } // Task completion, brain dump frequency, etc.
+		[JsonPropertyName("emotionTrends")]
+		public EmotionTrendsDto? EmotionTrends { get; set; } // Emotion keyword tracking
+		[JsonPropertyName("personalizedMessage")]
+		public string? PersonalizedMessage { get; set; } // Enhanced personalized message with insights
+		// Brain dump entry ID for linking tasks
+		[JsonPropertyName("brainDumpEntryId")]
+		public Guid BrainDumpEntryId { get; set; } // ID of the brain dump entry (for linking tasks back to this dump)
 	}
 
 	public class UserProfileSummary

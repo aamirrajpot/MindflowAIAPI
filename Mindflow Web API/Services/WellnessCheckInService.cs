@@ -68,13 +68,7 @@ namespace Mindflow_Web_API.Services
                         null,
                         null,
                         null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null
+                        new Dictionary<string, object>()
                     );
                 }
 
@@ -91,14 +85,7 @@ namespace Mindflow_Web_API.Services
                     checkIn.ReminderEnabled,
                     checkIn.ReminderTime,
                     checkIn.AgeRange,
-                    checkIn.FocusAreas,
-                    checkIn.StressNotes,
-                    checkIn.ThoughtTrackingMethod,
-                    checkIn.SupportAreas,
-                    checkIn.SelfCareFrequency,
-                    checkIn.ToughDayMessage,
-                    checkIn.CopingMechanisms,
-                    checkIn.JoyPeaceSources,
+                    null,
                     checkIn.WeekdayStartTime,
                     checkIn.WeekdayStartShift,
                     checkIn.WeekdayEndTime,
@@ -106,7 +93,8 @@ namespace Mindflow_Web_API.Services
                     checkIn.WeekendStartTime,
                     checkIn.WeekendStartShift,
                     checkIn.WeekendEndTime,
-                    checkIn.WeekendEndShift
+                    checkIn.WeekendEndShift,
+                    checkIn.Questions ?? new Dictionary<string, object>()
                 );
 
                 _logger.LogDebug("Successfully created wellness DTO for user {UserId}. Time slots - Weekday: {WeekdayStart}-{WeekdayEnd}, Weekend: {WeekendStart}-{WeekendEnd}", 
@@ -170,13 +158,6 @@ namespace Mindflow_Web_API.Services
                         patchDto.ReminderTime,
                         patchDto.AgeRange,
                         patchDto.FocusAreas,
-                        patchDto.StressNotes,
-                        patchDto.ThoughtTrackingMethod,
-                        patchDto.SupportAreas,
-                        patchDto.SelfCareFrequency,
-                        patchDto.ToughDayMessage,
-                        patchDto.CopingMechanisms,
-                        patchDto.JoyPeaceSources,
                         patchDto.WeekdayStartTime,
                         patchDto.WeekdayStartShift,
                         patchDto.WeekdayEndTime,
@@ -184,11 +165,12 @@ namespace Mindflow_Web_API.Services
                         patchDto.WeekendStartTime,
                         patchDto.WeekendStartShift,
                         patchDto.WeekendEndTime,
-                        patchDto.WeekendEndShift
+                        patchDto.WeekendEndShift,
+                        patchDto.Questions ?? new Dictionary<string, object>()
                     );
-                    checkIn.CheckInDate = DateTime.UtcNow;
                     
-                    _logger.LogDebug("Created new wellness check-in for user {UserId}. CheckInId: {CheckInId}", userId, checkIn.Id);
+                    _logger.LogDebug("Created new wellness check-in for user {UserId}. CheckInId: {CheckInId}, QuestionsCount: {QuestionsCount}", 
+                        userId, checkIn.Id, checkIn.Questions?.Count ?? 0);
                     
                     await _dbContext.WellnessCheckIns.AddAsync(checkIn);
                 }
@@ -198,6 +180,7 @@ namespace Mindflow_Web_API.Services
                     
                     var fieldsUpdated = new List<string>();
                     
+                    // Update fixed fields
                     if (!string.IsNullOrEmpty(patchDto.MoodLevel))
                     {
                         checkIn.MoodLevel = patchDto.MoodLevel;
@@ -222,41 +205,6 @@ namespace Mindflow_Web_API.Services
                     {
                         checkIn.FocusAreas = patchDto.FocusAreas;
                         fieldsUpdated.Add("FocusAreas");
-                    }
-                    if (patchDto.StressNotes != null)
-                    {
-                        checkIn.StressNotes = patchDto.StressNotes;
-                        fieldsUpdated.Add("StressNotes");
-                    }
-                    if (patchDto.ThoughtTrackingMethod != null)
-                    {
-                        checkIn.ThoughtTrackingMethod = patchDto.ThoughtTrackingMethod;
-                        fieldsUpdated.Add("ThoughtTrackingMethod");
-                    }
-                    if (patchDto.SupportAreas != null)
-                    {
-                        checkIn.SupportAreas = patchDto.SupportAreas;
-                        fieldsUpdated.Add("SupportAreas");
-                    }
-                    if (patchDto.SelfCareFrequency != null)
-                    {
-                        checkIn.SelfCareFrequency = patchDto.SelfCareFrequency;
-                        fieldsUpdated.Add("SelfCareFrequency");
-                    }
-                    if (patchDto.ToughDayMessage != null)
-                    {
-                        checkIn.ToughDayMessage = patchDto.ToughDayMessage;
-                        fieldsUpdated.Add("ToughDayMessage");
-                    }
-                    if (patchDto.CopingMechanisms != null)
-                    {
-                        checkIn.CopingMechanisms = patchDto.CopingMechanisms;
-                        fieldsUpdated.Add("CopingMechanisms");
-                    }
-                    if (patchDto.JoyPeaceSources != null)
-                    {
-                        checkIn.JoyPeaceSources = patchDto.JoyPeaceSources;
-                        fieldsUpdated.Add("JoyPeaceSources");
                     }
                     if (patchDto.WeekdayStartTime != null)
                     {
@@ -299,7 +247,26 @@ namespace Mindflow_Web_API.Services
                         fieldsUpdated.Add("WeekendEndShift");
                     }
                     
-                    checkIn.UpdateLastModified();
+                    // Merge questions dictionary
+                    if (patchDto.Questions != null && patchDto.Questions.Count > 0)
+                    {
+                        // Initialize Questions if null
+                        if (checkIn.Questions == null)
+                        {
+                            checkIn.Questions = new Dictionary<string, object>();
+                        }
+                        
+                        // Merge new questions with existing ones
+                        foreach (var kvp in patchDto.Questions)
+                        {
+                            checkIn.Questions[kvp.Key] = kvp.Value;
+                            fieldsUpdated.Add($"Question:{kvp.Key}");
+                        }
+                        
+                        _logger.LogDebug("Merged {Count} questions for user {UserId}", patchDto.Questions.Count, userId);
+                    }
+                    
+                    checkIn.Update(checkIn.MoodLevel, DateTime.UtcNow, checkIn.ReminderEnabled, checkIn.ReminderTime, checkIn.AgeRange, checkIn.FocusAreas, checkIn.WeekdayStartTime, checkIn.WeekdayStartShift, checkIn.WeekdayEndTime, checkIn.WeekdayEndShift, checkIn.WeekendStartTime, checkIn.WeekendStartShift, checkIn.WeekendEndTime, checkIn.WeekendEndShift, checkIn.Questions);
                     
                     _logger.LogDebug("Updated fields for user {UserId}: {UpdatedFields}", userId, string.Join(", ", fieldsUpdated));
                 }
@@ -334,13 +301,6 @@ namespace Mindflow_Web_API.Services
                     checkIn.ReminderTime,
                     checkIn.AgeRange,
                     checkIn.FocusAreas,
-                    checkIn.StressNotes,
-                    checkIn.ThoughtTrackingMethod,
-                    checkIn.SupportAreas,
-                    checkIn.SelfCareFrequency,
-                    checkIn.ToughDayMessage,
-                    checkIn.CopingMechanisms,
-                    checkIn.JoyPeaceSources,
                     checkIn.WeekdayStartTime,
                     checkIn.WeekdayStartShift,
                     checkIn.WeekdayEndTime,
@@ -348,15 +308,12 @@ namespace Mindflow_Web_API.Services
                     checkIn.WeekendStartTime,
                     checkIn.WeekendStartShift,
                     checkIn.WeekendEndTime,
-                    checkIn.WeekendEndShift
+                    checkIn.WeekendEndShift,
+                    checkIn.Questions ?? new Dictionary<string, object>()
                 );
 
-                _logger.LogDebug("Returning updated wellness DTO for user {UserId}. Time slots - Weekday: {WeekdayStart}-{WeekdayEnd}, Weekend: {WeekendStart}-{WeekendEnd}", 
-                    userId, 
-                    !string.IsNullOrEmpty(checkIn.WeekdayStartTime) ? $"{checkIn.WeekdayStartTime} {checkIn.WeekdayStartShift}" : "Not set",
-                    !string.IsNullOrEmpty(checkIn.WeekdayEndTime) ? $"{checkIn.WeekdayEndTime} {checkIn.WeekdayEndShift}" : "Not set",
-                    !string.IsNullOrEmpty(checkIn.WeekendStartTime) ? $"{checkIn.WeekendStartTime} {checkIn.WeekendStartShift}" : "Not set",
-                    !string.IsNullOrEmpty(checkIn.WeekendEndTime) ? $"{checkIn.WeekendEndTime} {checkIn.WeekendEndShift}" : "Not set");
+                _logger.LogDebug("Returning updated wellness DTO for user {UserId}. Questions: {QuestionsCount}", 
+                    userId, resultDto.Questions.Count);
 
                 return resultDto;
             }
@@ -380,10 +337,15 @@ namespace Mindflow_Web_API.Services
                     return GetDefaultAnalysis();
                 }
 
-                _logger.LogDebug("Wellness data validation passed for user {UserId}. MoodLevel: {MoodLevel}, FocusAreas: {FocusAreas}, SupportAreas: {SupportAreas}", 
+                // Extract supportNeeds from Questions dictionary
+                var supportNeeds = wellnessData.Questions.TryGetValue("supportNeeds", out var supportNeedsValue) && supportNeedsValue is string[] supportNeedsArray
+                    ? supportNeedsArray
+                    : null;
+
+                _logger.LogDebug("Wellness data validation passed for user {UserId}. MoodLevel: {MoodLevel}, FocusAreas: {FocusAreas}, SupportNeeds: {SupportNeeds}", 
                     userId, wellnessData.MoodLevel, 
                     wellnessData.FocusAreas != null ? string.Join(",", wellnessData.FocusAreas) : "null",
-                    wellnessData.SupportAreas != null ? string.Join(",", wellnessData.SupportAreas) : "null");
+                    supportNeeds != null ? string.Join(",", supportNeeds) : "null");
 
                 // Convert DTO to model for the prompt
                 var wellnessModel = WellnessCheckIn.Create(
@@ -394,13 +356,6 @@ namespace Mindflow_Web_API.Services
                     wellnessData.ReminderTime,
                     wellnessData.AgeRange,
                     wellnessData.FocusAreas,
-                    wellnessData.StressNotes,
-                    wellnessData.ThoughtTrackingMethod,
-                    wellnessData.SupportAreas,
-                    wellnessData.SelfCareFrequency,
-                    wellnessData.ToughDayMessage,
-                    wellnessData.CopingMechanisms,
-                    wellnessData.JoyPeaceSources,
                     wellnessData.WeekdayStartTime,
                     wellnessData.WeekdayStartShift,
                     wellnessData.WeekdayEndTime,
@@ -408,7 +363,8 @@ namespace Mindflow_Web_API.Services
                     wellnessData.WeekendStartTime,
                     wellnessData.WeekendStartShift,
                     wellnessData.WeekendEndTime,
-                    wellnessData.WeekendEndShift
+                    wellnessData.WeekendEndShift,
+                    wellnessData.Questions
                 );
 
                 _logger.LogDebug("Created wellness model for user {UserId}. Time slots - Weekday: {WeekdayStart}-{WeekdayEnd}, Weekend: {WeekendStart}-{WeekendEnd}", 
@@ -476,13 +432,6 @@ namespace Mindflow_Web_API.Services
                     wellnessData.ReminderTime,
                     wellnessData.AgeRange,
                     wellnessData.FocusAreas,
-                    wellnessData.StressNotes,
-                    wellnessData.ThoughtTrackingMethod,
-                    wellnessData.SupportAreas,
-                    wellnessData.SelfCareFrequency,
-                    wellnessData.ToughDayMessage,
-                    wellnessData.CopingMechanisms,
-                    wellnessData.JoyPeaceSources,
                     wellnessData.WeekdayStartTime,
                     wellnessData.WeekdayStartShift,
                     wellnessData.WeekdayEndTime,
@@ -490,7 +439,8 @@ namespace Mindflow_Web_API.Services
                     wellnessData.WeekendStartTime,
                     wellnessData.WeekendStartShift,
                     wellnessData.WeekendEndTime,
-                    wellnessData.WeekendEndShift
+                    wellnessData.WeekendEndShift,
+                    wellnessData.Questions
                 );
 
                 // Build the wellness analysis prompt
@@ -551,7 +501,11 @@ namespace Mindflow_Web_API.Services
                         new List<string> { "Complete your wellness check-in", "Set up your preferences" },
                         new List<string> { "Complete wellness questionnaire", "Set your availability", "Choose your focus areas" },
                         1, // Low urgency
-                        "Complete your wellness check-in to get personalized recommendations and support tailored to your needs."
+                        "Complete your wellness check-in to get personalized recommendations and support tailored to your needs.",
+                        null, // Insights
+                        null, // Patterns
+                        null, // ProgressMetrics
+                        null  // EmotionTrends
                     );
                 }
 
@@ -571,20 +525,41 @@ namespace Mindflow_Web_API.Services
                 // Get recommended actions
                 var recommendedActions = analysis.ImmediateActions.Take(3).ToList();
 
-                // Create personalized message
-                var personalizedMessage = $"Based on your focus on {primaryFocus} and {wellnessData.SelfCareFrequency ?? "regular"} self-care routine, we've tailored MindFlow AI to support your mental wellness journey.";
+                // Gather data for meaningful insights
+                _logger.LogDebug("Gathering progress metrics and emotion trends for user {UserId}", userId);
+                var progressMetrics = await CalculateProgressMetricsAsync(userId);
+                var emotionTrends = await AnalyzeEmotionTrendsAsync(userId);
+                var insights = GenerateInsights(progressMetrics, emotionTrends);
+                var patterns = GeneratePatterns(emotionTrends);
 
-                _logger.LogInformation("Successfully generated wellness summary for user {UserId}. PrimaryFocus: {PrimaryFocus}, SupportNeedsCount: {SupportNeedsCount}, ActionsCount: {ActionsCount}", 
-                    userId, primaryFocus, topSupportNeeds.Count, recommendedActions.Count);
+                // Extract selfCareFrequency from Questions dictionary
+                var selfCareFrequency = wellnessData.Questions.TryGetValue("selfCareFrequency", out var selfCareValue) && selfCareValue is string selfCareStr
+                    ? selfCareStr
+                    : null;
+
+                // Extract supportNeeds from Questions dictionary
+                var supportNeeds = wellnessData.Questions.TryGetValue("supportNeeds", out var supportNeedsValue) && supportNeedsValue is string[] supportNeedsArray
+                    ? supportNeedsArray
+                    : null;
+
+                // Create personalized message with insights
+                var personalizedMessage = BuildPersonalizedMessage(primaryFocus, selfCareFrequency, progressMetrics, emotionTrends);
+
+                _logger.LogInformation("Successfully generated wellness summary for user {UserId}. PrimaryFocus: {PrimaryFocus}, SupportNeedsCount: {SupportNeedsCount}, ActionsCount: {ActionsCount}, InsightsCount: {InsightsCount}", 
+                    userId, primaryFocus, topSupportNeeds.Count, recommendedActions.Count, insights?.Count ?? 0);
 
                 return new WellnessSummaryDto(
                     primaryFocus,
-                    wellnessData.SelfCareFrequency ?? "regular",
-                    wellnessData.SupportAreas?.Length ?? 0,
+                    selfCareFrequency ?? "regular",
+                    supportNeeds?.Length ?? 0,
                     topSupportNeeds,
                     recommendedActions,
                     analysis.UrgencyLevel,
-                    personalizedMessage
+                    personalizedMessage,
+                    insights,
+                    patterns,
+                    progressMetrics,
+                    emotionTrends
                 );
             }
             catch (Exception ex)
@@ -598,15 +573,20 @@ namespace Mindflow_Web_API.Services
         {
             _logger.LogDebug("Building simple wellness prompt for user {UserId}", checkIn.UserId);
             
+            // Extract values from Questions dictionary
+            var supportNeeds = checkIn.GetQuestionValue<string[]>("supportNeeds");
+            var selfCareFrequency = checkIn.GetQuestionValue<string>("selfCareFrequency");
+            var biggestObstacle = checkIn.GetQuestionValue<string>("biggestObstacle");
+            
             // Simplified prompt focusing only on essential data for summary
             var prompt = $@"[INST] Provide a brief wellness summary based on this check-in data:
 
 **Key Information:**
 - Mood: {checkIn.MoodLevel}
 - Focus Areas: {string.Join(", ", checkIn.FocusAreas ?? new string[0])}
-- Support Areas: {string.Join(", ", checkIn.SupportAreas ?? new string[0])}
-- Self-Care Frequency: {checkIn.SelfCareFrequency ?? "Not specified"}
-- Stress Notes: {checkIn.StressNotes ?? "None"}
+- Support Needs: {string.Join(", ", supportNeeds ?? new string[0])}
+- Self-Care Frequency: {selfCareFrequency ?? "Not specified"}
+- Biggest Obstacle: {biggestObstacle ?? "None"}
 
 **Required Response (JSON format):**
 {{
@@ -625,6 +605,303 @@ Keep responses concise and practical. Focus on actionable items. [/INST]";
 
             _logger.LogDebug("Built simple wellness prompt for user {UserId}. Prompt length: {PromptLength}", checkIn.UserId, prompt.Length);
             return prompt;
+        }
+
+        private async Task<ProgressMetricsDto?> CalculateProgressMetricsAsync(Guid userId)
+        {
+            try
+            {
+                _logger.LogDebug("Calculating progress metrics for user {UserId}", userId);
+                
+                var now = DateTime.UtcNow;
+                var thisWeekStart = now.Date.AddDays(-(int)now.DayOfWeek);
+                var lastWeekStart = thisWeekStart.AddDays(-7);
+                var lastWeekEnd = thisWeekStart.AddDays(-1);
+
+                // Get brain dump entries for this week and last week
+                var thisWeekEntries = await _dbContext.BrainDumpEntries
+                    .Where(e => e.UserId == userId 
+                        && e.CreatedAtUtc >= thisWeekStart 
+                        && e.DeletedAtUtc == null)
+                    .ToListAsync();
+
+                var lastWeekEntries = await _dbContext.BrainDumpEntries
+                    .Where(e => e.UserId == userId 
+                        && e.CreatedAtUtc >= lastWeekStart 
+                        && e.CreatedAtUtc < thisWeekStart
+                        && e.DeletedAtUtc == null)
+                    .ToListAsync();
+
+                // Calculate brain dump frequency
+                var thisWeekCount = thisWeekEntries.Count;
+                var lastWeekCount = lastWeekEntries.Count;
+                var frequencyChange = thisWeekCount - lastWeekCount;
+
+                // Calculate average mood and stress scores
+                var thisWeekMoodScores = thisWeekEntries.Where(e => e.Mood.HasValue).Select(e => (double)e.Mood!.Value).ToList();
+                var thisWeekStressScores = thisWeekEntries.Where(e => e.Stress.HasValue).Select(e => (double)e.Stress!.Value).ToList();
+                
+                var lastWeekMoodScores = lastWeekEntries.Where(e => e.Mood.HasValue).Select(e => (double)e.Mood!.Value).ToList();
+                var lastWeekStressScores = lastWeekEntries.Where(e => e.Stress.HasValue).Select(e => (double)e.Stress!.Value).ToList();
+
+                var avgMoodThisWeek = thisWeekMoodScores.Any() ? thisWeekMoodScores.Average() : 0;
+                var avgStressThisWeek = thisWeekStressScores.Any() ? thisWeekStressScores.Average() : 0;
+                var avgMoodLastWeek = lastWeekMoodScores.Any() ? lastWeekMoodScores.Average() : 0;
+                var avgStressLastWeek = lastWeekStressScores.Any() ? lastWeekStressScores.Average() : 0;
+
+                var moodChange = avgMoodLastWeek > 0 ? avgMoodThisWeek - avgMoodLastWeek : 0;
+                var stressChange = avgStressLastWeek > 0 ? avgStressThisWeek - avgStressLastWeek : 0;
+
+                // Calculate task completion rate
+                var totalTasks = await _dbContext.Tasks
+                    .Where(t => t.UserId == userId && t.IsActive)
+                    .CountAsync();
+
+                var completedTasks = await _dbContext.Tasks
+                    .Where(t => t.UserId == userId && t.IsActive && t.Status == Models.TaskStatus.Completed)
+                    .CountAsync();
+
+                var completionRate = totalTasks > 0 ? (double)completedTasks / totalTasks * 100 : 0;
+
+                // Generate interpretation
+                var interpretation = BuildProgressInterpretation(avgMoodThisWeek, moodChange, avgStressThisWeek, stressChange, completionRate, frequencyChange);
+
+                _logger.LogDebug("Calculated progress metrics for user {UserId}. CompletionRate: {CompletionRate}%, BrainDumpFrequency: {Frequency}, MoodChange: {MoodChange}", 
+                    userId, completionRate, thisWeekCount, moodChange);
+
+                return new ProgressMetricsDto(
+                    completionRate,
+                    thisWeekCount,
+                    frequencyChange,
+                    avgMoodThisWeek,
+                    moodChange,
+                    avgStressThisWeek,
+                    stressChange,
+                    interpretation
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to calculate progress metrics for user {UserId}", userId);
+                return null;
+            }
+        }
+
+        private async Task<EmotionTrendsDto?> AnalyzeEmotionTrendsAsync(Guid userId)
+        {
+            try
+            {
+                _logger.LogDebug("Analyzing emotion trends for user {UserId}", userId);
+                
+                var now = DateTime.UtcNow;
+                var thisWeekStart = now.Date.AddDays(-(int)now.DayOfWeek);
+
+                // Get brain dump entries for this week
+                var entries = await _dbContext.BrainDumpEntries
+                    .Where(e => e.UserId == userId 
+                        && e.CreatedAtUtc >= thisWeekStart 
+                        && e.DeletedAtUtc == null)
+                    .ToListAsync();
+
+                // Common emotion keywords to track
+                var emotionKeywords = new[] { 
+                    "anxious", "anxiety", "worried", "worry", "stressed", "stress", "overwhelmed", "overwhelm",
+                    "exhausted", "exhaustion", "tired", "fatigue", "burnout", "burned out",
+                    "grateful", "gratitude", "thankful", "appreciate", "happy", "happiness", "joy", "joyful",
+                    "sad", "sadness", "depressed", "depression", "down", "low",
+                    "calm", "peaceful", "relaxed", "content", "satisfied",
+                    "frustrated", "frustration", "angry", "anger", "irritated", "irritation"
+                };
+
+                var emotionFrequency = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                
+                // Count emotion keywords in brain dump text
+                foreach (var entry in entries)
+                {
+                    var text = $"{entry.Text} {entry.Context}".ToLower();
+                    foreach (var keyword in emotionKeywords)
+                    {
+                        var count = CountOccurrences(text, keyword);
+                        if (count > 0)
+                        {
+                            emotionFrequency[keyword] = emotionFrequency.GetValueOrDefault(keyword, 0) + count;
+                        }
+                    }
+                }
+
+                // Get top 3 emotions
+                var topEmotions = emotionFrequency
+                    .OrderByDescending(kvp => kvp.Value)
+                    .Take(3)
+                    .Select(kvp => kvp.Key)
+                    .ToList();
+
+                // Generate emotion insights
+                var emotionInsights = new List<string>();
+                foreach (var emotion in topEmotions)
+                {
+                    var count = emotionFrequency[emotion];
+                    if (count >= 3)
+                    {
+                        emotionInsights.Add($"You've mentioned '{emotion}' {count} times this week");
+                    }
+                }
+
+                _logger.LogDebug("Analyzed emotion trends for user {UserId}. TopEmotions: {TopEmotions}, TotalEmotions: {TotalEmotions}", 
+                    userId, string.Join(", ", topEmotions), emotionFrequency.Count);
+
+                return new EmotionTrendsDto(
+                    emotionFrequency,
+                    topEmotions,
+                    emotionInsights
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to analyze emotion trends for user {UserId}", userId);
+                return null;
+            }
+        }
+
+        private int CountOccurrences(string text, string keyword)
+        {
+            if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(keyword))
+                return 0;
+
+            var count = 0;
+            var index = 0;
+            while ((index = text.IndexOf(keyword, index, StringComparison.OrdinalIgnoreCase)) != -1)
+            {
+                count++;
+                index += keyword.Length;
+            }
+            return count;
+        }
+
+        private List<string> GenerateInsights(ProgressMetricsDto? progressMetrics, EmotionTrendsDto? emotionTrends)
+        {
+            var insights = new List<string>();
+
+            if (progressMetrics != null)
+            {
+                // Task completion insight
+                if (progressMetrics.TaskCompletionRate >= 80)
+                {
+                    insights.Add($"You've completed {progressMetrics.TaskCompletionRate:F0}% of your suggested tasks - great progress!");
+                }
+                else if (progressMetrics.TaskCompletionRate >= 50)
+                {
+                    insights.Add($"You've completed {progressMetrics.TaskCompletionRate:F0}% of your suggested tasks");
+                }
+
+                // Mood trend insight
+                if (progressMetrics.AverageMoodScoreChange > 1)
+                {
+                    var oldMood = progressMetrics.AverageMoodScore - progressMetrics.AverageMoodScoreChange;
+                    insights.Add($"Your mood scores have improved from {oldMood:F1}/10 to {progressMetrics.AverageMoodScore:F1}/10");
+                }
+                else if (progressMetrics.AverageMoodScoreChange < -1)
+                {
+                    var oldMood = progressMetrics.AverageMoodScore - progressMetrics.AverageMoodScoreChange;
+                    insights.Add($"Your mood scores have decreased from {oldMood:F1}/10 to {progressMetrics.AverageMoodScore:F1}/10");
+                }
+
+                // Stress trend insight
+                if (progressMetrics.AverageStressScoreChange < -1)
+                {
+                    var oldStress = progressMetrics.AverageStressScore - progressMetrics.AverageStressScoreChange;
+                    insights.Add($"Your stress mentions dropped {Math.Abs(progressMetrics.AverageStressScoreChange):F1} points this week");
+                }
+                else if (progressMetrics.AverageStressScoreChange > 1)
+                {
+                    var oldStress = progressMetrics.AverageStressScore - progressMetrics.AverageStressScoreChange;
+                    insights.Add($"Your stress levels increased from {oldStress:F1}/10 to {progressMetrics.AverageStressScore:F1}/10");
+                }
+
+                // Brain dump frequency insight
+                if (progressMetrics.BrainDumpFrequencyChange > 0)
+                {
+                    insights.Add($"You've been more consistent with brain dumps this week (+{progressMetrics.BrainDumpFrequencyChange} entries)");
+                }
+            }
+
+            if (emotionTrends != null && emotionTrends.EmotionInsights.Any())
+            {
+                insights.AddRange(emotionTrends.EmotionInsights);
+            }
+
+            return insights;
+        }
+
+        private List<string> GeneratePatterns(EmotionTrendsDto? emotionTrends)
+        {
+            var patterns = new List<string>();
+
+            if (emotionTrends != null)
+            {
+                // Identify recurring patterns
+                foreach (var emotion in emotionTrends.TopEmotions)
+                {
+                    var count = emotionTrends.EmotionFrequency.GetValueOrDefault(emotion, 0);
+                    if (count >= 3)
+                    {
+                        patterns.Add($"You've mentioned '{emotion}' {count} times this week - this might be worth exploring");
+                    }
+                }
+            }
+
+            return patterns;
+        }
+
+        private string BuildPersonalizedMessage(string primaryFocus, string? selfCareFrequency, ProgressMetricsDto? progressMetrics, EmotionTrendsDto? emotionTrends)
+        {
+            var message = $"Based on your focus on {primaryFocus} and {selfCareFrequency ?? "regular"} self-care routine, we've tailored MindFlow AI to support your mental wellness journey.";
+
+            if (progressMetrics != null && !string.IsNullOrWhiteSpace(progressMetrics.Interpretation))
+            {
+                message += $" {progressMetrics.Interpretation}";
+            }
+
+            return message;
+        }
+
+        private string BuildProgressInterpretation(double avgMood, double moodChange, double avgStress, double stressChange, double completionRate, int frequencyChange)
+        {
+            var interpretations = new List<string>();
+
+            if (moodChange > 1)
+            {
+                interpretations.Add($"Your mood has improved significantly this week");
+            }
+            else if (moodChange < -1)
+            {
+                interpretations.Add($"Your mood has decreased this week - consider focusing on self-care");
+            }
+
+            if (stressChange < -1)
+            {
+                interpretations.Add($"Your stress levels have decreased this week");
+            }
+            else if (stressChange > 1)
+            {
+                interpretations.Add($"Your stress levels have increased this week");
+            }
+
+            if (completionRate >= 80)
+            {
+                interpretations.Add($"You're making excellent progress with task completion");
+            }
+            else if (completionRate < 50)
+            {
+                interpretations.Add($"Consider breaking tasks into smaller steps to improve completion");
+            }
+
+            if (frequencyChange > 0)
+            {
+                interpretations.Add($"You've been more consistent with brain dumps this week");
+            }
+
+            return interpretations.Any() ? string.Join(". ", interpretations) + "." : string.Empty;
         }
 
         private WellnessAnalysisDto ParseWellnessAnalysisResponse(string response)

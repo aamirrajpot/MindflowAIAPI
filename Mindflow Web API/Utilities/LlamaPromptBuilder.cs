@@ -7,6 +7,19 @@ namespace Mindflow_Web_API.Utilities
 {
     public class LlamaPromptBuilder
     {
+        private static string? GetQ(WellnessCheckIn c, string key)
+        {
+            if (c.Questions == null || !c.Questions.TryGetValue(key, out var v) || v == null) return null;
+            return v.ToString();
+        }
+        private static string[] GetQA(WellnessCheckIn c, string key)
+        {
+            if (c.Questions == null || !c.Questions.TryGetValue(key, out var v) || v == null) return Array.Empty<string>();
+            if (v is string[] arr) return arr;
+            if (v is IEnumerable<object> e) return e.Select(x => x?.ToString() ?? string.Empty).ToArray();
+            return new[] { v.ToString() ?? string.Empty };
+        }
+
         public static string BuildPrompt(string journalText)
         {
             return $"""
@@ -46,18 +59,18 @@ namespace Mindflow_Web_API.Utilities
                 - Check-in Date: {checkIn.CheckInDate:yyyy-MM-dd}
 
                 **Focus & Goals:**
-                - Focus Areas: {string.Join(", ", checkIn.FocusAreas ?? new string[0])}
-                - Support Areas: {string.Join(", ", checkIn.SupportAreas ?? new string[0])}
+                - Focus Areas: {string.Join(", ", GetQA(checkIn, "focusAreas"))}
+                - Support Areas: {string.Join(", ", GetQA(checkIn, "supportNeeds"))}
 
                 **Current State:**
-                - Stress Notes: {checkIn.StressNotes ?? "None provided"}
-                - Self-Care Frequency: {checkIn.SelfCareFrequency ?? "Not specified"}
-                - Thought Tracking Method: {checkIn.ThoughtTrackingMethod ?? "Not specified"}
+                - Stress Notes: {GetQ(checkIn, "stressNotes") ?? "None provided"}
+                - Self-Care Frequency: {GetQ(checkIn, "selfCareFrequency") ?? "Not specified"}
+                - Thought Tracking Method: {GetQ(checkIn, "thoughtTrackingMethod") ?? "Not specified"}
 
                 **Coping & Resilience:**
-                - Coping Mechanisms: {string.Join(", ", checkIn.CopingMechanisms ?? new string[0])}
-                - Joy/Peace Sources: {checkIn.JoyPeaceSources ?? "None provided"}
-                - Tough Day Message: {checkIn.ToughDayMessage ?? "None provided"}
+                - Coping Mechanisms: {string.Join(", ", GetQA(checkIn, "copingMechanisms"))}
+                - Joy/Peace Sources: {GetQ(checkIn, "joyPeaceSources") ?? "None provided"}
+                - Tough Day Message: {GetQ(checkIn, "toughDayMessage") ?? "None provided"}
 
                 **Time & Preferences:**
                 - Weekday Time: {checkIn.WeekdayStartTime ?? "Not specified"} {checkIn.WeekdayStartShift ?? ""} - {checkIn.WeekdayEndTime ?? "Not specified"} {checkIn.WeekdayEndShift ?? ""}
@@ -90,14 +103,14 @@ namespace Mindflow_Web_API.Utilities
                 **Current State:**
                 - Mood: {checkIn.MoodLevel}
                 - Age: {checkIn.AgeRange ?? "Not specified"}
-                - Focus Areas: {string.Join(", ", checkIn.FocusAreas ?? new string[0])}
-                - Support Needs: {string.Join(", ", checkIn.SupportAreas ?? new string[0])}
-                - Self-Care Frequency: {checkIn.SelfCareFrequency ?? "Not specified"}
-                - Stress Notes: {checkIn.StressNotes ?? "None"}
+                - Focus Areas: {string.Join(", ", GetQA(checkIn, "focusAreas"))}
+                - Support Needs: {string.Join(", ", GetQA(checkIn, "supportNeeds"))}
+                - Self-Care Frequency: {GetQ(checkIn, "selfCareFrequency") ?? "Not specified"}
+                - Stress Notes: {GetQ(checkIn, "stressNotes") ?? "None"}
 
                 **Available Resources:**
-                - Coping Mechanisms: {string.Join(", ", checkIn.CopingMechanisms ?? new string[0])}
-                - Joy Sources: {checkIn.JoyPeaceSources ?? "None specified"}
+                - Coping Mechanisms: {string.Join(", ", GetQA(checkIn, "copingMechanisms"))}
+                - Joy Sources: {GetQ(checkIn, "joyPeaceSources") ?? "None specified"}
                 - Free Time: Weekdays - {checkIn.WeekdayStartTime ?? "Not specified"} {checkIn.WeekdayStartShift ?? ""} to {checkIn.WeekdayEndTime ?? "Not specified"} {checkIn.WeekdayEndShift ?? ""}, Weekends - {checkIn.WeekendStartTime ?? "Not specified"} {checkIn.WeekendStartShift ?? ""} to {checkIn.WeekendEndTime ?? "Not specified"} {checkIn.WeekendEndShift ?? ""}
 
                 **Task Requirements:**
@@ -124,14 +137,14 @@ namespace Mindflow_Web_API.Utilities
 
                 **Critical Indicators:**
                 - Mood: {checkIn.MoodLevel}
-                - Stress Notes: {checkIn.StressNotes ?? "None"}
-                - Tough Day Message: {checkIn.ToughDayMessage ?? "None"}
-                - Coping Mechanisms: {string.Join(", ", checkIn.CopingMechanisms ?? new string[0])}
+                - Stress Notes: {GetQ(checkIn, "stressNotes") ?? "None"}
+                - Tough Day Message: {GetQ(checkIn, "toughDayMessage") ?? "None"}
+                - Coping Mechanisms: {string.Join(", ", GetQA(checkIn, "copingMechanisms"))}
 
                 **Context:**
                 - Age Range: {checkIn.AgeRange ?? "Not specified"}
-                - Focus Areas: {string.Join(", ", checkIn.FocusAreas ?? new string[0])}
-                - Support Areas: {string.Join(", ", checkIn.SupportAreas ?? new string[0])}
+                - Focus Areas: {string.Join(", ", GetQA(checkIn, "focusAreas"))}
+                - Support Areas: {string.Join(", ", GetQA(checkIn, "supportNeeds"))}
 
                 **Assessment Criteria:**
                 1. Mood severity (Stressed/Overwhelmed = higher urgency)
@@ -149,6 +162,19 @@ namespace Mindflow_Web_API.Utilities
 
     public class LlamaPromptBuilderForRunpod
     {
+        private static string? GetQ(WellnessCheckIn c, string key)
+        {
+            if (c.Questions == null || !c.Questions.TryGetValue(key, out var v) || v == null) return null;
+            return v.ToString();
+        }
+        private static string[] GetQA(WellnessCheckIn c, string key)
+        {
+            if (c.Questions == null || !c.Questions.TryGetValue(key, out var v) || v == null) return Array.Empty<string>();
+            if (v is string[] arr) return arr;
+            if (v is IEnumerable<object> e) return e.Select(x => x?.ToString() ?? string.Empty).ToArray();
+            return new[] { v.ToString() ?? string.Empty };
+        }
+
         public static object BuildRunpodRequest(string prompt, int maxTokens = 1000, double temperature = 0.7)
         {
             return new
@@ -185,16 +211,16 @@ namespace Mindflow_Web_API.Utilities
                 $"- Current Mood: {checkIn.MoodLevel}\n" +
                 $"- Check-in Date: {checkIn.CheckInDate:yyyy-MM-dd}\n\n" +
                 "**Focus & Goals:**\n" +
-                $"- Focus Areas: {string.Join(", ", checkIn.FocusAreas ?? new string[0])}\n" +
-                $"- Support Areas: {string.Join(", ", checkIn.SupportAreas ?? new string[0])}\n\n" +
+                $"- Focus Areas: {string.Join(", ", GetQA(checkIn, "focusAreas"))}\n" +
+                $"- Support Areas: {string.Join(", ", GetQA(checkIn, "supportNeeds"))}\n\n" +
                 "**Current State:**\n" +
-                $"- Stress Notes: {checkIn.StressNotes ?? "None provided"}\n" +
-                $"- Self-Care Frequency: {checkIn.SelfCareFrequency ?? "Not specified"}\n" +
-                $"- Thought Tracking Method: {checkIn.ThoughtTrackingMethod ?? "Not specified"}\n\n" +
+                $"- Stress Notes: {GetQ(checkIn, "stressNotes") ?? "None provided"}\n" +
+                $"- Self-Care Frequency: {GetQ(checkIn, "selfCareFrequency") ?? "Not specified"}\n" +
+                $"- Thought Tracking Method: {GetQ(checkIn, "thoughtTrackingMethod") ?? "Not specified"}\n\n" +
                 "**Coping & Resilience:**\n" +
-                $"- Coping Mechanisms: {string.Join(", ", checkIn.CopingMechanisms ?? new string[0])}\n" +
-                $"- Joy/Peace Sources: {checkIn.JoyPeaceSources ?? "None provided"}\n" +
-                $"- Tough Day Message: {checkIn.ToughDayMessage ?? "None provided"}\n\n" +
+                $"- Coping Mechanisms: {string.Join(", ", GetQA(checkIn, "copingMechanisms"))}\n" +
+                $"- Joy/Peace Sources: {GetQ(checkIn, "joyPeaceSources") ?? "None provided"}\n" +
+                $"- Tough Day Message: {GetQ(checkIn, "toughDayMessage") ?? "None provided"}\n\n" +
                 "**Time & Preferences:**\n" +
                 $"- Weekday Time: {checkIn.WeekdayStartTime ?? "Not specified"} {checkIn.WeekdayStartShift ?? ""} - {checkIn.WeekdayEndTime ?? "Not specified"} {checkIn.WeekdayEndShift ?? ""}\n" +
                 $"- Weekend Time: {checkIn.WeekendStartTime ?? "Not specified"} {checkIn.WeekendStartShift ?? ""} - {checkIn.WeekendEndTime ?? "Not specified"} {checkIn.WeekendEndShift ?? ""}\n" +
@@ -221,13 +247,13 @@ namespace Mindflow_Web_API.Utilities
                 "**Current State:**\n" +
                 $"- Mood: {checkIn.MoodLevel}\n" +
                 $"- Age: {checkIn.AgeRange ?? "Not specified"}\n" +
-                $"- Focus Areas: {string.Join(", ", checkIn.FocusAreas ?? new string[0])}\n" +
-                $"- Support Needs: {string.Join(", ", checkIn.SupportAreas ?? new string[0])}\n" +
-                $"- Self-Care Frequency: {checkIn.SelfCareFrequency ?? "Not specified"}\n" +
-                $"- Stress Notes: {checkIn.StressNotes ?? "None"}\n\n" +
+                $"- Focus Areas: {string.Join(", ", GetQA(checkIn, "focusAreas"))}\n" +
+                $"- Support Needs: {string.Join(", ", GetQA(checkIn, "supportNeeds"))}\n" +
+                $"- Self-Care Frequency: {GetQ(checkIn, "selfCareFrequency") ?? "Not specified"}\n" +
+                $"- Stress Notes: {GetQ(checkIn, "stressNotes") ?? "None"}\n\n" +
                 "**Available Resources:**\n" +
-                $"- Coping Mechanisms: {string.Join(", ", checkIn.CopingMechanisms ?? new string[0])}\n" +
-                $"- Joy Sources: {checkIn.JoyPeaceSources ?? "None specified"}\n" +
+                $"- Coping Mechanisms: {string.Join(", ", GetQA(checkIn, "copingMechanisms"))}\n" +
+                $"- Joy Sources: {GetQ(checkIn, "joyPeaceSources") ?? "None specified"}\n" +
                 $"- Free Time: Weekdays - {checkIn.WeekdayStartTime ?? "Not specified"} {checkIn.WeekdayStartShift ?? ""} to {checkIn.WeekdayEndTime ?? "Not specified"} {checkIn.WeekdayEndShift ?? ""}, Weekends - {checkIn.WeekendStartTime ?? "Not specified"} {checkIn.WeekendStartShift ?? ""} to {checkIn.WeekendEndTime ?? "Not specified"} {checkIn.WeekendEndShift ?? ""}\n\n" +
                 "**Task Requirements:**\n" +
                 "1. Consider the user's current mood and stress level\n" +
@@ -249,13 +275,13 @@ namespace Mindflow_Web_API.Utilities
             var prompt = "[INST] Assess the urgency level for this wellness check-in (1-10 scale, where 10 is critical):\n\n" +
                 "**Critical Indicators:**\n" +
                 $"- Mood: {checkIn.MoodLevel}\n" +
-                $"- Stress Notes: {checkIn.StressNotes ?? "None"}\n" +
-                $"- Tough Day Message: {checkIn.ToughDayMessage ?? "None"}\n" +
-                $"- Coping Mechanisms: {string.Join(", ", checkIn.CopingMechanisms ?? new string[0])}\n\n" +
+                $"- Stress Notes: {GetQ(checkIn, "stressNotes") ?? "None"}\n" +
+                $"- Tough Day Message: {GetQ(checkIn, "toughDayMessage") ?? "None"}\n" +
+                $"- Coping Mechanisms: {string.Join(", ", GetQA(checkIn, "copingMechanisms"))}\n\n" +
                 "**Context:**\n" +
                 $"- Age Range: {checkIn.AgeRange ?? "Not specified"}\n" +
-                $"- Focus Areas: {string.Join(", ", checkIn.FocusAreas ?? new string[0])}\n" +
-                $"- Support Areas: {string.Join(", ", checkIn.SupportAreas ?? new string[0])}\n\n" +
+                $"- Focus Areas: {string.Join(", ", GetQA(checkIn, "focusAreas"))}\n" +
+                $"- Support Areas: {string.Join(", ", GetQA(checkIn, "supportNeeds"))}\n\n" +
                 "**Assessment Criteria:**\n" +
                 "1. Mood severity (Stressed/Overwhelmed = higher urgency)\n" +
                 "2. Stress note content (mentions of crisis, hopelessness, etc.)\n" +

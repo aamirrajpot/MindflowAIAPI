@@ -73,13 +73,6 @@ namespace Mindflow_Web_API.EndPoints
                     checkInDto.ReminderTime,
                     checkInDto.AgeRange,
                     checkInDto.FocusAreas,
-                    checkInDto.StressNotes,
-                    checkInDto.ThoughtTrackingMethod,
-                    checkInDto.SupportAreas,
-                    checkInDto.SelfCareFrequency,
-                    checkInDto.ToughDayMessage,
-                    checkInDto.CopingMechanisms,
-                    checkInDto.JoyPeaceSources,
                     checkInDto.WeekdayStartTime,
                     checkInDto.WeekdayStartShift,
                     checkInDto.WeekdayEndTime,
@@ -87,7 +80,8 @@ namespace Mindflow_Web_API.EndPoints
                     checkInDto.WeekendStartTime,
                     checkInDto.WeekendStartShift,
                     checkInDto.WeekendEndTime,
-                    checkInDto.WeekendEndShift
+                    checkInDto.WeekendEndShift,
+                    checkInDto.Questions
                 );
 
                 var result = await runPodService.AnalyzeWellnessAsync(checkIn, maxTokens, temperature);
@@ -133,13 +127,6 @@ namespace Mindflow_Web_API.EndPoints
                     checkInDto.ReminderTime,
                     checkInDto.AgeRange,
                     checkInDto.FocusAreas,
-                    checkInDto.StressNotes,
-                    checkInDto.ThoughtTrackingMethod,
-                    checkInDto.SupportAreas,
-                    checkInDto.SelfCareFrequency,
-                    checkInDto.ToughDayMessage,
-                    checkInDto.CopingMechanisms,
-                    checkInDto.JoyPeaceSources,
                     checkInDto.WeekdayStartTime,
                     checkInDto.WeekdayStartShift,
                     checkInDto.WeekdayEndTime,
@@ -147,7 +134,8 @@ namespace Mindflow_Web_API.EndPoints
                     checkInDto.WeekendStartTime,
                     checkInDto.WeekendStartShift,
                     checkInDto.WeekendEndTime,
-                    checkInDto.WeekendEndShift
+                    checkInDto.WeekendEndShift,
+                    checkInDto.Questions
                 );
 
                 var tasks = await runPodService.GetTaskSuggestionsAsync(checkIn, maxTokens, temperature);
@@ -193,13 +181,6 @@ namespace Mindflow_Web_API.EndPoints
                     checkInDto.ReminderTime,
                     checkInDto.AgeRange,
                     checkInDto.FocusAreas,
-                    checkInDto.StressNotes,
-                    checkInDto.ThoughtTrackingMethod,
-                    checkInDto.SupportAreas,
-                    checkInDto.SelfCareFrequency,
-                    checkInDto.ToughDayMessage,
-                    checkInDto.CopingMechanisms,
-                    checkInDto.JoyPeaceSources,
                     checkInDto.WeekdayStartTime,
                     checkInDto.WeekdayStartShift,
                     checkInDto.WeekdayEndTime,
@@ -207,7 +188,8 @@ namespace Mindflow_Web_API.EndPoints
                     checkInDto.WeekendStartTime,
                     checkInDto.WeekendStartShift,
                     checkInDto.WeekendEndTime,
-                    checkInDto.WeekendEndShift
+                    checkInDto.WeekendEndShift,
+                    checkInDto.Questions
                 );
 
                 var assessment = await runPodService.AssessUrgencyAsync(checkIn, maxTokens, temperature);
@@ -264,16 +246,30 @@ namespace Mindflow_Web_API.EndPoints
                 // Create a sample wellness check-in for demonstration
                 var sampleCheckIn = WellnessCheckIn.Create(
                     userId: Guid.NewGuid(),
-                    mood: "Stressed",
+                    moodLevel: "Stressed",
                     checkInDate: DateTime.UtcNow,
+                    reminderEnabled: false,
+                    reminderTime: null,
                     ageRange: "25-34",
-                    focusAreas: new[] { "Mental health", "Productivity", "Career/School" },
-                    supportAreas: new[] { "Brain dump & organize my thoughts", "Feel more in control" },
-                    stressNotes: "Feeling overwhelmed with project deadlines and team conflicts",
-                    selfCareFrequency: "Rarely",
-                    copingMechanisms: new[] { "Deep breathing", "Exercise / Walking", "Talking to someone" },
-                    joyPeaceSources: "Reading, Nature walks, Music",
-                    toughDayMessage: "I'm trying my best but it never feels like enough"
+                    focusAreas: new [] { "Mental health", "Productivity", "Career/School" },
+                    weekdayStartTime: null,
+                    weekdayStartShift: null,
+                    weekdayEndTime: null,
+                    weekdayEndShift: null,
+                    weekendStartTime: null,
+                    weekendStartShift: null,
+                    weekendEndTime: null,
+                    weekendEndShift: null,
+                    questions: new Dictionary<string, object>
+                    {
+                        ["focusAreas"] = new [] { "Mental health", "Productivity", "Career/School" },
+                        ["supportNeeds"] = new [] { "Brain dump & organize my thoughts", "Feel more in control" },
+                        ["stressNotes"] = "Feeling overwhelmed with project deadlines and team conflicts",
+                        ["selfCareFrequency"] = "Rarely",
+                        ["copingMechanisms"] = new [] { "Deep breathing", "Exercise / Walking", "Talking to someone" },
+                        ["joyPeaceSources"] = "Reading, Nature walks, Music",
+                        ["toughDayMessage"] = "I'm trying my best but it never feels like enough"
+                    }
                 );
 
                 var result = await runPodService.AnalyzeWellnessAsync(sampleCheckIn, maxTokens, temperature);
@@ -308,15 +304,29 @@ namespace Mindflow_Web_API.EndPoints
                 // Create a sample wellness check-in for demonstration
                 var sampleCheckIn = WellnessCheckIn.Create(
                     userId: Guid.NewGuid(),
-                    mood: "Stressed",
+                    moodLevel: "Stressed",
                     checkInDate: DateTime.UtcNow,
+                    reminderEnabled: false,
+                    reminderTime: null,
                     ageRange: "18-24",
-                    focusAreas: new[] { "Career/School", "Mental health" },
-                    supportAreas: new[] { "Make sense of what I'm feeling", "Get help with decisions" },
-                    stressNotes: "Upcoming exams and feeling isolated from peers",
-                    selfCareFrequency: "Sometimes",
-                    copingMechanisms: new[] { "Journaling", "Exercise / Walking", "Music" },
-                    joyPeaceSources: "Art, Music, Nature"
+                    focusAreas: new [] { "Career/School", "Mental health" },
+                    weekdayStartTime: null,
+                    weekdayStartShift: null,
+                    weekdayEndTime: null,
+                    weekdayEndShift: null,
+                    weekendStartTime: null,
+                    weekendStartShift: null,
+                    weekendEndTime: null,
+                    weekendEndShift: null,
+                    questions: new Dictionary<string, object>
+                    {
+                        ["focusAreas"] = new [] { "Career/School", "Mental health" },
+                        ["supportNeeds"] = new [] { "Make sense of what I'm feeling", "Get help with decisions" },
+                        ["stressNotes"] = "Upcoming exams and feeling isolated from peers",
+                        ["selfCareFrequency"] = "Sometimes",
+                        ["copingMechanisms"] = new [] { "Journaling", "Exercise / Walking", "Music" },
+                        ["joyPeaceSources"] = "Art, Music, Nature"
+                    }
                 );
 
                 var tasks = await runPodService.GetTaskSuggestionsAsync(sampleCheckIn, maxTokens, temperature);
@@ -351,15 +361,29 @@ namespace Mindflow_Web_API.EndPoints
                 // Create a sample wellness check-in for demonstration
                 var sampleCheckIn = WellnessCheckIn.Create(
                     userId: Guid.NewGuid(),
-                    mood: "Overwhelmed",
+                    moodLevel: "Overwhelmed",
                     checkInDate: DateTime.UtcNow,
+                    reminderEnabled: false,
+                    reminderTime: null,
                     ageRange: "35-44",
-                    focusAreas: new[] { "Mental health", "Relationships" },
-                    supportAreas: new[] { "Daily mental health check-ins", "Reminders to care for myself" },
-                    stressNotes: "Feeling hopeless and considering drastic changes",
-                    copingMechanisms: new[] { "Not sure yet" },
-                    joyPeaceSources: "Still searching for sources of joy",
-                    toughDayMessage: "I don't know how much longer I can keep going"
+                    focusAreas: new [] { "Mental health", "Relationships" },
+                    weekdayStartTime: null,
+                    weekdayStartShift: null,
+                    weekdayEndTime: null,
+                    weekdayEndShift: null,
+                    weekendStartTime: null,
+                    weekendStartShift: null,
+                    weekendEndTime: null,
+                    weekendEndShift: null,
+                    questions: new Dictionary<string, object>
+                    {
+                        ["focusAreas"] = new [] { "Mental health", "Relationships" },
+                        ["supportNeeds"] = new [] { "Daily mental health check-ins", "Reminders to care for myself" },
+                        ["stressNotes"] = "Feeling hopeless and considering drastic changes",
+                        ["copingMechanisms"] = new [] { "Not sure yet" },
+                        ["joyPeaceSources"] = "Still searching for sources of joy",
+                        ["toughDayMessage"] = "I don't know how much longer I can keep going"
+                    }
                 );
 
                 var assessment = await runPodService.AssessUrgencyAsync(sampleCheckIn, maxTokens, temperature);
@@ -420,28 +444,56 @@ namespace Mindflow_Web_API.EndPoints
                 // Create multiple sample wellness check-ins
                 var sampleCheckIns = new[]
                 {
-                                            WellnessCheckIn.Create(
-                            userId: Guid.NewGuid(),
-                            mood: "Okay",
-                            checkInDate: DateTime.UtcNow,
-                            ageRange: "25-34",
-                            focusAreas: new[] { "Self-love / Confidence", "Relationships" },
-                            supportAreas: new[] { "Feel more in control", "Daily mental health check-ins" },
-                            stressNotes: "Feeling good but want to maintain momentum",
-                            copingMechanisms: new[] { "Exercise / Walking", "Music", "Journaling" },
-                            joyPeaceSources: "Family, Friends, Hobbies"
-                        ),
-                                            WellnessCheckIn.Create(
-                            userId: Guid.NewGuid(),
-                            mood: "Stressed",
-                            checkInDate: DateTime.UtcNow,
-                            ageRange: "35-44",
-                            focusAreas: new[] { "Career/School", "Physical health" },
-                            supportAreas: new[] { "Get help with decisions", "Reminders to care for myself" },
-                            stressNotes: "Work pressure and health concerns",
-                            copingMechanisms: new[] { "Exercise / Walking", "Deep breathing", "Talking to someone" },
-                            joyPeaceSources: "Family, Hobbies, Nature"
-                        )
+                    WellnessCheckIn.Create(
+                        userId: Guid.NewGuid(),
+                        moodLevel: "Okay",
+                        checkInDate: DateTime.UtcNow,
+                        reminderEnabled: false,
+                        reminderTime: null,
+                        ageRange: "25-34",
+                        focusAreas: new [] { "Self-love / Confidence", "Relationships" },
+                        weekdayStartTime: null,
+                        weekdayStartShift: null,
+                        weekdayEndTime: null,
+                        weekdayEndShift: null,
+                        weekendStartTime: null,
+                        weekendStartShift: null,
+                        weekendEndTime: null,
+                        weekendEndShift: null,
+                        questions: new Dictionary<string, object>
+                        {
+                            ["focusAreas"] = new [] { "Self-love / Confidence", "Relationships" },
+                            ["supportNeeds"] = new [] { "Feel more in control", "Daily mental health check-ins" },
+                            ["stressNotes"] = "Feeling good but want to maintain momentum",
+                            ["copingMechanisms"] = new [] { "Exercise / Walking", "Music", "Journaling" },
+                            ["joyPeaceSources"] = "Family, Friends, Hobbies"
+                        }
+                    ),
+                    WellnessCheckIn.Create(
+                        userId: Guid.NewGuid(),
+                        moodLevel: "Stressed",
+                        checkInDate: DateTime.UtcNow,
+                        reminderEnabled: false,
+                        reminderTime: null,
+                        ageRange: "35-44",
+                        focusAreas: new [] { "Career/School", "Physical health" },
+                        weekdayStartTime: null,
+                        weekdayStartShift: null,
+                        weekdayEndTime: null,
+                        weekdayEndShift: null,
+                        weekendStartTime: null,
+                        weekendStartShift: null,
+                        weekendEndTime: null,
+                        weekendEndShift: null,
+                        questions: new Dictionary<string, object>
+                        {
+                            ["focusAreas"] = new [] { "Career/School", "Physical health" },
+                            ["supportNeeds"] = new [] { "Get help with decisions", "Reminders to care for myself" },
+                            ["stressNotes"] = "Work pressure and health concerns",
+                            ["copingMechanisms"] = new [] { "Exercise / Walking", "Deep breathing", "Talking to someone" },
+                            ["joyPeaceSources"] = "Family, Hobbies, Nature"
+                        }
+                    )
                 };
 
                 var results = new List<object>();

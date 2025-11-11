@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Text.Json;
 using Mindflow_Web_API.Utilities;
 
 namespace Mindflow_Web_API.Models
@@ -6,31 +8,36 @@ namespace Mindflow_Web_API.Models
     public class WellnessCheckIn : EntityBase
     {
         public Guid UserId { get; set; }
-        public string MoodLevel { get; set; }            // 'neutral', 'happy', 'sad'
+        public string MoodLevel { get; set; } = string.Empty;  // Required field
         public DateTime CheckInDate { get; set; }
         public bool ReminderEnabled { get; set; }
         public string? ReminderTime { get; set; }
+        
+        // Core fixed fields (always asked)
         public string? AgeRange { get; set; }         // 'Under 18', '18-24', '25-34', '35-44', '45-54', '55+'
         public string[]? FocusAreas { get; set; }     // Array of selected focus areas (max 3)
-        public string? StressNotes { get; set; }      // User's stress-related notes (max 500 chars)
-        public string? ThoughtTrackingMethod { get; set; }  // How user tracks thoughts/tasks
-        public string[]? SupportAreas { get; set; }   // What would help feel supported (max 2)
-        public string? SelfCareFrequency { get; set; } // How often they care for themselves
-        public string? ToughDayMessage { get; set; }  // Message for tough days (max 500 chars)
-        public string[]? CopingMechanisms { get; set; } // What helps when overwhelmed (multiple selection)
-        public string? JoyPeaceSources { get; set; }  // What gives joy or peace (max 500 chars)
         
-        // 4 fields for WeekdayFreeTime (replacing WeekdayFreeTime)
+        // Time availability fields (always asked)
         public string? WeekdayStartTime { get; set; }      // Weekday start time (e.g., "09:30")
         public string? WeekdayStartShift { get; set; }     // Weekday start AM/PM
         public string? WeekdayEndTime { get; set; }        // Weekday end time (e.g., "17:30")
         public string? WeekdayEndShift { get; set; }       // Weekday end AM/PM
-        
-        // 4 fields for WeekendFreeTime (replacing WeekendFreeTime)
         public string? WeekendStartTime { get; set; }      // Weekend start time (e.g., "10:00")
         public string? WeekendStartShift { get; set; }     // Weekend start AM/PM
         public string? WeekendEndTime { get; set; }        // Weekend end time (e.g., "18:00")
         public string? WeekendEndShift { get; set; }       // Weekend end AM/PM
+        
+        // Dynamic questions/answers stored as JSON
+        // Stores all conditional questions based on selected focus areas
+        // Key: question name (e.g., "mentalHealthChallenges", "productivityBlockers", "biggestObstacle", "supportNeeds")
+        // Value: string for single/text answers, string[] for multiple choice
+        // Examples:
+        //   - "mentalHealthChallenges": ["Anxiety", "Stress", "Burnout"]
+        //   - "mentalHealthSupport": "therapist_regular"
+        //   - "mentalHealthTriggers": "Work deadlines and social situations"
+        //   - "biggestObstacle": "Lack of motivation and time management"
+        //   - "supportNeeds": ["Daily check-ins", "Task suggestions", "AI insights"]
+        public Dictionary<string, object> Questions { get; set; } = new Dictionary<string, object>();
 
         // Private constructor for ORM frameworks
         private WellnessCheckIn()
@@ -38,22 +45,15 @@ namespace Mindflow_Web_API.Models
             MoodLevel = string.Empty;
         }
 
-        private WellnessCheckIn(Guid userId, string mood, DateTime checkInDate, bool reminderEnabled, string? reminderTime, string? ageRange, string[]? focusAreas, string? stressNotes, string? thoughtTrackingMethod, string[]? supportAreas, string? selfCareFrequency, string? toughDayMessage, string[]? copingMechanisms, string? joyPeaceSources, string? weekdayStartTime, string? weekdayStartShift, string? weekdayEndTime, string? weekdayEndShift, string? weekendStartTime, string? weekendStartShift, string? weekendEndTime, string? weekendEndShift)
+        private WellnessCheckIn(Guid userId, string moodLevel, DateTime checkInDate, bool reminderEnabled, string? reminderTime, string? ageRange, string[]? focusAreas, string? weekdayStartTime, string? weekdayStartShift, string? weekdayEndTime, string? weekdayEndShift, string? weekendStartTime, string? weekendStartShift, string? weekendEndTime, string? weekendEndShift, Dictionary<string, object> questions)
         {
             UserId = userId;
-            MoodLevel = mood;
+            MoodLevel = moodLevel;
             CheckInDate = checkInDate;
             ReminderEnabled = reminderEnabled;
             ReminderTime = reminderTime;
             AgeRange = ageRange;
             FocusAreas = focusAreas;
-            StressNotes = stressNotes;
-            ThoughtTrackingMethod = thoughtTrackingMethod;
-            SupportAreas = supportAreas;
-            SelfCareFrequency = selfCareFrequency;
-            ToughDayMessage = toughDayMessage;
-            CopingMechanisms = copingMechanisms;
-            JoyPeaceSources = joyPeaceSources;
             WeekdayStartTime = weekdayStartTime;
             WeekdayStartShift = weekdayStartShift;
             WeekdayEndTime = weekdayEndTime;
@@ -62,31 +62,25 @@ namespace Mindflow_Web_API.Models
             WeekendStartShift = weekendStartShift;
             WeekendEndTime = weekendEndTime;
             WeekendEndShift = weekendEndShift;
+            Questions = questions ?? new Dictionary<string, object>();
         }
 
-        public static WellnessCheckIn Create(Guid userId, string mood, DateTime checkInDate, bool reminderEnabled = false, string? reminderTime = null, string? ageRange = null, string[]? focusAreas = null, string? stressNotes = null, string? thoughtTrackingMethod = null, string[]? supportAreas = null, string? selfCareFrequency = null, string? toughDayMessage = null, string[]? copingMechanisms = null, string? joyPeaceSources = null, string? weekdayStartTime = null, string? weekdayStartShift = null, string? weekdayEndTime = null, string? weekdayEndShift = null, string? weekendStartTime = null, string? weekendStartShift = null, string? weekendEndTime = null, string? weekendEndShift = null)
+        public static WellnessCheckIn Create(Guid userId, string moodLevel, DateTime checkInDate, bool reminderEnabled = false, string? reminderTime = null, string? ageRange = null, string[]? focusAreas = null, string? weekdayStartTime = null, string? weekdayStartShift = null, string? weekdayEndTime = null, string? weekdayEndShift = null, string? weekendStartTime = null, string? weekendStartShift = null, string? weekendEndTime = null, string? weekendEndShift = null, Dictionary<string, object>? questions = null)
         {
-            ValidateInputs(mood, checkInDate, ageRange, focusAreas, stressNotes, thoughtTrackingMethod, supportAreas, selfCareFrequency, toughDayMessage, copingMechanisms, joyPeaceSources, weekdayStartTime, weekdayStartShift, weekdayEndTime, weekdayEndShift, weekendStartTime, weekendStartShift, weekendEndTime, weekendEndShift);
-            return new WellnessCheckIn(userId, mood, checkInDate, reminderEnabled, reminderTime, ageRange, focusAreas, stressNotes, thoughtTrackingMethod, supportAreas, selfCareFrequency, toughDayMessage, copingMechanisms, joyPeaceSources, weekdayStartTime, weekdayStartShift, weekdayEndTime, weekdayEndShift, weekendStartTime, weekendStartShift, weekendEndTime, weekendEndShift);
+            ValidateInputs(moodLevel, checkInDate, ageRange, focusAreas, weekdayStartTime, weekdayStartShift, weekdayEndTime, weekdayEndShift, weekendStartTime, weekendStartShift, weekendEndTime, weekendEndShift, questions);
+            return new WellnessCheckIn(userId, moodLevel, checkInDate, reminderEnabled, reminderTime, ageRange, focusAreas, weekdayStartTime, weekdayStartShift, weekdayEndTime, weekdayEndShift, weekendStartTime, weekendStartShift, weekendEndTime, weekendEndShift, questions ?? new Dictionary<string, object>());
         }
 
-        public void Update(string mood, DateTime checkInDate, bool reminderEnabled, string? reminderTime, string? ageRange, string[]? focusAreas, string? stressNotes, string? thoughtTrackingMethod, string[]? supportAreas, string? selfCareFrequency, string? toughDayMessage, string[]? copingMechanisms, string? joyPeaceSources, string? weekdayStartTime, string? weekdayStartShift, string? weekdayEndTime, string? weekdayEndShift, string? weekendStartTime, string? weekendStartShift, string? weekendEndTime, string? weekendEndShift)
+        public void Update(string moodLevel, DateTime checkInDate, bool reminderEnabled, string? reminderTime, string? ageRange, string[]? focusAreas, string? weekdayStartTime, string? weekdayStartShift, string? weekdayEndTime, string? weekdayEndShift, string? weekendStartTime, string? weekendStartShift, string? weekendEndTime, string? weekendEndShift, Dictionary<string, object>? questions)
         {
-            ValidateInputs(mood, checkInDate, ageRange, focusAreas, stressNotes, thoughtTrackingMethod, supportAreas, selfCareFrequency, toughDayMessage, copingMechanisms, joyPeaceSources, weekdayStartTime, weekdayStartShift, weekdayEndTime, weekdayEndShift, weekendStartTime, weekendStartShift, weekendEndTime, weekendEndShift);
+            ValidateInputs(moodLevel, checkInDate, ageRange, focusAreas, weekdayStartTime, weekdayStartShift, weekdayEndTime, weekdayEndShift, weekendStartTime, weekendStartShift, weekendEndTime, weekendEndShift, questions);
 
-            MoodLevel = mood;
+            MoodLevel = moodLevel;
             CheckInDate = checkInDate;
             ReminderEnabled = reminderEnabled;
             ReminderTime = reminderTime;
             AgeRange = ageRange;
             FocusAreas = focusAreas;
-            StressNotes = stressNotes;
-            ThoughtTrackingMethod = thoughtTrackingMethod;
-            SupportAreas = supportAreas;
-            SelfCareFrequency = selfCareFrequency;
-            ToughDayMessage = toughDayMessage;
-            CopingMechanisms = copingMechanisms;
-            JoyPeaceSources = joyPeaceSources;
             WeekdayStartTime = weekdayStartTime;
             WeekdayStartShift = weekdayStartShift;
             WeekdayEndTime = weekdayEndTime;
@@ -95,14 +89,60 @@ namespace Mindflow_Web_API.Models
             WeekendStartShift = weekendStartShift;
             WeekendEndTime = weekendEndTime;
             WeekendEndShift = weekendEndShift;
+            
+            if (questions != null)
+            {
+                Questions = questions;
+            }
 
             UpdateLastModified();
         }
 
-        private static void ValidateInputs(string mood, DateTime checkInDate, string? ageRange, string[]? focusAreas, string? stressNotes, string? thoughtTrackingMethod, string[]? supportAreas, string? selfCareFrequency, string? toughDayMessage, string[]? copingMechanisms, string? joyPeaceSources, string? weekdayStartTime, string? weekdayStartShift, string? weekdayEndTime, string? weekdayEndShift, string? weekendStartTime, string? weekendStartShift, string? weekendEndTime, string? weekendEndShift)
+        // Helper method to get a question value as a specific type
+        public T? GetQuestionValue<T>(string questionKey)
         {
-            if (string.IsNullOrWhiteSpace(mood) || !MoodHelper.IsValidMood(mood))
-                throw new ArgumentException("Mood level must be one of: 'Shopping', 'Okay', 'Stressed', 'Overwhelmed'.", nameof(mood));
+            if (!Questions.TryGetValue(questionKey, out var value) || value == null)
+                return default(T);
+
+            // Handle JSON deserialization for complex types
+            if (value is JsonElement jsonElement)
+            {
+                return JsonSerializer.Deserialize<T>(jsonElement.GetRawText());
+            }
+
+            // Direct cast for simple types
+            if (value is T directValue)
+                return directValue;
+
+            // Try to convert
+            try
+            {
+                return (T)Convert.ChangeType(value, typeof(T));
+            }
+            catch
+            {
+                return default(T);
+            }
+        }
+
+        // Helper method to set a question value
+        public void SetQuestionValue(string questionKey, object? value)
+        {
+            if (value == null)
+            {
+                Questions.Remove(questionKey);
+            }
+            else
+            {
+                Questions[questionKey] = value;
+            }
+            UpdateLastModified();
+        }
+
+        private static void ValidateInputs(string moodLevel, DateTime checkInDate, string? ageRange, string[]? focusAreas, string? weekdayStartTime, string? weekdayStartShift, string? weekdayEndTime, string? weekdayEndShift, string? weekendStartTime, string? weekendStartShift, string? weekendEndTime, string? weekendEndShift, Dictionary<string, object>? questions)
+        {
+            if (string.IsNullOrWhiteSpace(moodLevel) || !MoodHelper.IsValidMood(moodLevel))
+                throw new ArgumentException("Mood level must be one of: 'Shopping', 'Okay', 'Stressed', 'Overwhelmed'.", nameof(moodLevel));
 
             if (checkInDate > DateTime.UtcNow)
                 throw new ArgumentException("Check-in date cannot be in the future.", nameof(checkInDate));
@@ -113,30 +153,35 @@ namespace Mindflow_Web_API.Models
             if (!FocusAreasHelper.IsValidFocusAreasList(focusAreas))
                 throw new ArgumentException($"Focus areas must be valid and cannot exceed {FocusAreasHelper.MaxFocusAreas} selections.", nameof(focusAreas));
 
-            if (!string.IsNullOrWhiteSpace(stressNotes) && stressNotes.Length > 500)
-                throw new ArgumentException("Stress notes cannot exceed 500 characters.", nameof(stressNotes));
-
-            if (!string.IsNullOrWhiteSpace(thoughtTrackingMethod) && !ThoughtTrackingHelper.IsValidThoughtTrackingMethod(thoughtTrackingMethod))
-                throw new ArgumentException("Thought tracking method must be one of: 'Notes app or planner', 'Paper journal', 'In my head', 'With an app'.", nameof(thoughtTrackingMethod));
-
-            if (!SupportAreasHelper.IsValidSupportAreasList(supportAreas))
-                throw new ArgumentException($"Support areas must be valid and cannot exceed {SupportAreasHelper.MaxSupportAreas} selections.", nameof(supportAreas));
-
-            if (!string.IsNullOrWhiteSpace(selfCareFrequency) && !SelfCareFrequencyHelper.IsValidSelfCareFrequency(selfCareFrequency))
-                throw new ArgumentException("Self-care frequency must be one of: 'Rarely', 'Sometimes', 'Often', 'Daily'.", nameof(selfCareFrequency));
-
-            if (!string.IsNullOrWhiteSpace(toughDayMessage) && toughDayMessage.Length > 500)
-                throw new ArgumentException("Tough day message cannot exceed 500 characters.", nameof(toughDayMessage));
-
-            if (!CopingMechanismsHelper.IsValidCopingMechanismsList(copingMechanisms))
-                throw new ArgumentException($"Coping mechanisms must be valid and cannot exceed {CopingMechanismsHelper.MaxCopingMechanisms} selections.", nameof(copingMechanisms));
-
-            if (!string.IsNullOrWhiteSpace(joyPeaceSources) && joyPeaceSources.Length > 500)
-                throw new ArgumentException("Joy/peace sources cannot exceed 500 characters.", nameof(joyPeaceSources));
-
             // Validate time fields
             ValidateTimeField(weekdayStartTime, weekdayStartShift, weekdayEndTime, weekdayEndShift, "Weekday");
             ValidateTimeField(weekendStartTime, weekendStartShift, weekendEndTime, weekendEndShift, "Weekend");
+
+            // Validate dynamic questions
+            if (questions != null)
+            {
+                foreach (var kvp in questions)
+                {
+                    if (string.IsNullOrWhiteSpace(kvp.Key))
+                        throw new ArgumentException("Question keys cannot be null or empty.", nameof(questions));
+
+                    // Validate string values length (max 2000 chars per text question)
+                    if (kvp.Value is string strValue && strValue.Length > 2000)
+                        throw new ArgumentException($"Question '{kvp.Key}' value cannot exceed 2000 characters.", nameof(questions));
+
+                    // Validate array values (max 20 items per multi-select question)
+                    if (kvp.Value is System.Collections.IEnumerable enumerable && !(kvp.Value is string))
+                    {
+                        var count = 0;
+                        foreach (var item in enumerable)
+                        {
+                            count++;
+                            if (count > 20)
+                                throw new ArgumentException($"Question '{kvp.Key}' cannot have more than 20 items.", nameof(questions));
+                        }
+                    }
+                }
+            }
         }
 
         private static void ValidateTimeField(string? startTime, string? startShift, string? endTime, string? endShift, string timeType)

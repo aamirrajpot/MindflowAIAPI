@@ -24,16 +24,29 @@ namespace Mindflow_Web_API.Examples
             // Create a sample wellness check-in
             var checkIn = WellnessCheckIn.Create(
                 userId: Guid.NewGuid(),
-                mood: "Stressed",
+                moodLevel: "Stressed",
                 checkInDate: DateTime.UtcNow,
+                reminderEnabled: false,
+                reminderTime: null,
                 ageRange: "25-34",
-                focusAreas: new[] { "Work", "Stress Management", "Self-care" },
-                supportAreas: new[] { "Emotional Support", "Time Management" },
-                stressNotes: "Feeling overwhelmed with project deadlines and team conflicts",
-                selfCareFrequency: "Rarely",
-                copingMechanisms: new[] { "Deep breathing", "Walking", "Talking to friends" },
-                joyPeaceSources: "Reading, Nature walks, Music",
-                toughDayMessage: "I'm trying my best but it never feels like enough"
+                weekdayStartTime: null,
+                weekdayStartShift: null,
+                weekdayEndTime: null,
+                weekdayEndShift: null,
+                weekendStartTime: null,
+                weekendStartShift: null,
+                weekendEndTime: null,
+                weekendEndShift: null,
+                questions: new Dictionary<string, object>
+                {
+                    ["focusAreas"] = new [] { "Work", "Stress Management", "Self-care" },
+                    ["supportNeeds"] = new [] { "Emotional Support", "Time Management" },
+                    ["stressNotes"] = "Feeling overwhelmed with project deadlines and team conflicts",
+                    ["selfCareFrequency"] = "Rarely",
+                    ["copingMechanisms"] = new [] { "Deep breathing", "Walking", "Talking to friends" },
+                    ["joyPeaceSources"] = "Reading, Nature walks, Music",
+                    ["toughDayMessage"] = "I'm trying my best but it never feels like enough"
+                }
             );
 
             try
@@ -61,15 +74,28 @@ namespace Mindflow_Web_API.Examples
         {
             var checkIn = WellnessCheckIn.Create(
                 userId: Guid.NewGuid(),
-                mood: "Anxious",
+                moodLevel: "Anxious",
                 checkInDate: DateTime.UtcNow,
+                reminderEnabled: false,
+                reminderTime: null,
                 ageRange: "18-24",
-                focusAreas: new[] { "Academic Performance", "Social Anxiety" },
-                supportAreas: new[] { "Study Skills", "Social Skills" },
-                stressNotes: "Upcoming exams and feeling isolated from peers",
-                selfCareFrequency: "Sometimes",
-                copingMechanisms: new[] { "Meditation", "Exercise", "Journaling" },
-                joyPeaceSources: "Art, Music, Nature"
+                weekdayStartTime: null,
+                weekdayStartShift: null,
+                weekdayEndTime: null,
+                weekdayEndShift: null,
+                weekendStartTime: null,
+                weekendStartShift: null,
+                weekendEndTime: null,
+                weekendEndShift: null,
+                questions: new Dictionary<string, object>
+                {
+                    ["focusAreas"] = new [] { "Academic Performance", "Social Anxiety" },
+                    ["supportNeeds"] = new [] { "Study Skills", "Social Skills" },
+                    ["stressNotes"] = "Upcoming exams and feeling isolated from peers",
+                    ["selfCareFrequency"] = "Sometimes",
+                    ["copingMechanisms"] = new [] { "Meditation", "Exercise", "Journaling" },
+                    ["joyPeaceSources"] = "Art, Music, Nature"
+                }
             );
 
             try
@@ -95,15 +121,28 @@ namespace Mindflow_Web_API.Examples
         {
             var checkIn = WellnessCheckIn.Create(
                 userId: Guid.NewGuid(),
-                mood: "Overwhelmed",
+                moodLevel: "Overwhelmed",
                 checkInDate: DateTime.UtcNow,
+                reminderEnabled: false,
+                reminderTime: null,
                 ageRange: "35-44",
-                focusAreas: new[] { "Work-Life Balance", "Family Stress" },
-                supportAreas: new[] { "Professional Help", "Family Support" },
-                stressNotes: "Feeling hopeless and considering drastic changes",
-                copingMechanisms: new[] { "None currently" },
-                joyPeaceSources: "None",
-                toughDayMessage: "I don't know how much longer I can keep going"
+                weekdayStartTime: null,
+                weekdayStartShift: null,
+                weekdayEndTime: null,
+                weekdayEndShift: null,
+                weekendStartTime: null,
+                weekendStartShift: null,
+                weekendEndTime: null,
+                weekendEndShift: null,
+                questions: new Dictionary<string, object>
+                {
+                    ["focusAreas"] = new [] { "Work-Life Balance", "Family Stress" },
+                    ["supportNeeds"] = new [] { "Professional Help", "Family Support" },
+                    ["stressNotes"] = "Feeling hopeless and considering drastic changes",
+                    ["copingMechanisms"] = new [] { "None currently" },
+                    ["joyPeaceSources"] = "None",
+                    ["toughDayMessage"] = "I don't know how much longer I can keep going"
+                }
             );
 
             try
@@ -182,14 +221,27 @@ namespace Mindflow_Web_API.Examples
         {
             var checkIn = WellnessCheckIn.Create(
                 userId: Guid.NewGuid(),
-                mood: "Happy",
+                moodLevel: "Happy",
                 checkInDate: DateTime.UtcNow,
+                reminderEnabled: false,
+                reminderTime: null,
                 ageRange: "25-34",
-                focusAreas: new[] { "Personal Growth", "Relationships" },
-                supportAreas: new[] { "Goal Setting", "Communication" },
-                stressNotes: "Feeling good but want to maintain momentum",
-                copingMechanisms: new[] { "Exercise", "Socializing", "Learning" },
-                joyPeaceSources: "Family, Friends, Hobbies"
+                weekdayStartTime: null,
+                weekdayStartShift: null,
+                weekdayEndTime: null,
+                weekdayEndShift: null,
+                weekendStartTime: null,
+                weekendStartShift: null,
+                weekendEndTime: null,
+                weekendEndShift: null,
+                questions: new Dictionary<string, object>
+                {
+                    ["focusAreas"] = new [] { "Personal Growth", "Relationships" },
+                    ["supportNeeds"] = new [] { "Goal Setting", "Communication" },
+                    ["stressNotes"] = "Feeling good but want to maintain momentum",
+                    ["copingMechanisms"] = new [] { "Exercise", "Socializing", "Learning" },
+                    ["joyPeaceSources"] = "Family, Friends, Hobbies"
+                }
             );
 
             try

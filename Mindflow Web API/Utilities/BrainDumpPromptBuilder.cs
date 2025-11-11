@@ -96,100 +96,89 @@ namespace Mindflow_Web_API.Utilities
         //	return sb.ToString();
         //}
 
-        public static string BuildTaskSuggestionsPrompt(BrainDumpRequest request, DTOs.WellnessCheckInDto? wellnessData = null, string? userName = null, bool forceMinimumActivities = false)
-        {
-            var sb = new StringBuilder();
-            sb.Append("[INST] You are a supportive wellness assistant that analyzes brain dumps and creates personalized insights and activities. ");
-            sb.Append("Return your response STRICTLY as a valid JSON object with the following structure:\n\n");
-            sb.Append("{\n");
-            sb.Append("  \"userProfile\": {\n");
-            sb.Append($"    \"name\": \"{userName ?? "User"}\",\n");
-            sb.Append("    \"currentState\": \"One short emotional state description based ONLY on the brain dump\",\n");
-            sb.Append("    \"emoji\": \"One relevant emoji\"\n");
-            sb.Append("  },\n");
-            sb.Append("  \"keyThemes\": [\"Theme 1\", \"Theme 2\", \"Theme 3\"],\n");
-            sb.Append("  \"aiSummary\": \"Supportive 2–3 sentence summary of the user's mindset and needs\",\n");
-            sb.Append("  \"suggestedActivities\": [\n");
-            sb.Append("    {\n");
-            sb.Append("      \"task\": \"Concrete activity (short phrase)\",\n");
-            sb.Append("      \"frequency\": \"Realistic frequency (e.g., 'Once today', 'Daily')\",\n");
-            sb.Append("      \"duration\": \"Time needed (e.g., '5 minutes', '15 minutes')\",\n");
-            sb.Append("      \"notes\": \"Brief reason why this task helps, based on the user's brain dump\",\n");
-            sb.Append("      \"priority\": \"High/Medium/Low - based on urgency and importance\",\n");
-            sb.Append("      \"suggestedTime\": \"Optimal time within available slots (e.g., '9:00 AM', '2:30 PM')\"\n");
-            sb.Append("    }\n");
-            sb.Append("  ]\n");
-            sb.Append("}\n\n");
+        public static string BuildTaskSuggestionsPrompt(
+				BrainDumpRequest request,
+				DTOs.WellnessCheckInDto? wellnessData = null,
+				string? userName = null,
+				bool forceMinimumActivities = false)
+			{
+				var sb = new StringBuilder();
+				sb.Append("[INST] You are a warm, insightful wellness coach who deeply understands people's emotions and daily struggles. ");
+				sb.Append("Analyze the user's brain dump with empathy and create *personalized, realistic activities* that reflect their unique emotional tone, energy level, and context. ");
+				sb.Append("Respond STRICTLY as a valid JSON object with the following structure:\n\n");
 
-            // Brain dump is the main input
-            sb.Append("=== USER BRAIN DUMP ===\n");
-            sb.Append(request.Text.Replace("\r", "").Replace("\n", "\\n"));
-            sb.Append("\n\n");
+				sb.Append("{\n");
+				sb.Append("  \"userProfile\": {\n");
+				sb.Append($"    \"name\": \"{userName ?? "User"}\",\n");
+				sb.Append("    \"currentState\": \"One short emotional state description based ONLY on the brain dump\",\n");
+				sb.Append("    \"emoji\": \"One relevant emoji\"\n");
+				sb.Append("  },\n");
+				sb.Append("  \"keyThemes\": [\"Theme 1\", \"Theme 2\", \"Theme 3\"],\n");
+				sb.Append("  \"aiSummary\": \"Empathetic 2–3 sentence summary capturing the user’s current mindset, needs, and emotional tone\",\n");
+				sb.Append("  \"suggestedActivities\": [\n");
+				sb.Append("    {\n");
+				sb.Append("      \"task\": \"Personalized, concrete activity (short phrase)\",\n");
+				sb.Append("      \"frequency\": \"Realistic frequency (e.g., 'Once today', 'Every morning', 'Twice this week')\",\n");
+				sb.Append("      \"duration\": \"Time needed (e.g., '10 minutes', '30 minutes')\",\n");
+				sb.Append("      \"notes\": \"Brief reason why this task helps — must connect emotionally to the user's current state or themes\",\n");
+				sb.Append("      \"priority\": \"High/Medium/Low - based on urgency and emotional importance\",\n");
+				sb.Append("      \"suggestedTime\": \"Optional preferred time (e.g., 'Morning', 'After work', 'Evening')\"\n");
+				sb.Append("    }\n");
+				sb.Append("  ]\n");
+				sb.Append("}\n\n");
 
-            if (!string.IsNullOrWhiteSpace(request.Context))
-            {
-                sb.Append("Additional Context:\n");
-                sb.Append(request.Context!.Replace("\r", "").Replace("\n", "\\n"));
-                sb.Append("\n\n");
-            }
+				sb.Append("=== USER BRAIN DUMP ===\n");
+				sb.Append(request.Text.Replace("\r", "").Replace("\n", "\\n"));
+				sb.Append("\n\n");
 
-            if (request.Mood.HasValue || request.Stress.HasValue || request.Purpose.HasValue)
-            {
-                sb.Append("Self-Reported Scores (0-10): ");
-                if (request.Mood.HasValue) sb.Append($"Mood={request.Mood.Value} ");
-                if (request.Stress.HasValue) sb.Append($"Stress={request.Stress.Value} ");
-                if (request.Purpose.HasValue) sb.Append($"Purpose={request.Purpose.Value} ");
-                sb.Append("\n\n");
-            }
+				if (!string.IsNullOrWhiteSpace(request.Context))
+				{
+					sb.Append("Additional Context:\n");
+					sb.Append(request.Context!.Replace("\r", "").Replace("\n", "\\n"));
+					sb.Append("\n\n");
+				}
 
-            if (wellnessData != null)
-            {
-                // Convert US Eastern times to UTC for the prompt
-                var wdStartUtc = ConvertUsEasternToUtcString(wellnessData.WeekdayStartTime, wellnessData.WeekdayStartShift);
-                var wdEndUtc = ConvertUsEasternToUtcString(wellnessData.WeekdayEndTime, wellnessData.WeekdayEndShift);
-                var weStartUtc = ConvertUsEasternToUtcString(wellnessData.WeekendStartTime, wellnessData.WeekendStartShift);
-                var weEndUtc = ConvertUsEasternToUtcString(wellnessData.WeekendEndTime, wellnessData.WeekendEndShift);
+				if (request.Mood.HasValue || request.Stress.HasValue || request.Purpose.HasValue)
+				{
+					sb.Append("Self-Reported Scores (0-10): ");
+					if (request.Mood.HasValue) sb.Append($"Mood={request.Mood.Value} ");
+					if (request.Stress.HasValue) sb.Append($"Stress={request.Stress.Value} ");
+					if (request.Purpose.HasValue) sb.Append($"Purpose={request.Purpose.Value} ");
+					sb.Append("\n\n");
+				}
 
-                sb.Append("=== AVAILABLE TIME SLOTS (UTC, for realistic scheduling only) ===\n");
-                if (!string.IsNullOrWhiteSpace(wdStartUtc) && !string.IsNullOrWhiteSpace(wdEndUtc))
-                {
-                    sb.Append($"- Weekdays (UTC): {wdStartUtc} to {wdEndUtc}\n");
-                }
-                if (!string.IsNullOrWhiteSpace(weStartUtc) && !string.IsNullOrWhiteSpace(weEndUtc))
-                {
-                    sb.Append($"- Weekends (UTC): {weStartUtc} to {weEndUtc}\n");
-                }
-                sb.Append("\n");
-            }
+				if (wellnessData != null)
+				{
+					var wdStartUtc = ConvertUsEasternToUtcString(wellnessData.WeekdayStartTime, wellnessData.WeekdayStartShift);
+					var wdEndUtc = ConvertUsEasternToUtcString(wellnessData.WeekdayEndTime, wellnessData.WeekdayEndShift);
+					var weStartUtc = ConvertUsEasternToUtcString(wellnessData.WeekendStartTime, wellnessData.WeekendStartShift);
+					var weEndUtc = ConvertUsEasternToUtcString(wellnessData.WeekendEndTime, wellnessData.WeekendEndShift);
 
-            sb.Append("=== INSTRUCTIONS ===\n");
-            sb.Append("- Extract emotional state ONLY from the brain dump (not wellness data).\n");
-            sb.Append("- Key Themes must directly reflect concerns expressed in the brain dump (should be mostly of 2 words).\n");
-            sb.Append("- Suggested Activities:\n");
-            sb.Append("  * Identify ALL important and concrete tasks mentioned in the brain dump.\n");
-            sb.Append("  * Include EVERY explicit task from the user's text as its own separate activity. Do not omit or merge them.\n");
-            sb.Append("  * ALSO add wellness/self-care tasks based on Mood, Stress, and Purpose scores when needed.\n");
-            sb.Append("  * Always order tasks so that higher-priority or urgent items appear first (e.g., health, time-sensitive, financial).\n");
-            sb.Append("  * Do not merge multiple tasks into one generic suggestion — list them separately.\n");
-            sb.Append("  * Do not invent meta-tasks such as 'make a to-do list' or 'organize your calendar' — only return actionable tasks that the user can directly do.\n");
-            if (forceMinimumActivities)
-            {
-                sb.Append("  * Total: You MUST return 6–8 activities (no fewer than 6).\n");
-                sb.Append("  * Prioritize including ALL explicit tasks from the brain dump first. If fewer than 6 explicit tasks exist, add focused wellness/self-care tasks to reach 6–8 total.\n");
-            }
-            sb.Append("  * Each activity must be written as a direct suggestion to the user (e.g., 'Call your mother', 'Donate clothes to Goodwill').\n");
-            sb.Append("  * Keep each task short, specific, and realistic within available time slots.\n");
-            sb.Append("  * TIME SCHEDULING (OPTIONAL):\n");
-            sb.Append("    - Use suggestedTime to indicate optimal time preference (not required).\n");
-            sb.Append("    - For suggestedTime, use: 'Morning', 'Afternoon', 'Evening', or specific times like '9:30 AM'.\n");
-            sb.Append("    - Focus on task content and priority - scheduling will be handled automatically.\n");
-            sb.Append("    - Only suggest time if it's important for the task type (e.g., 'Morning' for exercise).\n");
+					sb.Append("=== AVAILABLE TIME SLOTS (UTC, for realistic scheduling only) ===\n");
+					if (!string.IsNullOrWhiteSpace(wdStartUtc) && !string.IsNullOrWhiteSpace(wdEndUtc))
+						sb.Append($"- Weekdays (UTC): {wdStartUtc} to {wdEndUtc}\n");
+					if (!string.IsNullOrWhiteSpace(weStartUtc) && !string.IsNullOrWhiteSpace(weEndUtc))
+						sb.Append($"- Weekends (UTC): {weStartUtc} to {weEndUtc}\n");
+					sb.Append("\n");
+				}
 
+				sb.Append("=== INSTRUCTIONS ===\n");
+				sb.Append("- Focus on emotional understanding: reflect how the user feels and what they might need right now.\n");
+				sb.Append("- Link each activity to what the user expressed — e.g., if they feel overwhelmed, suggest grounding or rest.\n");
+				sb.Append("- Identify all concrete tasks mentioned in the brain dump and include them.\n");
+				sb.Append("- Add supportive or wellness tasks that directly help improve the user's emotional state.\n");
+				sb.Append("- Each activity should sound personal and natural — like something you'd suggest to a friend, not a robot.\n");
+				if (forceMinimumActivities)
+				{
+					sb.Append("- Always include between 6 and 8 total activities. If there are fewer explicit ones, fill with wellness/self-care tasks that match the user’s tone.\n");
+				}
+				sb.Append("- Avoid generic suggestions (like 'make a list') or vague ones (like 'take care of yourself'). Keep them actionable and human.\n");
+				sb.Append("- Use the available time slots to make scheduling realistic but focus on the emotional fit first.\n");
 
-            sb.Append("Output only the JSON object. Do not include any text outside JSON. [/INST]");
+				sb.Append("Output only the JSON object. Do not include any text outside JSON. [/INST]");
 
-            return sb.ToString();
-        }
+				return sb.ToString();
+			}
 
 
         public static BrainDumpResponse? ParseBrainDumpResponse(string aiResponse, ILogger? logger = null)

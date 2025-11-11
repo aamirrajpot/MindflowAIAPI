@@ -16,7 +16,7 @@ namespace Mindflow_Web_API.Services
 	{
 		Task<BrainDumpResponse> GetTaskSuggestionsAsync(Guid userId, BrainDumpRequest request, int maxTokens = 1000, double temperature = 0.7);
 		Task<TaskItem> AddTaskToCalendarAsync(Guid userId, AddToCalendarRequest request);
-		Task<List<TaskItem>> AddMultipleTasksToCalendarAsync(Guid userId, List<TaskSuggestion> suggestions, DTOs.WellnessCheckInDto? wellnessData = null);
+		Task<List<TaskItem>> AddMultipleTasksToCalendarAsync(Guid userId, List<TaskSuggestion> suggestions, DTOs.WellnessCheckInDto? wellnessData = null, Guid? brainDumpEntryId = null);
 		Task<string?> GenerateAiInsightAsync(Guid userId, Guid entryId);
 	}
 
@@ -152,6 +152,30 @@ namespace Mindflow_Web_API.Services
 			// Add weekly trends data if available
 			brainDumpResponse.WeeklyTrends = await GetWeeklyTrendsAsync(userId);
 
+			// Gather data for meaningful insights
+			_logger.LogDebug("Gathering progress metrics and emotion trends for user {UserId}. Current entry text length: {TextLength}", 
+				userId, entry.Text?.Length ?? 0);
+			var progressMetrics = await CalculateProgressMetricsAsync(userId);
+			var emotionTrends = await AnalyzeEmotionTrendsAsync(userId, entry); // Pass current entry for fallback
+			var insights = GenerateInsights(progressMetrics, emotionTrends, entry); // Pass current entry for fallback
+			var patterns = GeneratePatterns(emotionTrends);
+			
+			_logger.LogInformation("Generated insights: {InsightsCount}, patterns: {PatternsCount}, emotionTrends: {HasEmotionTrends}", 
+				insights?.Count ?? 0, patterns?.Count ?? 0, emotionTrends != null);
+
+			// Create personalized message with insights
+			var personalizedMessage = BuildPersonalizedMessage(userName, wellnessData, progressMetrics, emotionTrends);
+
+			// Add insights to response
+			brainDumpResponse.Insights = insights;
+			brainDumpResponse.Patterns = patterns;
+			brainDumpResponse.ProgressMetrics = progressMetrics;
+			brainDumpResponse.EmotionTrends = emotionTrends;
+			brainDumpResponse.PersonalizedMessage = personalizedMessage;
+			
+			// Add brain dump entry ID for linking tasks
+			brainDumpResponse.BrainDumpEntryId = entry.Id;
+
 			return brainDumpResponse;
 		}
 
@@ -228,6 +252,30 @@ namespace Mindflow_Web_API.Services
 			_logger.LogInformation("Creating task '{TaskTitle}' for user {UserId} at {TaskDate} {TaskTime} UTC", 
 				request.Task, userId, adjustedDate.ToString("yyyy-MM-dd"), adjustedTime);
 
+			// Extract brain dump linking information if provided
+			string? sourceTextExcerpt = null;
+			string? lifeArea = null;
+			string? emotionTag = null;
+			
+			if (request.BrainDumpEntryId.HasValue)
+			{
+				var brainDumpEntry = await _db.BrainDumpEntries
+					.FirstOrDefaultAsync(e => e.Id == request.BrainDumpEntryId.Value && e.UserId == userId);
+				
+				if (brainDumpEntry != null)
+				{
+					// Extract source text excerpt that relates to this task
+					sourceTextExcerpt = ExtractSourceTextExcerpt(brainDumpEntry.Text, request.Task, request.Notes);
+					
+					// Determine life area and emotion tag from brain dump and task
+					lifeArea = DetermineLifeArea(brainDumpEntry.Text, request.Task, request.Notes);
+					emotionTag = DetermineEmotionTag(brainDumpEntry.Text, brainDumpEntry.Tags);
+					
+					_logger.LogDebug("Linking task '{TaskTitle}' to brain dump entry {EntryId}. LifeArea: {LifeArea}, EmotionTag: {EmotionTag}", 
+						request.Task, request.BrainDumpEntryId.Value, lifeArea, emotionTag);
+				}
+			}
+
 			// Create TaskItem
 			var taskItem = new TaskItem
 			{
@@ -247,7 +295,12 @@ namespace Mindflow_Web_API.Services
 				// Recurring task fields
 				IsTemplate = repeatType != RepeatType.Never, // Create template for recurring tasks
 				NextOccurrence = repeatType != RepeatType.Never ? CalculateNextOccurrence(utcDateTime, repeatType) : null,
-				IsActive = true
+				IsActive = true,
+				// Brain dump linking fields
+				SourceBrainDumpEntryId = request.BrainDumpEntryId,
+				SourceTextExcerpt = sourceTextExcerpt,
+				LifeArea = lifeArea,
+				EmotionTag = emotionTag
 			};
 
 			_db.Tasks.Add(taskItem);
@@ -256,13 +309,21 @@ namespace Mindflow_Web_API.Services
 			return taskItem;
 		}
 
-		public async Task<List<TaskItem>> AddMultipleTasksToCalendarAsync(Guid userId, List<TaskSuggestion> suggestions, DTOs.WellnessCheckInDto? wellnessData = null)
+		public async Task<List<TaskItem>> AddMultipleTasksToCalendarAsync(Guid userId, List<TaskSuggestion> suggestions, DTOs.WellnessCheckInDto? wellnessData = null, Guid? brainDumpEntryId = null)
 		{
 			var createdTasks = new List<TaskItem>();
 			
 			// Get user's wellness data if not provided
 			if (wellnessData == null)
 				wellnessData = await _wellnessService.GetAsync(userId);
+
+			// Get brain dump entry if provided for linking
+			BrainDumpEntry? brainDumpEntry = null;
+			if (brainDumpEntryId.HasValue)
+			{
+				brainDumpEntry = await _db.BrainDumpEntries
+					.FirstOrDefaultAsync(e => e.Id == brainDumpEntryId.Value && e.UserId == userId);
+			}
 
 			// Sort tasks by priority (High -> Medium -> Low)
 			var sortedSuggestions = suggestions.OrderBy(s => s.Priority switch
@@ -292,6 +353,18 @@ namespace Mindflow_Web_API.Services
 					candidateTime = candidateTime.Add(TimeSpan.FromMinutes(30));
 				}
 
+				// Extract brain dump linking information if available
+				string? sourceTextExcerpt = null;
+				string? lifeArea = null;
+				string? emotionTag = null;
+				
+				if (brainDumpEntry != null)
+				{
+					sourceTextExcerpt = ExtractSourceTextExcerpt(brainDumpEntry.Text, scheduledTask.Suggestion.Task, scheduledTask.Suggestion.Notes);
+					lifeArea = DetermineLifeArea(brainDumpEntry.Text, scheduledTask.Suggestion.Task, scheduledTask.Suggestion.Notes);
+					emotionTag = DetermineEmotionTag(brainDumpEntry.Text, brainDumpEntry.Tags);
+				}
+
 				var taskItem = new TaskItem
 				{
 					UserId = userId,
@@ -308,7 +381,12 @@ namespace Mindflow_Web_API.Services
 					IsApproved = true,
 					Status = Models.TaskStatus.Pending,
 					IsTemplate = false,
-					IsActive = true
+					IsActive = true,
+					// Brain dump linking fields
+					SourceBrainDumpEntryId = brainDumpEntryId,
+					SourceTextExcerpt = sourceTextExcerpt,
+					LifeArea = lifeArea,
+					EmotionTag = emotionTag
 				};
 
 				_db.Tasks.Add(taskItem);
@@ -1249,6 +1327,524 @@ namespace Mindflow_Web_API.Services
 				_logger.LogError(ex, "Failed to generate AI insight for brain dump entry {EntryId}", entryId);
 				return null;
 			}
+		}
+
+		private async Task<ProgressMetricsDto?> CalculateProgressMetricsAsync(Guid userId)
+		{
+			try
+			{
+				_logger.LogDebug("Calculating progress metrics for user {UserId}", userId);
+				
+				var now = DateTime.UtcNow;
+				// Calculate start of this week (Sunday = 0, so we need to adjust)
+				var daysSinceSunday = (int)now.DayOfWeek;
+				var thisWeekStart = now.Date.AddDays(-daysSinceSunday);
+				var lastWeekStart = thisWeekStart.AddDays(-7);
+				
+				_logger.LogDebug("Week calculation: Now={Now}, DaysSinceSunday={DaysSinceSunday}, ThisWeekStart={ThisWeekStart}, LastWeekStart={LastWeekStart}", 
+					now, daysSinceSunday, thisWeekStart, lastWeekStart);
+
+				// Get brain dump entries for this week and last week
+				var thisWeekEntries = await _db.BrainDumpEntries
+					.Where(e => e.UserId == userId 
+						&& e.CreatedAtUtc >= thisWeekStart 
+						&& e.DeletedAtUtc == null)
+					.ToListAsync();
+
+				var lastWeekEntries = await _db.BrainDumpEntries
+					.Where(e => e.UserId == userId 
+						&& e.CreatedAtUtc >= lastWeekStart 
+						&& e.CreatedAtUtc < thisWeekStart
+						&& e.DeletedAtUtc == null)
+					.ToListAsync();
+
+				// Calculate brain dump frequency
+				var thisWeekCount = thisWeekEntries.Count;
+				var lastWeekCount = lastWeekEntries.Count;
+				var frequencyChange = thisWeekCount - lastWeekCount;
+
+				// Calculate average mood and stress scores
+				var thisWeekMoodScores = thisWeekEntries.Where(e => e.Mood.HasValue).Select(e => (double)e.Mood!.Value).ToList();
+				var thisWeekStressScores = thisWeekEntries.Where(e => e.Stress.HasValue).Select(e => (double)e.Stress!.Value).ToList();
+				
+				var lastWeekMoodScores = lastWeekEntries.Where(e => e.Mood.HasValue).Select(e => (double)e.Mood!.Value).ToList();
+				var lastWeekStressScores = lastWeekEntries.Where(e => e.Stress.HasValue).Select(e => (double)e.Stress!.Value).ToList();
+
+				var avgMoodThisWeek = thisWeekMoodScores.Any() ? thisWeekMoodScores.Average() : 0;
+				var avgStressThisWeek = thisWeekStressScores.Any() ? thisWeekStressScores.Average() : 0;
+				var avgMoodLastWeek = lastWeekMoodScores.Any() ? lastWeekMoodScores.Average() : 0;
+				var avgStressLastWeek = lastWeekStressScores.Any() ? lastWeekStressScores.Average() : 0;
+
+				var moodChange = avgMoodLastWeek > 0 ? avgMoodThisWeek - avgMoodLastWeek : 0;
+				var stressChange = avgStressLastWeek > 0 ? avgStressThisWeek - avgStressLastWeek : 0;
+
+				// Calculate task completion rate
+				var totalTasks = await _db.Tasks
+					.Where(t => t.UserId == userId && t.IsActive)
+					.CountAsync();
+
+				var completedTasks = await _db.Tasks
+					.Where(t => t.UserId == userId && t.IsActive && t.Status == Models.TaskStatus.Completed)
+					.CountAsync();
+
+				var completionRate = totalTasks > 0 ? (double)completedTasks / totalTasks * 100 : 0;
+
+				// Generate interpretation
+				var interpretation = BuildProgressInterpretation(avgMoodThisWeek, moodChange, avgStressThisWeek, stressChange, completionRate, frequencyChange);
+
+				_logger.LogDebug("Calculated progress metrics for user {UserId}. CompletionRate: {CompletionRate}%, BrainDumpFrequency: {Frequency}, MoodChange: {MoodChange}", 
+					userId, completionRate, thisWeekCount, moodChange);
+
+				return new ProgressMetricsDto(
+					completionRate,
+					thisWeekCount,
+					frequencyChange,
+					avgMoodThisWeek,
+					moodChange,
+					avgStressThisWeek,
+					stressChange,
+					interpretation
+				);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogWarning(ex, "Failed to calculate progress metrics for user {UserId}", userId);
+				return null;
+			}
+		}
+
+		private async Task<EmotionTrendsDto?> AnalyzeEmotionTrendsAsync(Guid userId, BrainDumpEntry? currentEntry = null)
+		{
+			try
+			{
+				_logger.LogDebug("Analyzing emotion trends for user {UserId}", userId);
+				
+				var now = DateTime.UtcNow;
+				// Calculate start of this week (Sunday = 0)
+				var daysSinceSunday = (int)now.DayOfWeek;
+				var thisWeekStart = now.Date.AddDays(-daysSinceSunday);
+
+				// Get brain dump entries for this week
+				var entries = await _db.BrainDumpEntries
+					.Where(e => e.UserId == userId 
+						&& e.CreatedAtUtc >= thisWeekStart 
+						&& e.DeletedAtUtc == null)
+					.ToListAsync();
+				
+				_logger.LogDebug("Found {Count} brain dump entries this week for user {UserId}. ThisWeekStart: {ThisWeekStart}", 
+					entries.Count, userId, thisWeekStart);
+				
+				// Always include current entry if provided (it might not be saved yet or might be today's entry)
+				if (currentEntry != null)
+				{
+					// Check if current entry is already in the list
+					if (!entries.Any(e => e.Id == currentEntry.Id))
+					{
+						_logger.LogDebug("Adding current entry to analysis (not yet in database or created today)");
+						entries.Add(currentEntry);
+					}
+					else
+					{
+						_logger.LogDebug("Current entry already included in this week's entries");
+					}
+				}
+				
+				if (entries.Count == 0)
+				{
+					_logger.LogWarning("No brain dump entries found for user {UserId} - cannot analyze emotion trends", userId);
+					return new EmotionTrendsDto(
+						new Dictionary<string, int>(),
+						new List<string>(),
+						new List<string>()
+					);
+				}
+
+				// Common emotion keywords to track
+				var emotionKeywords = new[] { 
+					"anxious", "anxiety", "worried", "worry", "stressed", "stress", "overwhelmed", "overwhelm",
+					"exhausted", "exhaustion", "tired", "fatigue", "burnout", "burned out",
+					"grateful", "gratitude", "thankful", "appreciate", "happy", "happiness", "joy", "joyful",
+					"sad", "sadness", "depressed", "depression", "down", "low",
+					"calm", "peaceful", "relaxed", "content", "satisfied",
+					"frustrated", "frustration", "angry", "anger", "irritated", "irritation"
+				};
+
+				var emotionFrequency = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+				
+				// Count emotion keywords in brain dump text
+				foreach (var entry in entries)
+				{
+					var text = $"{entry.Text} {entry.Context}".ToLower();
+					_logger.LogDebug("Analyzing entry {EntryId} with text length {TextLength}", entry.Id, text.Length);
+					
+					foreach (var keyword in emotionKeywords)
+					{
+						var count = CountOccurrences(text, keyword);
+						if (count > 0)
+						{
+							emotionFrequency[keyword] = emotionFrequency.GetValueOrDefault(keyword, 0) + count;
+							_logger.LogDebug("Found keyword '{Keyword}' {Count} times in entry {EntryId}", keyword, count, entry.Id);
+						}
+					}
+				}
+				
+				_logger.LogDebug("Total emotion frequency count: {Count} unique emotions found", emotionFrequency.Count);
+
+				// Get top 3 emotions
+				var topEmotions = emotionFrequency
+					.OrderByDescending(kvp => kvp.Value)
+					.Take(3)
+					.Select(kvp => kvp.Key)
+					.ToList();
+
+				// Generate emotion insights (lower threshold for new users)
+				var emotionInsights = new List<string>();
+				if (topEmotions.Any())
+				{
+					foreach (var emotion in topEmotions)
+					{
+						var count = emotionFrequency[emotion];
+						_logger.LogDebug("Processing emotion '{Emotion}' with count {Count}", emotion, count);
+						
+						// Lower threshold: show if mentioned 2+ times (or 1+ if only one entry)
+						if (count >= 2 || (entries.Count == 1 && count >= 1))
+						{
+							if (entries.Count == 1)
+							{
+								emotionInsights.Add($"You mentioned '{emotion}' in your brain dump");
+							}
+							else
+							{
+								emotionInsights.Add($"You've mentioned '{emotion}' {count} times this week");
+							}
+						}
+					}
+				}
+				else
+				{
+					_logger.LogDebug("No top emotions found - emotionFrequency is empty or all counts are 0");
+				}
+
+				_logger.LogDebug("Analyzed emotion trends for user {UserId}. TopEmotions: {TopEmotions}, TotalEmotions: {TotalEmotions}", 
+					userId, string.Join(", ", topEmotions), emotionFrequency.Count);
+
+				return new EmotionTrendsDto(
+					emotionFrequency,
+					topEmotions,
+					emotionInsights
+				);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogWarning(ex, "Failed to analyze emotion trends for user {UserId}", userId);
+				return null;
+			}
+		}
+
+		private int CountOccurrences(string text, string keyword)
+		{
+			if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(keyword))
+				return 0;
+
+			var count = 0;
+			var index = 0;
+			while ((index = text.IndexOf(keyword, index, StringComparison.OrdinalIgnoreCase)) != -1)
+			{
+				count++;
+				index += keyword.Length;
+			}
+			return count;
+		}
+
+		private List<string> GenerateInsights(ProgressMetricsDto? progressMetrics, EmotionTrendsDto? emotionTrends, BrainDumpEntry? currentEntry = null)
+		{
+			var insights = new List<string>();
+
+			if (progressMetrics != null)
+			{
+				// Task completion insight
+				if (progressMetrics.TaskCompletionRate >= 80)
+				{
+					insights.Add($"You've completed {progressMetrics.TaskCompletionRate:F0}% of your suggested tasks - great progress!");
+				}
+				else if (progressMetrics.TaskCompletionRate >= 50)
+				{
+					insights.Add($"You've completed {progressMetrics.TaskCompletionRate:F0}% of your suggested tasks");
+				}
+
+				// Mood trend insight (lower threshold for visibility)
+				if (progressMetrics.AverageMoodScoreChange > 0.5)
+				{
+					var oldMood = progressMetrics.AverageMoodScore - progressMetrics.AverageMoodScoreChange;
+					insights.Add($"Your mood scores have improved from {oldMood:F1}/10 to {progressMetrics.AverageMoodScore:F1}/10");
+				}
+				else if (progressMetrics.AverageMoodScoreChange < -0.5)
+				{
+					var oldMood = progressMetrics.AverageMoodScore - progressMetrics.AverageMoodScoreChange;
+					insights.Add($"Your mood scores have decreased from {oldMood:F1}/10 to {progressMetrics.AverageMoodScore:F1}/10");
+				}
+				else if (progressMetrics.AverageMoodScore > 0 && currentEntry != null)
+				{
+					// For new users, show current mood if available
+					if (currentEntry.Mood.HasValue)
+					{
+						insights.Add($"Your current mood score is {currentEntry.Mood.Value}/10");
+					}
+				}
+
+				// Stress trend insight (lower threshold)
+				if (progressMetrics.AverageStressScoreChange < -0.5)
+				{
+					var oldStress = progressMetrics.AverageStressScore - progressMetrics.AverageStressScoreChange;
+					insights.Add($"Your stress mentions dropped {Math.Abs(progressMetrics.AverageStressScoreChange):F1} points this week");
+				}
+				else if (progressMetrics.AverageStressScoreChange > 0.5)
+				{
+					var oldStress = progressMetrics.AverageStressScore - progressMetrics.AverageStressScoreChange;
+					insights.Add($"Your stress levels increased from {oldStress:F1}/10 to {progressMetrics.AverageStressScore:F1}/10");
+				}
+				else if (progressMetrics.AverageStressScore > 0 && currentEntry != null)
+				{
+					// For new users, show current stress if available
+					if (currentEntry.Stress.HasValue)
+					{
+						insights.Add($"Your current stress level is {currentEntry.Stress.Value}/10");
+					}
+				}
+
+				// Brain dump frequency insight
+				if (progressMetrics.BrainDumpFrequencyChange > 0)
+				{
+					insights.Add($"You've been more consistent with brain dumps this week (+{progressMetrics.BrainDumpFrequencyChange} entries)");
+				}
+				else if (progressMetrics.BrainDumpFrequency == 1 && currentEntry != null)
+				{
+					// For first-time users
+					insights.Add("This is your first brain dump - great start on your wellness journey!");
+				}
+			}
+
+			if (emotionTrends != null && emotionTrends.EmotionInsights.Any())
+			{
+				insights.AddRange(emotionTrends.EmotionInsights);
+			}
+			else if (currentEntry != null && emotionTrends != null && emotionTrends.TopEmotions.Any())
+			{
+				// Fallback: show top emotions even if they don't meet the threshold
+				var topEmotion = emotionTrends.TopEmotions.FirstOrDefault();
+				if (!string.IsNullOrEmpty(topEmotion))
+				{
+					var count = emotionTrends.EmotionFrequency.GetValueOrDefault(topEmotion, 0);
+					if (count > 0)
+					{
+						insights.Add($"Your brain dump shows themes around '{topEmotion}'");
+					}
+				}
+			}
+
+			return insights;
+		}
+
+		private List<string> GeneratePatterns(EmotionTrendsDto? emotionTrends)
+		{
+			var patterns = new List<string>();
+
+			if (emotionTrends != null && emotionTrends.TopEmotions.Any())
+			{
+				// Identify recurring patterns (lower threshold for new users)
+				foreach (var emotion in emotionTrends.TopEmotions)
+				{
+					var count = emotionTrends.EmotionFrequency.GetValueOrDefault(emotion, 0);
+					if (count >= 2)
+					{
+						patterns.Add($"You've mentioned '{emotion}' {count} times this week - this might be worth exploring");
+					}
+					else if (count >= 1)
+					{
+						// For single entries, still show pattern if it's a significant emotion
+						var significantEmotions = new[] { "anxious", "anxiety", "overwhelmed", "exhausted", "exhaustion", "stressed", "stress" };
+						if (significantEmotions.Contains(emotion.ToLower()))
+						{
+							patterns.Add($"You mentioned '{emotion}' in your brain dump - consider exploring this feeling further");
+						}
+					}
+				}
+			}
+
+			return patterns;
+		}
+
+		private string BuildPersonalizedMessage(string userName, DTOs.WellnessCheckInDto? wellnessData, ProgressMetricsDto? progressMetrics, EmotionTrendsDto? emotionTrends)
+		{
+			var primaryFocus = "general wellness";
+			var selfCareFrequency = "regular";
+			
+			var message = $"Hi {userName}, based on your focus on {primaryFocus} and {selfCareFrequency} self-care routine, we've tailored MindFlow AI to support your mental wellness journey.";
+
+			if (progressMetrics != null && !string.IsNullOrWhiteSpace(progressMetrics.Interpretation))
+			{
+				message += $" {progressMetrics.Interpretation}";
+			}
+
+			return message;
+		}
+
+		private string BuildProgressInterpretation(double avgMood, double moodChange, double avgStress, double stressChange, double completionRate, int frequencyChange)
+		{
+			var interpretations = new List<string>();
+
+			if (moodChange > 1)
+			{
+				interpretations.Add($"Your mood has improved significantly this week");
+			}
+			else if (moodChange < -1)
+			{
+				interpretations.Add($"Your mood has decreased this week - consider focusing on self-care");
+			}
+
+			if (stressChange < -1)
+			{
+				interpretations.Add($"Your stress levels have decreased this week");
+			}
+			else if (stressChange > 1)
+			{
+				interpretations.Add($"Your stress levels have increased this week");
+			}
+
+			if (completionRate >= 80)
+			{
+				interpretations.Add($"You're making excellent progress with task completion");
+			}
+			else if (completionRate < 50)
+			{
+				interpretations.Add($"Consider breaking tasks into smaller steps to improve completion");
+			}
+
+			if (frequencyChange > 0)
+			{
+				interpretations.Add($"You've been more consistent with brain dumps this week");
+			}
+
+			return interpretations.Any() ? string.Join(". ", interpretations) + "." : string.Empty;
+		}
+
+		/// <summary>
+		/// Extracts a relevant text excerpt from the brain dump that relates to the task.
+		/// </summary>
+		private string? ExtractSourceTextExcerpt(string brainDumpText, string taskTitle, string? taskNotes)
+		{
+			if (string.IsNullOrWhiteSpace(brainDumpText))
+				return null;
+
+			var text = brainDumpText.ToLower();
+			var taskLower = taskTitle.ToLower();
+			var notesLower = taskNotes?.ToLower() ?? string.Empty;
+
+			// Find keywords from task title in brain dump text
+			var taskWords = taskLower.Split(new[] { ' ', ',', '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries)
+				.Where(w => w.Length > 3) // Only meaningful words
+				.ToList();
+
+			// Find sentences that contain task-related keywords
+			var sentences = brainDumpText.Split(new[] { '.', '!', '?', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+			var relevantSentences = sentences
+				.Where(s => taskWords.Any(w => s.ToLower().Contains(w)))
+				.Take(2) // Take up to 2 relevant sentences
+				.ToList();
+
+			if (relevantSentences.Any())
+			{
+				var excerpt = string.Join(" ", relevantSentences).Trim();
+				// Limit to 500 characters
+				return excerpt.Length > 500 ? excerpt.Substring(0, 497) + "..." : excerpt;
+			}
+
+			// Fallback: return first 100 characters of brain dump
+			return brainDumpText.Length > 100 ? brainDumpText.Substring(0, 97) + "..." : brainDumpText;
+		}
+
+		/// <summary>
+		/// Determines the life area (Work, Family, Health, Relationships, Personal) from brain dump and task.
+		/// </summary>
+		private string? DetermineLifeArea(string brainDumpText, string taskTitle, string? taskNotes)
+		{
+			var text = $"{brainDumpText} {taskTitle} {taskNotes}".ToLower();
+
+			// Work-related keywords
+			if (text.Contains("work") || text.Contains("job") || text.Contains("career") || text.Contains("office") || 
+			    text.Contains("deadline") || text.Contains("project") || text.Contains("meeting") || text.Contains("boss") ||
+			    text.Contains("colleague") || text.Contains("client") || text.Contains("email") || text.Contains("task"))
+			{
+				return "Work";
+			}
+
+			// Family-related keywords
+			if (text.Contains("family") || text.Contains("mom") || text.Contains("mother") || text.Contains("dad") || 
+			    text.Contains("father") || text.Contains("parent") || text.Contains("sibling") || text.Contains("brother") ||
+			    text.Contains("sister") || text.Contains("child") || text.Contains("kid") || text.Contains("son") || 
+			    text.Contains("daughter") || text.Contains("spouse") || text.Contains("husband") || text.Contains("wife"))
+			{
+				return "Family";
+			}
+
+			// Health-related keywords
+			if (text.Contains("health") || text.Contains("doctor") || text.Contains("appointment") || text.Contains("medical") ||
+			    text.Contains("exercise") || text.Contains("workout") || text.Contains("gym") || text.Contains("fitness") ||
+			    text.Contains("diet") || text.Contains("nutrition") || text.Contains("sleep") || text.Contains("medication"))
+			{
+				return "Health";
+			}
+
+			// Relationships-related keywords
+			if (text.Contains("friend") || text.Contains("relationship") || text.Contains("dating") || text.Contains("partner") ||
+			    text.Contains("social") || text.Contains("hangout") || text.Contains("party") || text.Contains("gathering"))
+			{
+				return "Relationships";
+			}
+
+			// Personal/Self-care keywords
+			if (text.Contains("self") || text.Contains("personal") || text.Contains("hobby") || text.Contains("interest") ||
+			    text.Contains("relax") || text.Contains("rest") || text.Contains("me time") || text.Contains("myself"))
+			{
+				return "Personal";
+			}
+
+			return null; // Unknown
+		}
+
+		/// <summary>
+		/// Determines the emotion tag from brain dump text and tags.
+		/// </summary>
+		private string? DetermineEmotionTag(string brainDumpText, string? tags)
+		{
+			var text = $"{brainDumpText} {tags}".ToLower();
+
+			// Emotion keywords mapping
+			if (text.Contains("anxious") || text.Contains("anxiety") || text.Contains("worried") || text.Contains("worry"))
+				return "Anxious";
+			
+			if (text.Contains("grateful") || text.Contains("gratitude") || text.Contains("thankful") || text.Contains("appreciate"))
+				return "Grateful";
+			
+			if (text.Contains("overwhelmed") || text.Contains("overwhelm") || text.Contains("too much") || text.Contains("too many"))
+				return "Overwhelmed";
+			
+			if (text.Contains("exhausted") || text.Contains("exhaustion") || text.Contains("tired") || text.Contains("fatigue") || text.Contains("burnout"))
+				return "Exhausted";
+			
+			if (text.Contains("happy") || text.Contains("happiness") || text.Contains("joy") || text.Contains("joyful") || text.Contains("excited"))
+				return "Happy";
+			
+			if (text.Contains("sad") || text.Contains("sadness") || text.Contains("depressed") || text.Contains("depression") || text.Contains("down") || text.Contains("low"))
+				return "Sad";
+			
+			if (text.Contains("calm") || text.Contains("peaceful") || text.Contains("relaxed") || text.Contains("content") || text.Contains("satisfied"))
+				return "Calm";
+			
+			if (text.Contains("frustrated") || text.Contains("frustration") || text.Contains("angry") || text.Contains("anger") || text.Contains("irritated"))
+				return "Frustrated";
+
+			return null; // Unknown
 		}
 	}
 }
