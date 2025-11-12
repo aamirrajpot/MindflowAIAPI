@@ -60,7 +60,9 @@ namespace Mindflow_Web_API.Persistence.Configurations
             builder.Property(w => w.Questions)
                    .HasConversion(
                        v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                       v => JsonSerializer.Deserialize<Dictionary<string, object>>(v, (JsonSerializerOptions?)null) ?? new Dictionary<string, object>())
+                       v => string.IsNullOrWhiteSpace(v) 
+                           ? new Dictionary<string, object>() 
+                           : JsonSerializer.Deserialize<Dictionary<string, object>>(v, (JsonSerializerOptions?)null) ?? new Dictionary<string, object>())
                    .HasColumnType("TEXT");
 
             builder.Property(w => w.Created)
