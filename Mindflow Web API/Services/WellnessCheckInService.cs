@@ -149,10 +149,22 @@ namespace Mindflow_Web_API.Services
                 {
                     _logger.LogInformation("No existing wellness check-in found for user {UserId}, creating new one", userId);
                     
+                    // For new check-ins, MoodLevel is required. Use default "Okay" if not provided
+                    var moodLevel = patchDto.MoodLevel;
+                    if (string.IsNullOrWhiteSpace(moodLevel))
+                    {
+                        _logger.LogDebug("MoodLevel not provided in patch request, using default 'Okay' for new check-in");
+                        moodLevel = "Okay"; // Default valid mood level
+                    }
+                    
                     // Create new check-in if none exists
+                    var questions = patchDto.Questions ?? new Dictionary<string, object>();
+                    _logger.LogDebug("Creating new wellness check-in for user {UserId}. AgeRange: {AgeRange}, FocusAreas: {FocusAreas}, QuestionsCount: {QuestionsCount}", 
+                        userId, patchDto.AgeRange, patchDto.FocusAreas != null ? string.Join(", ", patchDto.FocusAreas) : "null", questions.Count);
+                    
                     checkIn = WellnessCheckIn.Create(
                         userId,
-                        patchDto.MoodLevel ?? string.Empty,
+                        moodLevel,
                         DateTime.UtcNow,
                         patchDto.ReminderEnabled ?? false,
                         patchDto.ReminderTime,
@@ -166,7 +178,7 @@ namespace Mindflow_Web_API.Services
                         patchDto.WeekendStartShift,
                         patchDto.WeekendEndTime,
                         patchDto.WeekendEndShift,
-                        patchDto.Questions ?? new Dictionary<string, object>()
+                        questions
                     );
                     
                     _logger.LogDebug("Created new wellness check-in for user {UserId}. CheckInId: {CheckInId}, QuestionsCount: {QuestionsCount}", 
