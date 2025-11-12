@@ -12,15 +12,20 @@ namespace Mindflow_Web_API.Utilities
 
         public static bool IsValidMood(string? mood)
         {
+            // Null or empty mood is considered valid (optional field)
             if (string.IsNullOrWhiteSpace(mood))
-                return false; // Mood cannot be null/empty
+                return true;
                 
+            // If mood is provided, it must be one of the valid moods
             return ValidMoods.Contains(mood);
         }
 
         // For LLM training - provides structured data about moods
-        public static string GetMoodDescription(string mood)
+        public static string GetMoodDescription(string? mood)
         {
+            if (string.IsNullOrWhiteSpace(mood))
+                return "No mood specified";
+                
             return mood switch
             {
                 "Shopping" => "Feeling excited, energetic, and looking forward to activities",
@@ -31,8 +36,11 @@ namespace Mindflow_Web_API.Utilities
             };
         }
 
-        public static int GetMoodIntensity(string mood)
+        public static int GetMoodIntensity(string? mood)
         {
+            if (string.IsNullOrWhiteSpace(mood))
+                return 0; // No mood specified
+                
             return mood switch
             {
                 "Shopping" => 1, // Most positive
@@ -43,8 +51,11 @@ namespace Mindflow_Web_API.Utilities
             };
         }
 
-        public static string GetMoodCategory(string mood)
+        public static string GetMoodCategory(string? mood)
         {
+            if (string.IsNullOrWhiteSpace(mood))
+                return "Not Specified";
+                
             return mood switch
             {
                 "Shopping" => "Positive",

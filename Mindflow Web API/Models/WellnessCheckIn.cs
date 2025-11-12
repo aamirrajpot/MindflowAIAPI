@@ -141,7 +141,8 @@ namespace Mindflow_Web_API.Models
 
         private static void ValidateInputs(string moodLevel, DateTime checkInDate, string? ageRange, string[]? focusAreas, string? weekdayStartTime, string? weekdayStartShift, string? weekdayEndTime, string? weekdayEndShift, string? weekendStartTime, string? weekendStartShift, string? weekendEndTime, string? weekendEndShift, Dictionary<string, object>? questions)
         {
-            if (string.IsNullOrWhiteSpace(moodLevel) || !MoodHelper.IsValidMood(moodLevel))
+            // Allow null or empty moodLevel, but if provided, it must be valid
+            if (!string.IsNullOrWhiteSpace(moodLevel) && !MoodHelper.IsValidMood(moodLevel))
                 throw new ArgumentException("Mood level must be one of: 'Shopping', 'Okay', 'Stressed', 'Overwhelmed'.", nameof(moodLevel));
 
             if (checkInDate > DateTime.UtcNow)

@@ -20,7 +20,7 @@ namespace Mindflow_Web_API.Persistence.Configurations
                    .IsRequired();
 
             builder.Property(w => w.MoodLevel)
-                   .IsRequired()
+                   .IsRequired(false)  // Allow null/empty moodLevel
                    .HasMaxLength(50);
 
             builder.Property(w => w.CheckInDate)
