@@ -683,7 +683,17 @@ Keep responses concise and practical. Focus on actionable items. [/INST]";
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to calculate progress metrics for user {UserId}", userId);
-                return null;
+                // Return default metrics instead of null
+                return new ProgressMetricsDto(
+                    0.0,
+                    0,
+                    0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    "Start tracking your wellness to see progress metrics here!"
+                );
             }
         }
 
@@ -759,7 +769,12 @@ Keep responses concise and practical. Focus on actionable items. [/INST]";
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to analyze emotion trends for user {UserId}", userId);
-                return null;
+                // Return default emotion trends instead of null
+                return new EmotionTrendsDto(
+                    new Dictionary<string, int>(),
+                    new List<string>(),
+                    new List<string>()
+                );
             }
         }
 
@@ -828,6 +843,12 @@ Keep responses concise and practical. Focus on actionable items. [/INST]";
             if (emotionTrends != null && emotionTrends.EmotionInsights.Any())
             {
                 insights.AddRange(emotionTrends.EmotionInsights);
+            }
+
+            // Ensure we always have at least one insight for new users
+            if (insights.Count == 0)
+            {
+                insights.Add("Start using MindFlow to track your wellness and see personalized insights here!");
             }
 
             return insights;
@@ -919,14 +940,25 @@ Keep responses concise and practical. Focus on actionable items. [/INST]";
                     ? selfCareStr
                     : "regular";
 
-                // Gather analytics data
-                var progressMetrics = await CalculateProgressMetricsAsync(userId);
-                var emotionTrends = await AnalyzeEmotionTrendsAsync(userId);
-                var insights = GenerateInsights(progressMetrics, emotionTrends);
-                var patterns = GeneratePatterns(emotionTrends);
+                // Gather analytics data - ensure we always get non-null values
+                var progressMetrics = await CalculateProgressMetricsAsync(userId) ?? new ProgressMetricsDto(
+                    0.0, 0, 0, 0.0, 0.0, 0.0, 0.0, 
+                    "Start tracking your wellness to see progress metrics here!"
+                );
+                var emotionTrends = await AnalyzeEmotionTrendsAsync(userId) ?? new EmotionTrendsDto(
+                    new Dictionary<string, int>(),
+                    new List<string>(),
+                    new List<string>()
+                );
+                var insights = GenerateInsights(progressMetrics, emotionTrends) ?? new List<string> { "Start using MindFlow to see insights!" };
+                var patterns = GeneratePatterns(emotionTrends) ?? new List<string>();
 
-                // Create personalized message
+                // Create personalized message - ensure it's never null
                 var personalizedMessage = BuildPersonalizedMessage(primaryFocus, selfCareFrequency, progressMetrics, emotionTrends);
+                if (string.IsNullOrWhiteSpace(personalizedMessage))
+                {
+                    personalizedMessage = $"Based on your focus on {primaryFocus} and {selfCareFrequency} self-care routine, we've tailored MindFlow AI to support your mental wellness journey.";
+                }
 
                 _logger.LogInformation("Successfully retrieved analytics for user {UserId}. Insights: {InsightsCount}, Patterns: {PatternsCount}",
                     userId, insights?.Count ?? 0, patterns?.Count ?? 0);

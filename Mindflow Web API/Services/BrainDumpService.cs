@@ -1410,7 +1410,17 @@ namespace Mindflow_Web_API.Services
 			catch (Exception ex)
 			{
 				_logger.LogWarning(ex, "Failed to calculate progress metrics for user {UserId}", userId);
-				return null;
+				// Return default metrics instead of null
+				return new ProgressMetricsDto(
+					0.0,
+					0,
+					0,
+					0.0,
+					0.0,
+					0.0,
+					0.0,
+					"Start tracking your wellness to see progress metrics here!"
+				);
 			}
 		}
 
@@ -1538,7 +1548,12 @@ namespace Mindflow_Web_API.Services
 			catch (Exception ex)
 			{
 				_logger.LogWarning(ex, "Failed to analyze emotion trends for user {UserId}", userId);
-				return null;
+				// Return default emotion trends instead of null
+				return new EmotionTrendsDto(
+					new Dictionary<string, int>(),
+					new List<string>(),
+					new List<string>()
+				);
 			}
 		}
 
@@ -1572,6 +1587,10 @@ namespace Mindflow_Web_API.Services
 				{
 					insights.Add($"You've completed {progressMetrics.TaskCompletionRate:F0}% of your suggested tasks");
 				}
+				else if (progressMetrics.TaskCompletionRate > 0)
+				{
+					insights.Add($"You've completed {progressMetrics.TaskCompletionRate:F0}% of your suggested tasks - keep going!");
+				}
 
 				// Mood trend insight (lower threshold for visibility)
 				if (progressMetrics.AverageMoodScoreChange > 0.5)
@@ -1584,12 +1603,16 @@ namespace Mindflow_Web_API.Services
 					var oldMood = progressMetrics.AverageMoodScore - progressMetrics.AverageMoodScoreChange;
 					insights.Add($"Your mood scores have decreased from {oldMood:F1}/10 to {progressMetrics.AverageMoodScore:F1}/10");
 				}
-				else if (progressMetrics.AverageMoodScore > 0 && currentEntry != null)
+				else if (progressMetrics.AverageMoodScore > 0)
 				{
-					// For new users, show current mood if available
-					if (currentEntry.Mood.HasValue)
+					// Show current mood if available
+					if (currentEntry != null && currentEntry.Mood.HasValue)
 					{
 						insights.Add($"Your current mood score is {currentEntry.Mood.Value}/10");
+					}
+					else
+					{
+						insights.Add($"Your average mood this week is {progressMetrics.AverageMoodScore:F1}/10");
 					}
 				}
 
@@ -1604,12 +1627,16 @@ namespace Mindflow_Web_API.Services
 					var oldStress = progressMetrics.AverageStressScore - progressMetrics.AverageStressScoreChange;
 					insights.Add($"Your stress levels increased from {oldStress:F1}/10 to {progressMetrics.AverageStressScore:F1}/10");
 				}
-				else if (progressMetrics.AverageStressScore > 0 && currentEntry != null)
+				else if (progressMetrics.AverageStressScore > 0)
 				{
-					// For new users, show current stress if available
-					if (currentEntry.Stress.HasValue)
+					// Show current stress if available
+					if (currentEntry != null && currentEntry.Stress.HasValue)
 					{
 						insights.Add($"Your current stress level is {currentEntry.Stress.Value}/10");
+					}
+					else
+					{
+						insights.Add($"Your average stress this week is {progressMetrics.AverageStressScore:F1}/10");
 					}
 				}
 
@@ -1618,10 +1645,14 @@ namespace Mindflow_Web_API.Services
 				{
 					insights.Add($"You've been more consistent with brain dumps this week (+{progressMetrics.BrainDumpFrequencyChange} entries)");
 				}
-				else if (progressMetrics.BrainDumpFrequency == 1 && currentEntry != null)
+				else if (progressMetrics.BrainDumpFrequency == 1)
 				{
 					// For first-time users
-					insights.Add("This is your first brain dump - great start on your wellness journey!");
+					insights.Add("This is your first brain dump this week - great start on your wellness journey!");
+				}
+				else if (progressMetrics.BrainDumpFrequency > 1)
+				{
+					insights.Add($"You've completed {progressMetrics.BrainDumpFrequency} brain dumps this week - keep up the great work!");
 				}
 			}
 
@@ -1640,6 +1671,19 @@ namespace Mindflow_Web_API.Services
 					{
 						insights.Add($"Your brain dump shows themes around '{topEmotion}'");
 					}
+				}
+			}
+
+			// Ensure we always have at least one insight for new users
+			if (insights.Count == 0)
+			{
+				if (currentEntry != null)
+				{
+					insights.Add("Welcome to MindFlow! Your wellness journey starts here. Keep using brain dumps to see personalized insights.");
+				}
+				else
+				{
+					insights.Add("Start using brain dumps to track your wellness and see personalized insights here!");
 				}
 			}
 
@@ -1750,14 +1794,25 @@ namespace Mindflow_Web_API.Services
 						.FirstOrDefaultAsync(e => e.Id == brainDumpEntryId.Value && e.UserId == userId && e.DeletedAtUtc == null);
 				}
 
-				// Gather analytics data
-				var progressMetrics = await CalculateProgressMetricsAsync(userId);
-				var emotionTrends = await AnalyzeEmotionTrendsAsync(userId, currentEntry);
-				var insights = GenerateInsights(progressMetrics, emotionTrends, currentEntry);
-				var patterns = GeneratePatterns(emotionTrends);
+				// Gather analytics data - ensure we always get non-null values
+				var progressMetrics = await CalculateProgressMetricsAsync(userId) ?? new ProgressMetricsDto(
+					0.0, 0, 0, 0.0, 0.0, 0.0, 0.0, 
+					"Start tracking your wellness to see progress metrics here!"
+				);
+				var emotionTrends = await AnalyzeEmotionTrendsAsync(userId, currentEntry) ?? new EmotionTrendsDto(
+					new Dictionary<string, int>(),
+					new List<string>(),
+					new List<string>()
+				);
+				var insights = GenerateInsights(progressMetrics, emotionTrends, currentEntry) ?? new List<string> { "Start using MindFlow to see insights!" };
+				var patterns = GeneratePatterns(emotionTrends) ?? new List<string>();
 
-				// Create personalized message
+				// Create personalized message - ensure it's never null
 				var personalizedMessage = BuildPersonalizedMessage(userName, wellnessData, progressMetrics, emotionTrends);
+				if (string.IsNullOrWhiteSpace(personalizedMessage))
+				{
+					personalizedMessage = $"Hi {userName}, welcome to MindFlow AI! We're here to support your mental wellness journey.";
+				}
 
 				_logger.LogInformation("Successfully retrieved analytics for user {UserId}. Insights: {InsightsCount}, Patterns: {PatternsCount}",
 					userId, insights?.Count ?? 0, patterns?.Count ?? 0);
