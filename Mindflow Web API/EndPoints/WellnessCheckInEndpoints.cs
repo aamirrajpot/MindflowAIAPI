@@ -10,6 +10,8 @@ namespace Mindflow_Web_API.EndPoints
         {
             var wellnessApi = app.MapGroup("/api/wellness").WithTags("Wellness");
 
+
+
             wellnessApi.MapPatch("/check-in", async (PatchWellnessCheckInDto dto, IWellnessCheckInService wellnessService, HttpContext context) =>
             {
                 if (!context.User.Identity?.IsAuthenticated ?? true)
