@@ -72,6 +72,34 @@ namespace Mindflow_Web_API.EndPoints
                 return op;
             });
 
+            // Get analytics endpoint
+            wellnessApi.MapGet("/analytics", async (IWellnessCheckInService wellnessService, HttpContext context) =>
+            {
+                if (!context.User.Identity?.IsAuthenticated ?? true)
+                    throw ApiExceptions.Unauthorized("User is not authenticated");
+                
+                var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
+                if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+                    throw ApiExceptions.Unauthorized("Invalid user token");
+
+                try
+                {
+                    var analytics = await wellnessService.GetAnalyticsAsync(userId);
+                    return Results.Ok(analytics);
+                }
+                catch (Exception ex)
+                {
+                    throw ApiExceptions.InternalServerError($"Failed to retrieve analytics: {ex.Message}");
+                }
+            })
+            .RequireAuthorization()
+            .WithOpenApi(op =>
+            {
+                op.Summary = "Get wellness analytics";
+                op.Description = "Returns analytics data including insights, patterns, progress metrics, emotion trends, and personalized message based on wellness check-in data.";
+                return op;
+            });
+
         }
     }
 } 

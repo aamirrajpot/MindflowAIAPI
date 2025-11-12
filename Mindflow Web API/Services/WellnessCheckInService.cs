@@ -904,6 +904,48 @@ Keep responses concise and practical. Focus on actionable items. [/INST]";
             return interpretations.Any() ? string.Join(". ", interpretations) + "." : string.Empty;
         }
 
+        public async Task<AnalyticsDto> GetAnalyticsAsync(Guid userId)
+        {
+            _logger.LogInformation("Getting analytics for user {UserId}", userId);
+
+            try
+            {
+                // Get wellness data
+                var wellnessData = await GetAsync(userId);
+                
+                // Extract primary focus and self-care frequency
+                var primaryFocus = wellnessData?.FocusAreas?.FirstOrDefault() ?? "general wellness";
+                var selfCareFrequency = wellnessData?.Questions?.TryGetValue("selfCareFrequency", out var selfCareValue) == true && selfCareValue is string selfCareStr
+                    ? selfCareStr
+                    : "regular";
+
+                // Gather analytics data
+                var progressMetrics = await CalculateProgressMetricsAsync(userId);
+                var emotionTrends = await AnalyzeEmotionTrendsAsync(userId);
+                var insights = GenerateInsights(progressMetrics, emotionTrends);
+                var patterns = GeneratePatterns(emotionTrends);
+
+                // Create personalized message
+                var personalizedMessage = BuildPersonalizedMessage(primaryFocus, selfCareFrequency, progressMetrics, emotionTrends);
+
+                _logger.LogInformation("Successfully retrieved analytics for user {UserId}. Insights: {InsightsCount}, Patterns: {PatternsCount}",
+                    userId, insights?.Count ?? 0, patterns?.Count ?? 0);
+
+                return new AnalyticsDto(
+                    insights,
+                    patterns,
+                    progressMetrics,
+                    emotionTrends,
+                    personalizedMessage
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while getting analytics for user {UserId}", userId);
+                throw;
+            }
+        }
+
         private WellnessAnalysisDto ParseWellnessAnalysisResponse(string response)
         {
             try

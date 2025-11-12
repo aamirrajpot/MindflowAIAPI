@@ -239,6 +239,37 @@ namespace Mindflow_Web_API.EndPoints
 				return op;
 			});
 
+			// Get analytics endpoint
+			api.MapGet("/analytics", async (
+				IBrainDumpService service,
+				HttpContext ctx,
+				[FromQuery] Guid? brainDumpEntryId = null) =>
+			{
+				if (!ctx.User.Identity?.IsAuthenticated ?? true)
+					return Results.Unauthorized();
+
+				// Resolve user id
+				var userIdClaim = ctx.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
+				if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+					return Results.Unauthorized();
+
+				try
+				{
+					var analytics = await service.GetAnalyticsAsync(userId, brainDumpEntryId);
+					return Results.Ok(analytics);
+				}
+				catch (Exception ex)
+				{
+					return Results.BadRequest(new { error = ex.Message });
+				}
+			})
+			.WithOpenApi(op =>
+			{
+				op.Summary = "Get brain dump analytics";
+				op.Description = "Returns analytics data including insights, patterns, progress metrics, emotion trends, and personalized message. Optionally accepts a brainDumpEntryId to include context from a specific entry.";
+				return op;
+			});
+
 			return app;
 		}
 	}

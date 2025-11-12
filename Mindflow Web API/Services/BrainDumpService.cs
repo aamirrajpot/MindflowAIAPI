@@ -18,6 +18,7 @@ namespace Mindflow_Web_API.Services
 		Task<TaskItem> AddTaskToCalendarAsync(Guid userId, AddToCalendarRequest request);
 		Task<List<TaskItem>> AddMultipleTasksToCalendarAsync(Guid userId, List<TaskSuggestion> suggestions, DTOs.WellnessCheckInDto? wellnessData = null, Guid? brainDumpEntryId = null);
 		Task<string?> GenerateAiInsightAsync(Guid userId, Guid entryId);
+		Task<AnalyticsDto> GetAnalyticsAsync(Guid userId, Guid? brainDumpEntryId = null);
 	}
 
 	public class BrainDumpService : IBrainDumpService
@@ -1726,6 +1727,54 @@ namespace Mindflow_Web_API.Services
 			}
 
 			return interpretations.Any() ? string.Join(". ", interpretations) + "." : string.Empty;
+		}
+
+		public async Task<AnalyticsDto> GetAnalyticsAsync(Guid userId, Guid? brainDumpEntryId = null)
+		{
+			_logger.LogInformation("Getting analytics for user {UserId}", userId);
+
+			try
+			{
+				// Get user name
+				var userProfile = await _userService.GetProfileAsync(userId);
+				var userName = GetUserDisplayName(userProfile);
+
+				// Get wellness data
+				var wellnessData = await _wellnessService.GetAsync(userId);
+
+				// Get current entry if provided
+				BrainDumpEntry? currentEntry = null;
+				if (brainDumpEntryId.HasValue)
+				{
+					currentEntry = await _db.BrainDumpEntries
+						.FirstOrDefaultAsync(e => e.Id == brainDumpEntryId.Value && e.UserId == userId && e.DeletedAtUtc == null);
+				}
+
+				// Gather analytics data
+				var progressMetrics = await CalculateProgressMetricsAsync(userId);
+				var emotionTrends = await AnalyzeEmotionTrendsAsync(userId, currentEntry);
+				var insights = GenerateInsights(progressMetrics, emotionTrends, currentEntry);
+				var patterns = GeneratePatterns(emotionTrends);
+
+				// Create personalized message
+				var personalizedMessage = BuildPersonalizedMessage(userName, wellnessData, progressMetrics, emotionTrends);
+
+				_logger.LogInformation("Successfully retrieved analytics for user {UserId}. Insights: {InsightsCount}, Patterns: {PatternsCount}",
+					userId, insights?.Count ?? 0, patterns?.Count ?? 0);
+
+				return new AnalyticsDto(
+					insights,
+					patterns,
+					progressMetrics,
+					emotionTrends,
+					personalizedMessage
+				);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Error occurred while getting analytics for user {UserId}", userId);
+				throw;
+			}
 		}
 
 		/// <summary>

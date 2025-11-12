@@ -93,4 +93,13 @@ namespace Mindflow_Web_API.DTOs
         List<string> StressInsights,
         List<string> Recommendations
     );
+
+    // Analytics DTO for separate analytics endpoint
+    public record AnalyticsDto(
+        List<string>? Insights, // e.g., "Your stress mentions dropped 20% this week"
+        List<string>? Patterns, // e.g., "You've mentioned exhaustion 3 times this week"
+        ProgressMetricsDto? ProgressMetrics, // Task completion, brain dump frequency, etc.
+        EmotionTrendsDto? EmotionTrends, // Emotion keyword tracking
+        string? PersonalizedMessage // Enhanced personalized message with insights
+    );
 }
