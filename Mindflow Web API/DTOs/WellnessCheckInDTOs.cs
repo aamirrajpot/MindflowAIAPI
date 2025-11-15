@@ -42,6 +42,10 @@ namespace Mindflow_Web_API.DTOs
         string? WeekendStartShift, 
         string? WeekendEndTime, 
         string? WeekendEndShift,
+        string? WeekdayStartTimeUtc,  // UTC time in 24-hour format
+        string? WeekdayEndTimeUtc,    // UTC time in 24-hour format
+        string? WeekendStartTimeUtc,  // UTC time in 24-hour format
+        string? WeekendEndTimeUtc,    // UTC time in 24-hour format
         Dictionary<string, object> Questions  // Dynamic questions
     );
     

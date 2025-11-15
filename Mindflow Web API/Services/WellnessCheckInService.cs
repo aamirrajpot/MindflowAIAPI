@@ -68,6 +68,10 @@ namespace Mindflow_Web_API.Services
                         null,
                         null,
                         null,
+                        null,
+                        null,
+                        null,
+                        null,
                         new Dictionary<string, object>()
                     );
                 }
@@ -94,6 +98,10 @@ namespace Mindflow_Web_API.Services
                     checkIn.WeekendStartShift,
                     checkIn.WeekendEndTime,
                     checkIn.WeekendEndShift,
+                    checkIn.WeekdayStartTimeUtc,
+                    checkIn.WeekdayEndTimeUtc,
+                    checkIn.WeekendStartTimeUtc,
+                    checkIn.WeekendEndTimeUtc,
                     checkIn.Questions ?? new Dictionary<string, object>()
                 );
 
@@ -129,8 +137,12 @@ namespace Mindflow_Web_API.Services
                 throw ApiExceptions.ValidationError("Patch data cannot be null.");
             }
 
-            _logger.LogDebug("Patch data received for user {UserId}. MoodLevel: {MoodLevel}, ReminderEnabled: {ReminderEnabled}, WeekdayStartTime: {WeekdayStartTime}, WeekendStartTime: {WeekendStartTime}", 
-                userId, patchDto.MoodLevel, patchDto.ReminderEnabled, patchDto.WeekdayStartTime, patchDto.WeekendStartTime);
+            _logger.LogDebug("Patch data received for user {UserId}. MoodLevel: {MoodLevel}, ReminderEnabled: {ReminderEnabled}", 
+                userId, patchDto.MoodLevel, patchDto.ReminderEnabled);
+            _logger.LogDebug("Weekday times - Start: {WeekdayStartTime} {WeekdayStartShift}, End: {WeekdayEndTime} {WeekdayEndShift}", 
+                patchDto.WeekdayStartTime, patchDto.WeekdayStartShift, patchDto.WeekdayEndTime, patchDto.WeekdayEndShift);
+            _logger.LogDebug("Weekend times - Start: {WeekendStartTime} {WeekendStartShift}, End: {WeekendEndTime} {WeekendEndShift}", 
+                patchDto.WeekendStartTime, patchDto.WeekendStartShift, patchDto.WeekendEndTime, patchDto.WeekendEndShift);
 
             try
             {
@@ -157,6 +169,13 @@ namespace Mindflow_Web_API.Services
                     _logger.LogDebug("Creating new wellness check-in for user {UserId}. MoodLevel: {MoodLevel}, AgeRange: {AgeRange}, FocusAreas: {FocusAreas}, QuestionsCount: {QuestionsCount}", 
                         userId, string.IsNullOrEmpty(moodLevel) ? "null" : moodLevel, patchDto.AgeRange, patchDto.FocusAreas != null ? string.Join(", ", patchDto.FocusAreas) : "null", questions.Count);
                     
+                    // Store original times as-is (user input)
+                    // Convert to UTC and store in UTC fields for backend processing
+                    var weekdayStartTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekdayStartTime, patchDto.WeekdayStartShift);
+                    var weekdayEndTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekdayEndTime, patchDto.WeekdayEndShift);
+                    var weekendStartTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekendStartTime, patchDto.WeekendStartShift);
+                    var weekendEndTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekendEndTime, patchDto.WeekendEndShift);
+                    
                     checkIn = WellnessCheckIn.Create(
                         userId,
                         moodLevel,
@@ -165,7 +184,7 @@ namespace Mindflow_Web_API.Services
                         patchDto.ReminderTime,
                         patchDto.AgeRange,
                         patchDto.FocusAreas,
-                        patchDto.WeekdayStartTime,
+                        patchDto.WeekdayStartTime,  // Store original as-is
                         patchDto.WeekdayStartShift,
                         patchDto.WeekdayEndTime,
                         patchDto.WeekdayEndShift,
@@ -173,6 +192,10 @@ namespace Mindflow_Web_API.Services
                         patchDto.WeekendStartShift,
                         patchDto.WeekendEndTime,
                         patchDto.WeekendEndShift,
+                        weekdayStartTimeUtc,  // Store UTC version
+                        weekdayEndTimeUtc,
+                        weekendStartTimeUtc,
+                        weekendEndTimeUtc,
                         questions
                     );
                     
@@ -213,45 +236,35 @@ namespace Mindflow_Web_API.Services
                         checkIn.FocusAreas = patchDto.FocusAreas;
                         fieldsUpdated.Add("FocusAreas");
                     }
-                    if (patchDto.WeekdayStartTime != null)
+                    // Store original times as-is (user input)
+                    // Convert to UTC and store in UTC fields for backend processing
+                    if (patchDto.WeekdayStartTime != null || patchDto.WeekdayStartShift != null)
                     {
                         checkIn.WeekdayStartTime = patchDto.WeekdayStartTime;
+                        checkIn.WeekdayStartShift = patchDto.WeekdayStartShift;
+                        checkIn.WeekdayStartTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekdayStartTime, patchDto.WeekdayStartShift);
                         fieldsUpdated.Add("WeekdayStartTime");
                     }
-                    if (patchDto.WeekdayStartShift != null)
-                    {
-                        checkIn.WeekdayStartShift = patchDto.WeekdayStartShift;
-                        fieldsUpdated.Add("WeekdayStartShift");
-                    }
-                    if (patchDto.WeekdayEndTime != null)
+                    if (patchDto.WeekdayEndTime != null || patchDto.WeekdayEndShift != null)
                     {
                         checkIn.WeekdayEndTime = patchDto.WeekdayEndTime;
+                        checkIn.WeekdayEndShift = patchDto.WeekdayEndShift;
+                        checkIn.WeekdayEndTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekdayEndTime, patchDto.WeekdayEndShift);
                         fieldsUpdated.Add("WeekdayEndTime");
                     }
-                    if (patchDto.WeekdayEndShift != null)
-                    {
-                        checkIn.WeekdayEndShift = patchDto.WeekdayEndShift;
-                        fieldsUpdated.Add("WeekdayEndShift");
-                    }
-                    if (patchDto.WeekendStartTime != null)
+                    if (patchDto.WeekendStartTime != null || patchDto.WeekendStartShift != null)
                     {
                         checkIn.WeekendStartTime = patchDto.WeekendStartTime;
+                        checkIn.WeekendStartShift = patchDto.WeekendStartShift;
+                        checkIn.WeekendStartTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekendStartTime, patchDto.WeekendStartShift);
                         fieldsUpdated.Add("WeekendStartTime");
                     }
-                    if (patchDto.WeekendStartShift != null)
-                    {
-                        checkIn.WeekendStartShift = patchDto.WeekendStartShift;
-                        fieldsUpdated.Add("WeekendStartShift");
-                    }
-                    if (patchDto.WeekendEndTime != null)
+                    if (patchDto.WeekendEndTime != null || patchDto.WeekendEndShift != null)
                     {
                         checkIn.WeekendEndTime = patchDto.WeekendEndTime;
-                        fieldsUpdated.Add("WeekendEndTime");
-                    }
-                    if (patchDto.WeekendEndShift != null)
-                    {
                         checkIn.WeekendEndShift = patchDto.WeekendEndShift;
-                        fieldsUpdated.Add("WeekendEndShift");
+                        checkIn.WeekendEndTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekendEndTime, patchDto.WeekendEndShift);
+                        fieldsUpdated.Add("WeekendEndTime");
                     }
                     
                     // Merge questions dictionary
@@ -273,7 +286,7 @@ namespace Mindflow_Web_API.Services
                         _logger.LogDebug("Merged {Count} questions for user {UserId}", patchDto.Questions.Count, userId);
                     }
                     
-                    checkIn.Update(checkIn.MoodLevel, DateTime.UtcNow, checkIn.ReminderEnabled, checkIn.ReminderTime, checkIn.AgeRange, checkIn.FocusAreas, checkIn.WeekdayStartTime, checkIn.WeekdayStartShift, checkIn.WeekdayEndTime, checkIn.WeekdayEndShift, checkIn.WeekendStartTime, checkIn.WeekendStartShift, checkIn.WeekendEndTime, checkIn.WeekendEndShift, checkIn.Questions);
+                    checkIn.Update(checkIn.MoodLevel, DateTime.UtcNow, checkIn.ReminderEnabled, checkIn.ReminderTime, checkIn.AgeRange, checkIn.FocusAreas, checkIn.WeekdayStartTime, checkIn.WeekdayStartShift, checkIn.WeekdayEndTime, checkIn.WeekdayEndShift, checkIn.WeekendStartTime, checkIn.WeekendStartShift, checkIn.WeekendEndTime, checkIn.WeekendEndShift, checkIn.WeekdayStartTimeUtc, checkIn.WeekdayEndTimeUtc, checkIn.WeekendStartTimeUtc, checkIn.WeekendEndTimeUtc, checkIn.Questions);
                     
                     _logger.LogDebug("Updated fields for user {UserId}: {UpdatedFields}", userId, string.Join(", ", fieldsUpdated));
                 }
@@ -316,6 +329,10 @@ namespace Mindflow_Web_API.Services
                     checkIn.WeekendStartShift,
                     checkIn.WeekendEndTime,
                     checkIn.WeekendEndShift,
+                    checkIn.WeekdayStartTimeUtc,
+                    checkIn.WeekdayEndTimeUtc,
+                    checkIn.WeekendStartTimeUtc,
+                    checkIn.WeekendEndTimeUtc,
                     checkIn.Questions ?? new Dictionary<string, object>()
                 );
 
@@ -355,6 +372,12 @@ namespace Mindflow_Web_API.Services
                     supportNeeds != null ? string.Join(",", supportNeeds) : "null");
 
                 // Convert DTO to model for the prompt
+                // Convert times to UTC for backend processing
+                var weekdayStartTimeUtc = ConvertTimeToUtc24Hour(wellnessData.WeekdayStartTime, wellnessData.WeekdayStartShift);
+                var weekdayEndTimeUtc = ConvertTimeToUtc24Hour(wellnessData.WeekdayEndTime, wellnessData.WeekdayEndShift);
+                var weekendStartTimeUtc = ConvertTimeToUtc24Hour(wellnessData.WeekendStartTime, wellnessData.WeekendStartShift);
+                var weekendEndTimeUtc = ConvertTimeToUtc24Hour(wellnessData.WeekendEndTime, wellnessData.WeekendEndShift);
+                
                 var wellnessModel = WellnessCheckIn.Create(
                     userId,
                     wellnessData.MoodLevel,
@@ -371,6 +394,10 @@ namespace Mindflow_Web_API.Services
                     wellnessData.WeekendStartShift,
                     wellnessData.WeekendEndTime,
                     wellnessData.WeekendEndShift,
+                    weekdayStartTimeUtc,
+                    weekdayEndTimeUtc,
+                    weekendStartTimeUtc,
+                    weekendEndTimeUtc,
                     wellnessData.Questions
                 );
 
@@ -431,6 +458,12 @@ namespace Mindflow_Web_API.Services
                 _logger.LogDebug("Converting wellness DTO to model for user {UserId}", userId);
                 
                 // Convert DTO to model for the prompt
+                // Convert times to UTC for backend processing
+                var weekdayStartTimeUtc = ConvertTimeToUtc24Hour(wellnessData.WeekdayStartTime, wellnessData.WeekdayStartShift);
+                var weekdayEndTimeUtc = ConvertTimeToUtc24Hour(wellnessData.WeekdayEndTime, wellnessData.WeekdayEndShift);
+                var weekendStartTimeUtc = ConvertTimeToUtc24Hour(wellnessData.WeekendStartTime, wellnessData.WeekendStartShift);
+                var weekendEndTimeUtc = ConvertTimeToUtc24Hour(wellnessData.WeekendEndTime, wellnessData.WeekendEndShift);
+                
                 var wellnessModel = WellnessCheckIn.Create(
                     userId,
                     wellnessData.MoodLevel,
@@ -447,6 +480,10 @@ namespace Mindflow_Web_API.Services
                     wellnessData.WeekendStartShift,
                     wellnessData.WeekendEndTime,
                     wellnessData.WeekendEndShift,
+                    weekdayStartTimeUtc,
+                    weekdayEndTimeUtc,
+                    weekendStartTimeUtc,
+                    weekendEndTimeUtc,
                     wellnessData.Questions
                 );
 
@@ -1116,6 +1153,105 @@ Keep responses concise and practical. Focus on actionable items. [/INST]";
                 }
                 catch { return json; }
             }
+        }
+
+        /// <summary>
+        /// Converts time string with AM/PM shift to UTC 24-hour format.
+        /// Assumes times from frontend are already in UTC (or user's local time that frontend converted).
+        /// </summary>
+        /// <param name="timeStr">Time string (e.g., "07:00", "7:00", "3:30")</param>
+        /// <param name="shift">AM/PM shift (e.g., "PM", "AM")</param>
+        /// <returns>Time in 24-hour format as string (e.g., "19:00")</returns>
+        private string? ConvertTimeToUtc24Hour(string? timeStr, string? shift)
+        {
+            // If time is null or empty, return null
+            if (string.IsNullOrWhiteSpace(timeStr))
+            {
+                return null;
+            }
+
+            _logger.LogDebug("Converting time to UTC 24-hour format: timeStr='{TimeStr}', shift='{Shift}'", timeStr, shift);
+
+            // Parse time string - handle formats like "7:00", "07:00", "3:30", etc.
+            TimeSpan time;
+            try
+            {
+                // Try parsing as TimeSpan (handles "7:00", "07:00", "3:30", etc.)
+                if (!TimeSpan.TryParse(timeStr, out time))
+                {
+                    // If that fails, try manual parsing
+                    var parts = timeStr.Trim().Split(':');
+                    if (parts.Length >= 2 && int.TryParse(parts[0], out var parsedHours) && int.TryParse(parts[1], out var parsedMinutes))
+                    {
+                        time = new TimeSpan(parsedHours, parsedMinutes, 0);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Failed to parse time string: {TimeStr}", timeStr);
+                        return null; // Return null if parsing fails
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error parsing time string: {TimeStr}", timeStr);
+                return null; // Return null if parsing fails
+            }
+
+            _logger.LogDebug("Parsed time: {Time} (Hours: {Hours}, Minutes: {Minutes})", time, time.Hours, time.Minutes);
+
+            // Handle AM/PM shift
+            // If shift is provided, convert from 12-hour to 24-hour format
+            // If shift is null/empty, assume time is already in 24-hour format
+            if (!string.IsNullOrWhiteSpace(shift))
+            {
+                var shiftUpper = shift.ToUpper().Trim();
+                var isPM = shiftUpper.Contains("PM");
+                var isAM = shiftUpper.Contains("AM");
+                
+                _logger.LogDebug("Processing shift: shift='{Shift}', isPM={IsPM}, isAM={IsAM}, currentHours={Hours}", shift, isPM, isAM, time.Hours);
+                
+                if (isPM)
+                {
+                    // For PM times, add 12 hours if it's in 12-hour format (1-12)
+                    // Don't add if already in 24-hour format (13-23)
+                    if (time.Hours >= 1 && time.Hours <= 12)
+                    {
+                        time = time.Add(new TimeSpan(12, 0, 0));
+                        _logger.LogDebug("Converted PM time: added 12 hours, new time: {Time}", time);
+                    }
+                    else if (time.Hours > 12)
+                    {
+                        _logger.LogDebug("Time already in 24-hour format (PM), no conversion needed: {Time}", time);
+                    }
+                }
+                else if (isAM)
+                {
+                    // For AM times, if it's 12:xx AM, convert to 00:xx
+                    if (time.Hours == 12)
+                    {
+                        time = time.Subtract(new TimeSpan(12, 0, 0));
+                        _logger.LogDebug("Converted 12 AM time: subtracted 12 hours, new time: {Time}", time);
+                    }
+                    // For 1-11 AM, time is already correct (no conversion needed)
+                }
+            }
+            else
+            {
+                // No shift provided - assume time is already in 24-hour format
+                _logger.LogDebug("No shift provided, assuming time is already in 24-hour format: {Time}", time);
+            }
+
+            // Convert to 24-hour format string - TimeSpan doesn't support HH format, so format manually
+            // Format: "HH:mm" where HH is 00-23 (24-hour format)
+            var finalHours = time.Hours;
+            var finalMinutes = time.Minutes;
+            var timeUtc = $"{finalHours:D2}:{finalMinutes:D2}";
+            
+            _logger.LogDebug("Final converted time: {TimeUtc} (from {TimeStr} {Shift})", timeUtc, timeStr, shift);
+            
+            // Return UTC time in 24-hour format
+            return timeUtc;
         }
     }
 } 

@@ -56,6 +56,19 @@ namespace Mindflow_Web_API.Persistence.Configurations
             builder.Property(w => w.WeekendEndShift)
                    .HasMaxLength(2);
 
+            // Configure UTC time fields
+            builder.Property(w => w.WeekdayStartTimeUtc)
+                   .HasMaxLength(10);
+
+            builder.Property(w => w.WeekdayEndTimeUtc)
+                   .HasMaxLength(10);
+
+            builder.Property(w => w.WeekendStartTimeUtc)
+                   .HasMaxLength(10);
+
+            builder.Property(w => w.WeekendEndTimeUtc)
+                   .HasMaxLength(10);
+
             // Configure Questions dictionary as JSON column
             builder.Property(w => w.Questions)
                    .HasConversion(

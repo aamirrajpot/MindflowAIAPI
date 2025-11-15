@@ -232,22 +232,24 @@ namespace Mindflow_Web_API.Services
 		// Use the new smart scheduling logic
 			var (taskDate, taskTime) = await DetermineOptimalScheduleWithTimeSlotsAsync(request, wellnessData, durationMinutes, userId);
 
-			// Prevent stacking: if chosen time is occupied, move forward in 30-minute increments
-			var adjustedDate = taskDate;
+			// Ensure taskDate is UTC (explicitly mark as UTC)
+			var adjustedDate = DateTime.SpecifyKind(taskDate.Date, DateTimeKind.Utc);
 			var adjustedTime = taskTime;
+			
+			// Prevent stacking: if chosen time is occupied, move forward in 30-minute increments
 			while (!await IsTimeSlotAvailableAsync(adjustedDate, adjustedTime, durationMinutes, userId))
 			{
 				adjustedTime = adjustedTime.Add(TimeSpan.FromMinutes(30));
 				// If we cross past midnight, move to next day 00:00
 				if (adjustedTime.TotalMinutes >= 24 * 60)
 				{
-					adjustedDate = adjustedDate.AddDays(1);
+					adjustedDate = DateTime.SpecifyKind(adjustedDate.AddDays(1).Date, DateTimeKind.Utc);
 					adjustedTime = TimeSpan.Zero;
 				}
 			}
 
 			// Compose UTC datetime for storage/return
-			// Note: taskTime is already in UTC format from the scheduling logic
+			// Both date and time are already in UTC format from the scheduling logic
 			var utcDateTime = DateTime.SpecifyKind(adjustedDate.Date.Add(adjustedTime), DateTimeKind.Utc);
 
 			_logger.LogInformation("Creating task '{TaskTitle}' for user {UserId} at {TaskDate} {TaskTime} UTC", 
@@ -342,16 +344,23 @@ namespace Mindflow_Web_API.Services
 			{
 				// Ensure tasks in this batch do not stack at the same time; nudge forward in 30-min steps
 				var durationMinutes = ParseDurationToMinutes(scheduledTask.Suggestion.Duration);
-				var candidateDate = scheduledTask.Date;
+				// Ensure candidateDate is UTC
+				var candidateDate = DateTime.SpecifyKind(scheduledTask.Date.Date, DateTimeKind.Utc);
 				var candidateTime = scheduledTask.Time;
 				
 				// Move forward until there is no conflict with already created tasks and DB tasks
 				while (
-					createdTasks.Any(t => t.Date == DateTime.SpecifyKind(candidateDate.Date, DateTimeKind.Utc) && t.Time.TimeOfDay == candidateTime)
+					createdTasks.Any(t => t.Date == candidateDate.Date && t.Time.TimeOfDay == candidateTime)
 					|| !(await IsTimeSlotAvailableAsync(candidateDate, candidateTime, durationMinutes, userId))
 				)
 				{
 					candidateTime = candidateTime.Add(TimeSpan.FromMinutes(30));
+					// Handle day boundary crossing
+					if (candidateTime.TotalMinutes >= 24 * 60)
+					{
+						candidateDate = DateTime.SpecifyKind(candidateDate.AddDays(1).Date, DateTimeKind.Utc);
+						candidateTime = TimeSpan.Zero;
+					}
 				}
 
 				// Extract brain dump linking information if available
@@ -405,13 +414,14 @@ namespace Mindflow_Web_API.Services
 		_logger.LogInformation("Starting task scheduling for {TaskCount} tasks", suggestions.Count);
 		
 		// Parse available time slots
-		_logger.LogInformation("[DEBUG] Wellness data: WeekdayStartTime='{WeekdayStartTime}', WeekdayEndTime='{WeekdayEndTime}', WeekdayStartShift='{WeekdayStartShift}', WeekdayEndShift='{WeekdayEndShift}'", 
-			wellnessData?.WeekdayStartTime, wellnessData?.WeekdayEndTime, wellnessData?.WeekdayStartShift, wellnessData?.WeekdayEndShift);
-		_logger.LogInformation("[DEBUG] Wellness data: WeekendStartTime='{WeekendStartTime}', WeekendEndTime='{WeekendEndTime}', WeekendStartShift='{WeekendStartShift}', WeekendEndShift='{WeekendEndShift}'", 
-			wellnessData?.WeekendStartTime, wellnessData?.WeekendEndTime, wellnessData?.WeekendStartShift, wellnessData?.WeekendEndShift);
+		_logger.LogInformation("[DEBUG] Wellness data UTC: WeekdayStartTimeUtc='{WeekdayStartTimeUtc}', WeekdayEndTimeUtc='{WeekdayEndTimeUtc}'", 
+			wellnessData?.WeekdayStartTimeUtc, wellnessData?.WeekdayEndTimeUtc);
+		_logger.LogInformation("[DEBUG] Wellness data UTC: WeekendStartTimeUtc='{WeekendStartTimeUtc}', WeekendEndTimeUtc='{WeekendEndTimeUtc}'", 
+			wellnessData?.WeekendStartTimeUtc, wellnessData?.WeekendEndTimeUtc);
 		
-		var weekdaySlots = ParseTimeSlots(wellnessData?.WeekdayStartTime, wellnessData?.WeekdayEndTime, wellnessData?.WeekdayStartShift, wellnessData?.WeekdayEndShift);
-		var weekendSlots = ParseTimeSlots(wellnessData?.WeekendStartTime, wellnessData?.WeekendEndTime, wellnessData?.WeekendStartShift, wellnessData?.WeekendEndShift);
+		// Use UTC fields (already in 24-hour format, no shift needed)
+		var weekdaySlots = ParseTimeSlots(wellnessData?.WeekdayStartTimeUtc, wellnessData?.WeekdayEndTimeUtc, null, null);
+		var weekendSlots = ParseTimeSlots(wellnessData?.WeekendStartTimeUtc, wellnessData?.WeekendEndTimeUtc, null, null);
 
 		_logger.LogInformation("Weekday slots: {WeekdayStart} to {WeekdayEnd}", weekdaySlots.start, weekdaySlots.end);
 		_logger.LogInformation("Weekend slots: {WeekendStart} to {WeekendEnd}", weekendSlots.start, weekendSlots.end);
@@ -461,8 +471,9 @@ namespace Mindflow_Web_API.Services
 		private async Task<(DateTime date, TimeSpan time)> DetermineOptimalScheduleWithTimeSlotsAsync(AddToCalendarRequest request, DTOs.WellnessCheckInDto? wellnessData, int durationMinutes, Guid userId)
 		{
 			// Parse available time slots from wellness data
-			var weekdaySlots = ParseTimeSlots(wellnessData?.WeekdayStartTime, wellnessData?.WeekdayEndTime, wellnessData?.WeekdayStartShift, wellnessData?.WeekdayEndShift);
-			var weekendSlots = ParseTimeSlots(wellnessData?.WeekendStartTime, wellnessData?.WeekendEndTime, wellnessData?.WeekendStartShift, wellnessData?.WeekendEndShift);
+			// Use UTC fields (already in 24-hour format, no shift needed)
+			var weekdaySlots = ParseTimeSlots(wellnessData?.WeekdayStartTimeUtc, wellnessData?.WeekdayEndTimeUtc, null, null);
+			var weekendSlots = ParseTimeSlots(wellnessData?.WeekendStartTimeUtc, wellnessData?.WeekendEndTimeUtc, null, null);
 
 			_logger.LogDebug("Determining optimal schedule for task with duration {Duration} minutes", durationMinutes);
 			_logger.LogDebug("Weekday slots: {WeekdayStart} to {WeekdayEnd}", weekdaySlots.start, weekdaySlots.end);
@@ -471,7 +482,8 @@ namespace Mindflow_Web_API.Services
 			// If user provided specific date and time, try to use it
 			if (request.Date.HasValue && request.Time.HasValue)
 			{
-				var userDate = request.Date.Value;
+				// Ensure user date is treated as UTC
+				var userDate = DateTime.SpecifyKind(request.Date.Value.Date, DateTimeKind.Utc);
 				var userTime = request.Time.Value;
 				
 				_logger.LogDebug("User provided specific date and time: {Date} at {Time}", userDate.ToString("yyyy-MM-dd"), userTime);
@@ -502,7 +514,8 @@ namespace Mindflow_Web_API.Services
 			// If user provided only date, find best time on that date
 			if (request.Date.HasValue)
 			{
-				var userDate = request.Date.Value;
+				// Ensure user date is treated as UTC
+				var userDate = DateTime.SpecifyKind(request.Date.Value.Date, DateTimeKind.Utc);
 				var isWeekend = userDate.DayOfWeek == DayOfWeek.Saturday || userDate.DayOfWeek == DayOfWeek.Sunday;
 				var slots = isWeekend ? weekendSlots : weekdaySlots;
 				
@@ -652,12 +665,13 @@ namespace Mindflow_Web_API.Services
 
 	private async Task<(DateTime date, TimeSpan time)> FindNextAvailableDateForTimeAsync(TimeSpan preferredTime, int durationMinutes, (TimeSpan start, TimeSpan end) weekdaySlots, (TimeSpan start, TimeSpan end) weekendSlots, Guid userId)
 	{
-		var startDate = DateTime.UtcNow.Date.AddDays(1);
+		// Use UTC date explicitly
+		var startDate = DateTime.SpecifyKind(DateTime.UtcNow.Date.AddDays(1), DateTimeKind.Utc);
 		var maxDays = 14;
 
 		for (int dayOffset = 0; dayOffset < maxDays; dayOffset++)
 		{
-			var date = startDate.AddDays(dayOffset);
+			var date = DateTime.SpecifyKind(startDate.AddDays(dayOffset).Date, DateTimeKind.Utc);
 			var isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
 			var slots = isWeekend ? weekendSlots : weekdaySlots;
 
@@ -672,17 +686,18 @@ namespace Mindflow_Web_API.Services
 			}
 		}
 
-		return (DateTime.MinValue, TimeSpan.Zero);
+		return (DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc), TimeSpan.Zero);
 	}
 
 	private async Task<(DateTime date, TimeSpan time)> FindNextAvailableSlotAsync(int durationMinutes, (TimeSpan start, TimeSpan end) weekdaySlots, (TimeSpan start, TimeSpan end) weekendSlots, Guid userId)
 	{
-		var startDate = DateTime.UtcNow.Date.AddDays(1); // Start from tomorrow (UTC)
+		// Use UTC date explicitly - Start from tomorrow (UTC)
+		var startDate = DateTime.SpecifyKind(DateTime.UtcNow.Date.AddDays(1), DateTimeKind.Utc);
 		var maxDays = 14; // Look ahead 2 weeks
 
 		for (int dayOffset = 0; dayOffset < maxDays; dayOffset++)
 		{
-			var date = startDate.AddDays(dayOffset);
+			var date = DateTime.SpecifyKind(startDate.AddDays(dayOffset).Date, DateTimeKind.Utc);
 			var isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
 			var slots = isWeekend ? weekendSlots : weekdaySlots;
 
@@ -694,8 +709,8 @@ namespace Mindflow_Web_API.Services
 			}
 		}
 
-		// Fallback: return tomorrow at start of available slots
-		var fallbackDate = DateTime.UtcNow.Date.AddDays(1);
+		// Fallback: return tomorrow at start of available slots (UTC)
+		var fallbackDate = DateTime.SpecifyKind(DateTime.UtcNow.Date.AddDays(1), DateTimeKind.Utc);
 		var fallbackIsWeekend = fallbackDate.DayOfWeek == DayOfWeek.Saturday || fallbackDate.DayOfWeek == DayOfWeek.Sunday;
 		var fallbackSlots = fallbackIsWeekend ? weekendSlots : weekdaySlots;
 		return (fallbackDate, fallbackSlots.start);
@@ -784,23 +799,18 @@ namespace Mindflow_Web_API.Services
 		
 		if (string.IsNullOrEmpty(startTime) || string.IsNullOrEmpty(endTime))
 		{
-			Console.WriteLine("[DEBUG] Missing time data, using default slots: 9 AM to 5 PM US Eastern = 2 PM to 10 PM UTC");
-			return (new TimeSpan(14, 0, 0), new TimeSpan(22, 0, 0)); // Default 9 AM to 5 PM US Eastern = 2 PM to 10 PM UTC
+			Console.WriteLine("[DEBUG] Missing time data, using default slots: 7 PM to 10 PM UTC");
+			// Default: 7 PM to 10 PM UTC (frontend will convert to user's local timezone)
+			return (new TimeSpan(19, 0, 0), new TimeSpan(22, 0, 0)); // Default 7 PM to 10 PM UTC
 		}
 
-		// Parse as US Eastern Time
-		var startEastern = ParseTimeString(startTime, startShift);
-		var endEastern = ParseTimeString(endTime, endShift);
+		// Parse times as UTC - times entered by user are stored as-is in UTC
+		// The frontend (React Native) will handle timezone conversion for display
+		// Example: User enters "7PM" -> stored as 19:00 UTC -> frontend converts to local time for display
+		var startUtc = ParseTimeString(startTime, startShift);
+		var endUtc = ParseTimeString(endTime, endShift);
 		
-		Console.WriteLine($"[DEBUG] Parsed US Eastern time slots - Start: {startEastern}, End: {endEastern}");
-		
-		// Convert US Eastern to UTC (assuming EST/EDT - we'll use EST for simplicity)
-		// US Eastern is UTC-5 (EST) or UTC-4 (EDT) - using UTC-5 for consistency
-		var utcOffset = TimeSpan.FromHours(5); // UTC-5 for US Eastern Standard Time
-		var startUtc = ConvertEasternToUtc(startEastern, utcOffset);
-		var endUtc = ConvertEasternToUtc(endEastern, utcOffset);
-		
-		Console.WriteLine($"[DEBUG] Converted to UTC time slots - Start: {startUtc}, End: {endUtc}");
+		Console.WriteLine($"[DEBUG] Parsed UTC time slots - Start: {startUtc}, End: {endUtc}");
 		
 		// Validate that start is before end (handle day boundary crossing)
 		if (startUtc >= endUtc)
@@ -814,8 +824,8 @@ namespace Mindflow_Web_API.Services
 			
 			if (!isDayBoundaryCrossing)
 			{
-				Console.WriteLine("[DEBUG] Invalid time slots after UTC conversion, using defaults");
-				return (new TimeSpan(14, 0, 0), new TimeSpan(22, 0, 0)); // Default 9 AM to 5 PM US Eastern = 2 PM to 10 PM UTC
+				Console.WriteLine("[DEBUG] Invalid time slots, using defaults");
+				return (new TimeSpan(19, 0, 0), new TimeSpan(22, 0, 0)); // Default 7 PM to 10 PM UTC
 			}
 		}
 		
@@ -1038,26 +1048,26 @@ namespace Mindflow_Web_API.Services
 			return GetOptimalDateTime(wellnessData);
 		}
 
-		private static TimeSpan GetOptimalTimeForDate(DateTime date, DTOs.WellnessCheckInDto? wellnessData)
-		{
-			if (wellnessData == null)
-				return new TimeSpan(14, 0, 0); // Default 9 AM US Eastern = 2 PM UTC
+	private static TimeSpan GetOptimalTimeForDate(DateTime date, DTOs.WellnessCheckInDto? wellnessData)
+	{
+		if (wellnessData == null)
+			return new TimeSpan(14, 0, 0); // Default 9 AM US Eastern = 2 PM UTC
 
-			var isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
-			
-			if (isWeekend)
-			{
-				// Use weekend free time with timezone conversion
-				var weekendSlots = ParseTimeSlots(wellnessData.WeekendStartTime, wellnessData.WeekendEndTime, wellnessData.WeekendStartShift, wellnessData.WeekendEndShift);
-				return GetOptimalTimeInRange(weekendSlots.start, weekendSlots.end);
-			}
-			else
-			{
-				// Use weekday free time with timezone conversion
-				var weekdaySlots = ParseTimeSlots(wellnessData.WeekdayStartTime, wellnessData.WeekdayEndTime, wellnessData.WeekdayStartShift, wellnessData.WeekdayEndShift);
-				return GetOptimalTimeInRange(weekdaySlots.start, weekdaySlots.end);
-			}
+		var isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
+		
+		if (isWeekend)
+		{
+			// Use UTC fields (already in 24-hour format, no shift needed)
+			var weekendSlots = ParseTimeSlots(wellnessData.WeekendStartTimeUtc, wellnessData.WeekendEndTimeUtc, null, null);
+			return GetOptimalTimeInRange(weekendSlots.start, weekendSlots.end);
 		}
+		else
+		{
+			// Use UTC fields (already in 24-hour format, no shift needed)
+			var weekdaySlots = ParseTimeSlots(wellnessData.WeekdayStartTimeUtc, wellnessData.WeekdayEndTimeUtc, null, null);
+			return GetOptimalTimeInRange(weekdaySlots.start, weekdaySlots.end);
+		}
+	}
 
 		private static DateTime GetNextAvailableDate(TimeSpan preferredTime, DTOs.WellnessCheckInDto? wellnessData)
 		{
@@ -1073,11 +1083,13 @@ namespace Mindflow_Web_API.Services
 				(TimeSpan startTime, TimeSpan endTime) slots;
 				if (isWeekend)
 				{
-					slots = ParseTimeSlots(wellnessData.WeekendStartTime, wellnessData.WeekendEndTime, wellnessData.WeekendStartShift, wellnessData.WeekendEndShift);
+					// Use UTC fields (already in 24-hour format, no shift needed)
+					slots = ParseTimeSlots(wellnessData.WeekendStartTimeUtc, wellnessData.WeekendEndTimeUtc, null, null);
 				}
 				else
 				{
-					slots = ParseTimeSlots(wellnessData.WeekdayStartTime, wellnessData.WeekdayEndTime, wellnessData.WeekdayStartShift, wellnessData.WeekdayEndShift);
+					// Use UTC fields (already in 24-hour format, no shift needed)
+					slots = ParseTimeSlots(wellnessData.WeekdayStartTimeUtc, wellnessData.WeekdayEndTimeUtc, null, null);
 				}
 
 				// Check if preferred time falls within available range
@@ -1091,28 +1103,28 @@ namespace Mindflow_Web_API.Services
 			return DateTime.UtcNow.Date.AddDays(1);
 		}
 
-		private static (DateTime date, TimeSpan time) GetOptimalDateTime(DTOs.WellnessCheckInDto? wellnessData)
+	private static (DateTime date, TimeSpan time) GetOptimalDateTime(DTOs.WellnessCheckInDto? wellnessData)
+	{
+		if (wellnessData == null)
+			return (DateTime.UtcNow.Date.AddDays(1), new TimeSpan(14, 0, 0)); // Default 9 AM US Eastern = 2 PM UTC
+
+		// Prefer weekdays for productivity tasks, weekends for relaxation
+		var isWeekend = DateTime.UtcNow.DayOfWeek == DayOfWeek.Saturday || DateTime.UtcNow.DayOfWeek == DayOfWeek.Sunday;
+		var targetDate = DateTime.UtcNow.Date.AddDays(1); // Start with tomorrow (UTC)
+
+		// If today is weekend, prefer next weekday
+		if (isWeekend)
 		{
-			if (wellnessData == null)
-				return (DateTime.UtcNow.Date.AddDays(1), new TimeSpan(14, 0, 0)); // Default 9 AM US Eastern = 2 PM UTC
-
-			// Prefer weekdays for productivity tasks, weekends for relaxation
-			var isWeekend = DateTime.UtcNow.DayOfWeek == DayOfWeek.Saturday || DateTime.UtcNow.DayOfWeek == DayOfWeek.Sunday;
-			var targetDate = DateTime.UtcNow.Date.AddDays(1); // Start with tomorrow (UTC)
-
-			// If today is weekend, prefer next weekday
-			if (isWeekend)
+			targetDate = DateTime.UtcNow.Date.AddDays(1);
+			while (targetDate.DayOfWeek == DayOfWeek.Saturday || targetDate.DayOfWeek == DayOfWeek.Sunday)
 			{
-				targetDate = DateTime.UtcNow.Date.AddDays(1);
-				while (targetDate.DayOfWeek == DayOfWeek.Saturday || targetDate.DayOfWeek == DayOfWeek.Sunday)
-				{
-					targetDate = targetDate.AddDays(1);
-				}
+				targetDate = targetDate.AddDays(1);
 			}
-
-			var time = GetOptimalTimeForDate(targetDate, wellnessData);
-			return (targetDate, time);
 		}
+
+		var time = GetOptimalTimeForDate(targetDate, wellnessData);
+		return (targetDate, time);
+	}
 
 		private static TimeSpan ParseTimeString(string? timeStr, string? shift)
 	{
@@ -1976,12 +1988,13 @@ public class TimeSlotManager
 
     public (DateTime date, TimeSpan time) FindNextAvailableSlot(int durationMinutes)
 	{
-        var startDate = DateTime.UtcNow.Date.AddDays(1); // Start from tomorrow (UTC)
+        // Use UTC date explicitly - Start from tomorrow (UTC)
+        var startDate = DateTime.SpecifyKind(DateTime.UtcNow.Date.AddDays(1), DateTimeKind.Utc);
 		var maxDays = 14; // Look ahead 2 weeks
 
 		for (int dayOffset = 0; dayOffset < maxDays; dayOffset++)
 		{
-			var date = startDate.AddDays(dayOffset);
+			var date = DateTime.SpecifyKind(startDate.AddDays(dayOffset).Date, DateTimeKind.Utc);
 			var isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
 			var slots = isWeekend ? _weekendSlots : _weekdaySlots;
 
@@ -1993,8 +2006,8 @@ public class TimeSlotManager
 			}
 		}
 
-        // Fallback: return tomorrow at start of available slots
-        var fallbackDate = DateTime.UtcNow.Date.AddDays(1);
+        // Fallback: return tomorrow at start of available slots (UTC)
+        var fallbackDate = DateTime.SpecifyKind(DateTime.UtcNow.Date.AddDays(1), DateTimeKind.Utc);
 		var fallbackIsWeekend = fallbackDate.DayOfWeek == DayOfWeek.Saturday || fallbackDate.DayOfWeek == DayOfWeek.Sunday;
 		var fallbackSlots = fallbackIsWeekend ? _weekendSlots : _weekdaySlots;
 		return (fallbackDate, fallbackSlots.start);
@@ -2002,12 +2015,13 @@ public class TimeSlotManager
 
     public (DateTime date, TimeSpan time) FindSlotMatchingTime(TimeSpan preferredTime, int durationMinutes)
 	{
-        var startDate = DateTime.UtcNow.Date.AddDays(1);
+        // Use UTC date explicitly
+        var startDate = DateTime.SpecifyKind(DateTime.UtcNow.Date.AddDays(1), DateTimeKind.Utc);
 		var maxDays = 14;
 
 		for (int dayOffset = 0; dayOffset < maxDays; dayOffset++)
 		{
-			var date = startDate.AddDays(dayOffset);
+			var date = DateTime.SpecifyKind(startDate.AddDays(dayOffset).Date, DateTimeKind.Utc);
 			var isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
 			var slots = isWeekend ? _weekendSlots : _weekdaySlots;
 
@@ -2022,12 +2036,13 @@ public class TimeSlotManager
 			}
 		}
 
-		return (DateTime.MinValue, TimeSpan.Zero);
+		return (DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc), TimeSpan.Zero);
 	}
 
     public void ReserveSlot(DateTime date, TimeSpan time, int durationMinutes)
 	{
-        var dateKey = date.Date; // normalize to date-only key (UTC date)
+        // Ensure date is UTC and normalize to date-only key
+        var dateKey = DateTime.SpecifyKind(date.Date, DateTimeKind.Utc);
         if (!_reservedSlots.ContainsKey(dateKey))
 		{
             _reservedSlots[dateKey] = new List<(TimeSpan start, TimeSpan end)>();

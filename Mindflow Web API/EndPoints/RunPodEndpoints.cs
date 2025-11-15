@@ -7,6 +7,45 @@ namespace Mindflow_Web_API.EndPoints
 {
     public static class RunPodEndpoints
     {
+        /// <summary>
+        /// Helper method to convert time string with AM/PM shift to UTC 24-hour format.
+        /// </summary>
+        private static string? ConvertTimeToUtc24Hour(string? timeStr, string? shift)
+        {
+            if (string.IsNullOrWhiteSpace(timeStr))
+                return null;
+
+            if (!TimeSpan.TryParse(timeStr, out var time))
+            {
+                var parts = timeStr.Trim().Split(':');
+                if (parts.Length >= 2 && int.TryParse(parts[0], out var hours) && int.TryParse(parts[1], out var minutes))
+                {
+                    time = new TimeSpan(hours, minutes, 0);
+                }
+                else
+                {
+                    return null;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(shift))
+            {
+                var shiftUpper = shift.ToUpper().Trim();
+                var isPM = shiftUpper.Contains("PM");
+                var isAM = shiftUpper.Contains("AM");
+                
+                if (isPM && time.Hours >= 1 && time.Hours <= 12)
+                {
+                    time = time.Add(new TimeSpan(12, 0, 0));
+                }
+                else if (isAM && time.Hours == 12)
+                {
+                    time = time.Subtract(new TimeSpan(12, 0, 0));
+                }
+            }
+
+            return $"{time.Hours:D2}:{time.Minutes:D2}";
+        }
         public static void MapRunPodEndpoints(this IEndpointRouteBuilder app)
         {
             var runpodApi = app.MapGroup("/api/runpod").WithTags("RunPod AI");
@@ -65,6 +104,12 @@ namespace Mindflow_Web_API.EndPoints
                     throw ApiExceptions.NotFound("Wellness check-in not found. Please complete a wellness check-in first.");
 
                 // Convert DTO to model
+                // Convert times to UTC for backend processing
+                var weekdayStartTimeUtc = ConvertTimeToUtc24Hour(checkInDto.WeekdayStartTime, checkInDto.WeekdayStartShift);
+                var weekdayEndTimeUtc = ConvertTimeToUtc24Hour(checkInDto.WeekdayEndTime, checkInDto.WeekdayEndShift);
+                var weekendStartTimeUtc = ConvertTimeToUtc24Hour(checkInDto.WeekendStartTime, checkInDto.WeekendStartShift);
+                var weekendEndTimeUtc = ConvertTimeToUtc24Hour(checkInDto.WeekendEndTime, checkInDto.WeekendEndShift);
+                
                 var checkIn = WellnessCheckIn.Create(
                     checkInDto.UserId,
                     checkInDto.MoodLevel,
@@ -81,6 +126,10 @@ namespace Mindflow_Web_API.EndPoints
                     checkInDto.WeekendStartShift,
                     checkInDto.WeekendEndTime,
                     checkInDto.WeekendEndShift,
+                    weekdayStartTimeUtc,
+                    weekdayEndTimeUtc,
+                    weekendStartTimeUtc,
+                    weekendEndTimeUtc,
                     checkInDto.Questions
                 );
 
@@ -119,6 +168,12 @@ namespace Mindflow_Web_API.EndPoints
                     throw ApiExceptions.NotFound("Wellness check-in not found. Please complete a wellness check-in first.");
 
                 // Convert DTO to model
+                // Convert times to UTC for backend processing
+                var weekdayStartTimeUtc = ConvertTimeToUtc24Hour(checkInDto.WeekdayStartTime, checkInDto.WeekdayStartShift);
+                var weekdayEndTimeUtc = ConvertTimeToUtc24Hour(checkInDto.WeekdayEndTime, checkInDto.WeekdayEndShift);
+                var weekendStartTimeUtc = ConvertTimeToUtc24Hour(checkInDto.WeekendStartTime, checkInDto.WeekendStartShift);
+                var weekendEndTimeUtc = ConvertTimeToUtc24Hour(checkInDto.WeekendEndTime, checkInDto.WeekendEndShift);
+                
                 var checkIn = WellnessCheckIn.Create(
                     checkInDto.UserId,
                     checkInDto.MoodLevel,
@@ -135,6 +190,10 @@ namespace Mindflow_Web_API.EndPoints
                     checkInDto.WeekendStartShift,
                     checkInDto.WeekendEndTime,
                     checkInDto.WeekendEndShift,
+                    weekdayStartTimeUtc,
+                    weekdayEndTimeUtc,
+                    weekendStartTimeUtc,
+                    weekendEndTimeUtc,
                     checkInDto.Questions
                 );
 
@@ -173,6 +232,12 @@ namespace Mindflow_Web_API.EndPoints
                     throw ApiExceptions.NotFound("Wellness check-in not found. Please complete a wellness check-in first.");
 
                 // Convert DTO to model
+                // Convert times to UTC for backend processing
+                var weekdayStartTimeUtc = ConvertTimeToUtc24Hour(checkInDto.WeekdayStartTime, checkInDto.WeekdayStartShift);
+                var weekdayEndTimeUtc = ConvertTimeToUtc24Hour(checkInDto.WeekdayEndTime, checkInDto.WeekdayEndShift);
+                var weekendStartTimeUtc = ConvertTimeToUtc24Hour(checkInDto.WeekendStartTime, checkInDto.WeekendStartShift);
+                var weekendEndTimeUtc = ConvertTimeToUtc24Hour(checkInDto.WeekendEndTime, checkInDto.WeekendEndShift);
+                
                 var checkIn = WellnessCheckIn.Create(
                     checkInDto.UserId,
                     checkInDto.MoodLevel,
@@ -189,6 +254,10 @@ namespace Mindflow_Web_API.EndPoints
                     checkInDto.WeekendStartShift,
                     checkInDto.WeekendEndTime,
                     checkInDto.WeekendEndShift,
+                    weekdayStartTimeUtc,
+                    weekdayEndTimeUtc,
+                    weekendStartTimeUtc,
+                    weekendEndTimeUtc,
                     checkInDto.Questions
                 );
 
@@ -260,6 +329,10 @@ namespace Mindflow_Web_API.EndPoints
                     weekendStartShift: null,
                     weekendEndTime: null,
                     weekendEndShift: null,
+                    weekdayStartTimeUtc: null,
+                    weekdayEndTimeUtc: null,
+                    weekendStartTimeUtc: null,
+                    weekendEndTimeUtc: null,
                     questions: new Dictionary<string, object>
                     {
                         ["focusAreas"] = new [] { "Mental health", "Productivity", "Career/School" },
