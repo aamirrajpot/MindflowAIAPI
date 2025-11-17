@@ -72,6 +72,7 @@ namespace Mindflow_Web_API.Services
                         null,
                         null,
                         null,
+                        null,
                         new Dictionary<string, object>()
                     );
                 }
@@ -102,6 +103,7 @@ namespace Mindflow_Web_API.Services
                     checkIn.WeekdayEndTimeUtc,
                     checkIn.WeekendStartTimeUtc,
                     checkIn.WeekendEndTimeUtc,
+                    checkIn.TimezoneId,
                     checkIn.Questions ?? new Dictionary<string, object>()
                 );
 
@@ -137,8 +139,10 @@ namespace Mindflow_Web_API.Services
                 throw ApiExceptions.ValidationError("Patch data cannot be null.");
             }
 
-            _logger.LogDebug("Patch data received for user {UserId}. MoodLevel: {MoodLevel}, ReminderEnabled: {ReminderEnabled}", 
-                userId, patchDto.MoodLevel, patchDto.ReminderEnabled);
+            var timezoneIdInput = string.IsNullOrWhiteSpace(patchDto.TimezoneId) ? null : patchDto.TimezoneId.Trim();
+
+            _logger.LogDebug("Patch data received for user {UserId}. MoodLevel: {MoodLevel}, ReminderEnabled: {ReminderEnabled}, TimezoneId: {TimezoneId}", 
+                userId, patchDto.MoodLevel, patchDto.ReminderEnabled, timezoneIdInput ?? "null");
             _logger.LogDebug("Weekday times - Start: {WeekdayStartTime} {WeekdayStartShift}, End: {WeekdayEndTime} {WeekdayEndShift}", 
                 patchDto.WeekdayStartTime, patchDto.WeekdayStartShift, patchDto.WeekdayEndTime, patchDto.WeekdayEndShift);
             _logger.LogDebug("Weekend times - Start: {WeekendStartTime} {WeekendStartShift}, End: {WeekendEndTime} {WeekendEndShift}", 
@@ -171,10 +175,10 @@ namespace Mindflow_Web_API.Services
                     
                     // Store original times as-is (user input)
                     // Convert to UTC and store in UTC fields for backend processing
-                    var weekdayStartTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekdayStartTime, patchDto.WeekdayStartShift);
-                    var weekdayEndTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekdayEndTime, patchDto.WeekdayEndShift);
-                    var weekendStartTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekendStartTime, patchDto.WeekendStartShift);
-                    var weekendEndTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekendEndTime, patchDto.WeekendEndShift);
+                    var weekdayStartTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekdayStartTime, patchDto.WeekdayStartShift, timezoneIdInput);
+                    var weekdayEndTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekdayEndTime, patchDto.WeekdayEndShift, timezoneIdInput);
+                    var weekendStartTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekendStartTime, patchDto.WeekendStartShift, timezoneIdInput);
+                    var weekendEndTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekendEndTime, patchDto.WeekendEndShift, timezoneIdInput);
                     
                     checkIn = WellnessCheckIn.Create(
                         userId,
@@ -196,6 +200,7 @@ namespace Mindflow_Web_API.Services
                         weekdayEndTimeUtc,
                         weekendStartTimeUtc,
                         weekendEndTimeUtc,
+                        timezoneIdInput,
                         questions
                     );
                     
@@ -236,34 +241,36 @@ namespace Mindflow_Web_API.Services
                         checkIn.FocusAreas = patchDto.FocusAreas;
                         fieldsUpdated.Add("FocusAreas");
                     }
+                    var effectiveTimezoneId = timezoneIdInput ?? checkIn.TimezoneId;
+
                     // Store original times as-is (user input)
                     // Convert to UTC and store in UTC fields for backend processing
                     if (patchDto.WeekdayStartTime != null || patchDto.WeekdayStartShift != null)
                     {
                         checkIn.WeekdayStartTime = patchDto.WeekdayStartTime;
                         checkIn.WeekdayStartShift = patchDto.WeekdayStartShift;
-                        checkIn.WeekdayStartTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekdayStartTime, patchDto.WeekdayStartShift);
+                        checkIn.WeekdayStartTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekdayStartTime, patchDto.WeekdayStartShift, effectiveTimezoneId);
                         fieldsUpdated.Add("WeekdayStartTime");
                     }
                     if (patchDto.WeekdayEndTime != null || patchDto.WeekdayEndShift != null)
                     {
                         checkIn.WeekdayEndTime = patchDto.WeekdayEndTime;
                         checkIn.WeekdayEndShift = patchDto.WeekdayEndShift;
-                        checkIn.WeekdayEndTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekdayEndTime, patchDto.WeekdayEndShift);
+                        checkIn.WeekdayEndTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekdayEndTime, patchDto.WeekdayEndShift, effectiveTimezoneId);
                         fieldsUpdated.Add("WeekdayEndTime");
                     }
                     if (patchDto.WeekendStartTime != null || patchDto.WeekendStartShift != null)
                     {
                         checkIn.WeekendStartTime = patchDto.WeekendStartTime;
                         checkIn.WeekendStartShift = patchDto.WeekendStartShift;
-                        checkIn.WeekendStartTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekendStartTime, patchDto.WeekendStartShift);
+                        checkIn.WeekendStartTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekendStartTime, patchDto.WeekendStartShift, effectiveTimezoneId);
                         fieldsUpdated.Add("WeekendStartTime");
                     }
                     if (patchDto.WeekendEndTime != null || patchDto.WeekendEndShift != null)
                     {
                         checkIn.WeekendEndTime = patchDto.WeekendEndTime;
                         checkIn.WeekendEndShift = patchDto.WeekendEndShift;
-                        checkIn.WeekendEndTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekendEndTime, patchDto.WeekendEndShift);
+                        checkIn.WeekendEndTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekendEndTime, patchDto.WeekendEndShift, effectiveTimezoneId);
                         fieldsUpdated.Add("WeekendEndTime");
                     }
                     
@@ -286,7 +293,27 @@ namespace Mindflow_Web_API.Services
                         _logger.LogDebug("Merged {Count} questions for user {UserId}", patchDto.Questions.Count, userId);
                     }
                     
-                    checkIn.Update(checkIn.MoodLevel, DateTime.UtcNow, checkIn.ReminderEnabled, checkIn.ReminderTime, checkIn.AgeRange, checkIn.FocusAreas, checkIn.WeekdayStartTime, checkIn.WeekdayStartShift, checkIn.WeekdayEndTime, checkIn.WeekdayEndShift, checkIn.WeekendStartTime, checkIn.WeekendStartShift, checkIn.WeekendEndTime, checkIn.WeekendEndShift, checkIn.WeekdayStartTimeUtc, checkIn.WeekdayEndTimeUtc, checkIn.WeekendStartTimeUtc, checkIn.WeekendEndTimeUtc, checkIn.Questions);
+                    checkIn.Update(
+                        checkIn.MoodLevel,
+                        DateTime.UtcNow,
+                        checkIn.ReminderEnabled,
+                        checkIn.ReminderTime,
+                        checkIn.AgeRange,
+                        checkIn.FocusAreas,
+                        checkIn.WeekdayStartTime,
+                        checkIn.WeekdayStartShift,
+                        checkIn.WeekdayEndTime,
+                        checkIn.WeekdayEndShift,
+                        checkIn.WeekendStartTime,
+                        checkIn.WeekendStartShift,
+                        checkIn.WeekendEndTime,
+                        checkIn.WeekendEndShift,
+                        checkIn.WeekdayStartTimeUtc,
+                        checkIn.WeekdayEndTimeUtc,
+                        checkIn.WeekendStartTimeUtc,
+                        checkIn.WeekendEndTimeUtc,
+                        effectiveTimezoneId,
+                        checkIn.Questions);
                     
                     _logger.LogDebug("Updated fields for user {UserId}: {UpdatedFields}", userId, string.Join(", ", fieldsUpdated));
                 }
@@ -333,6 +360,7 @@ namespace Mindflow_Web_API.Services
                     checkIn.WeekdayEndTimeUtc,
                     checkIn.WeekendStartTimeUtc,
                     checkIn.WeekendEndTimeUtc,
+                    checkIn.TimezoneId,
                     checkIn.Questions ?? new Dictionary<string, object>()
                 );
 
@@ -373,10 +401,10 @@ namespace Mindflow_Web_API.Services
 
                 // Convert DTO to model for the prompt
                 // Convert times to UTC for backend processing
-                var weekdayStartTimeUtc = ConvertTimeToUtc24Hour(wellnessData.WeekdayStartTime, wellnessData.WeekdayStartShift);
-                var weekdayEndTimeUtc = ConvertTimeToUtc24Hour(wellnessData.WeekdayEndTime, wellnessData.WeekdayEndShift);
-                var weekendStartTimeUtc = ConvertTimeToUtc24Hour(wellnessData.WeekendStartTime, wellnessData.WeekendStartShift);
-                var weekendEndTimeUtc = ConvertTimeToUtc24Hour(wellnessData.WeekendEndTime, wellnessData.WeekendEndShift);
+                var weekdayStartTimeUtc = ConvertTimeToUtc24Hour(wellnessData.WeekdayStartTime, wellnessData.WeekdayStartShift, wellnessData.TimezoneId);
+                var weekdayEndTimeUtc = ConvertTimeToUtc24Hour(wellnessData.WeekdayEndTime, wellnessData.WeekdayEndShift, wellnessData.TimezoneId);
+                var weekendStartTimeUtc = ConvertTimeToUtc24Hour(wellnessData.WeekendStartTime, wellnessData.WeekendStartShift, wellnessData.TimezoneId);
+                var weekendEndTimeUtc = ConvertTimeToUtc24Hour(wellnessData.WeekendEndTime, wellnessData.WeekendEndShift, wellnessData.TimezoneId);
                 
                 var wellnessModel = WellnessCheckIn.Create(
                     userId,
@@ -398,6 +426,7 @@ namespace Mindflow_Web_API.Services
                     weekdayEndTimeUtc,
                     weekendStartTimeUtc,
                     weekendEndTimeUtc,
+                    wellnessData.TimezoneId,
                     wellnessData.Questions
                 );
 
@@ -459,10 +488,10 @@ namespace Mindflow_Web_API.Services
                 
                 // Convert DTO to model for the prompt
                 // Convert times to UTC for backend processing
-                var weekdayStartTimeUtc = ConvertTimeToUtc24Hour(wellnessData.WeekdayStartTime, wellnessData.WeekdayStartShift);
-                var weekdayEndTimeUtc = ConvertTimeToUtc24Hour(wellnessData.WeekdayEndTime, wellnessData.WeekdayEndShift);
-                var weekendStartTimeUtc = ConvertTimeToUtc24Hour(wellnessData.WeekendStartTime, wellnessData.WeekendStartShift);
-                var weekendEndTimeUtc = ConvertTimeToUtc24Hour(wellnessData.WeekendEndTime, wellnessData.WeekendEndShift);
+                var weekdayStartTimeUtc = ConvertTimeToUtc24Hour(wellnessData.WeekdayStartTime, wellnessData.WeekdayStartShift, wellnessData.TimezoneId);
+                var weekdayEndTimeUtc = ConvertTimeToUtc24Hour(wellnessData.WeekdayEndTime, wellnessData.WeekdayEndShift, wellnessData.TimezoneId);
+                var weekendStartTimeUtc = ConvertTimeToUtc24Hour(wellnessData.WeekendStartTime, wellnessData.WeekendStartShift, wellnessData.TimezoneId);
+                var weekendEndTimeUtc = ConvertTimeToUtc24Hour(wellnessData.WeekendEndTime, wellnessData.WeekendEndShift, wellnessData.TimezoneId);
                 
                 var wellnessModel = WellnessCheckIn.Create(
                     userId,
@@ -484,6 +513,7 @@ namespace Mindflow_Web_API.Services
                     weekdayEndTimeUtc,
                     weekendStartTimeUtc,
                     weekendEndTimeUtc,
+                    wellnessData.TimezoneId,
                     wellnessData.Questions
                 );
 
@@ -1156,13 +1186,13 @@ Keep responses concise and practical. Focus on actionable items. [/INST]";
         }
 
         /// <summary>
-        /// Converts time string with AM/PM shift to UTC DateTime.
-        /// Assumes times from frontend are already in UTC (or user's local time that frontend converted).
+        /// Converts time string with AM/PM shift from local time to UTC DateTime using timezone ID.
         /// </summary>
         /// <param name="timeStr">Time string (e.g., "07:00", "7:00", "3:30")</param>
         /// <param name="shift">AM/PM shift (e.g., "PM", "AM")</param>
+        /// <param name="timezoneId">IANA timezone ID (e.g., "America/Chicago", "America/New_York"). If null, assumes times are already in UTC.</param>
         /// <returns>UTC DateTime with today's date and the specified time</returns>
-        private DateTime? ConvertTimeToUtc24Hour(string? timeStr, string? shift)
+        private DateTime? ConvertTimeToUtc24Hour(string? timeStr, string? shift, string? timezoneId = null)
         {
             // If time is null or empty, return null
             if (string.IsNullOrWhiteSpace(timeStr))
@@ -1242,13 +1272,72 @@ Keep responses concise and practical. Focus on actionable items. [/INST]";
                 _logger.LogDebug("No shift provided, assuming time is already in 24-hour format: {Time}", time);
             }
 
-            // Convert to UTC DateTime
-            // Use today's date as reference date for the time slot
-            var today = DateTime.UtcNow.Date;
-            var inputTime = today.Add(time);
-            var utcDateTime = DateTime.SpecifyKind(inputTime, DateTimeKind.Utc);
+            // Convert from local time to UTC if timezone ID is provided
+            DateTime utcDateTime;
+            if (!string.IsNullOrWhiteSpace(timezoneId))
+            {
+                try
+                {
+                    // Get the timezone info
+                    TimeZoneInfo timeZone;
+                    try
+                    {
+                        // Try IANA timezone ID first (e.g., "America/Chicago")
+                        timeZone = TimeZoneInfo.FindSystemTimeZoneById(timezoneId);
+                    }
+                    catch (TimeZoneNotFoundException)
+                    {
+                        // If IANA ID not found, try Windows timezone ID (e.g., "Central Standard Time")
+                        // Map common IANA IDs to Windows IDs
+                        var windowsId = timezoneId switch
+                        {
+                            "America/Chicago" => "Central Standard Time",
+                            "America/New_York" => "Eastern Standard Time",
+                            "America/Denver" => "Mountain Standard Time",
+                            "America/Los_Angeles" => "Pacific Standard Time",
+                            "America/Phoenix" => "US Mountain Standard Time",
+                            _ => timezoneId
+                        };
+                        timeZone = TimeZoneInfo.FindSystemTimeZoneById(windowsId);
+                    }
+
+                    // Create a DateTime in the user's local timezone
+                    // Use today's date as reference date for the time slot
+                    var today = DateTime.UtcNow.Date;
+                    var localDateTime = today.Add(time);
+                    
+                    // Specify that this is an unspecified kind (local time in the user's timezone)
+                    var localDateTimeUnspecified = DateTime.SpecifyKind(localDateTime, DateTimeKind.Unspecified);
+                    
+                    // Convert to UTC using the timezone
+                    utcDateTime = TimeZoneInfo.ConvertTimeToUtc(localDateTimeUnspecified, timeZone);
+                    utcDateTime = DateTime.SpecifyKind(utcDateTime, DateTimeKind.Utc);
+                    
+                    _logger.LogDebug("Converted from local time to UTC: timezone={Timezone}, local={LocalTime}, utc={UtcTime}", 
+                        timezoneId, localDateTimeUnspecified, utcDateTime);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to convert time using timezone {Timezone}, assuming time is already in UTC: {Time}", 
+                        timezoneId, time);
+                    // Fallback: assume time is already in UTC
+                    var today = DateTime.UtcNow.Date;
+                    var inputTime = today.Add(time);
+                    utcDateTime = DateTime.SpecifyKind(inputTime, DateTimeKind.Utc);
+                }
+            }
+            else
+            {
+                _logger.LogDebug("No timezone ID provided, assuming time is already in UTC: {Time}", time);
+                // Convert to UTC DateTime
+                // Use today's date as reference date for the time slot
+                var today = DateTime.UtcNow.Date;
+                var inputTime = today.Add(time);
+                utcDateTime = DateTime.SpecifyKind(inputTime, DateTimeKind.Utc);
+            }
             
-            _logger.LogDebug("Final converted time: {TimeUtc} (from {TimeStr} {Shift})", utcDateTime, timeStr, shift);
+            _logger.LogDebug("Final converted time: {TimeUtc} (from {TimeStr} {Shift}, timezone={Timezone})", 
+                utcDateTime, timeStr, shift, timezoneId ?? "null");
             
             // Return UTC DateTime
             return utcDateTime;

@@ -133,6 +133,7 @@ namespace Mindflow_Web_API.EndPoints
                     weekdayEndTimeUtc,
                     weekendStartTimeUtc,
                     weekendEndTimeUtc,
+                    checkInDto.TimezoneId,
                     checkInDto.Questions
                 );
 
@@ -197,6 +198,7 @@ namespace Mindflow_Web_API.EndPoints
                     weekdayEndTimeUtc,
                     weekendStartTimeUtc,
                     weekendEndTimeUtc,
+                    checkInDto.TimezoneId,
                     checkInDto.Questions
                 );
 
@@ -261,6 +263,7 @@ namespace Mindflow_Web_API.EndPoints
                     weekdayEndTimeUtc,
                     weekendStartTimeUtc,
                     weekendEndTimeUtc,
+                    checkInDto.TimezoneId,  
                     checkInDto.Questions
                 );
 

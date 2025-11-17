@@ -41,11 +41,12 @@ namespace Mindflow_Web_API.DTOs
         string? WeekendStartTime, 
         string? WeekendStartShift, 
         string? WeekendEndTime, 
-        string? WeekendEndShift,
+        string? WeekendEndShift, 
         DateTime? WeekdayStartTimeUtc,  // UTC time as DateTime
         DateTime? WeekdayEndTimeUtc,    // UTC time as DateTime
         DateTime? WeekendStartTimeUtc,  // UTC time as DateTime
         DateTime? WeekendEndTimeUtc,    // UTC time as DateTime
+        string? TimezoneId,
         Dictionary<string, object> Questions  // Dynamic questions
     );
     
@@ -65,6 +66,7 @@ namespace Mindflow_Web_API.DTOs
         string? WeekendStartShift, 
         string? WeekendEndTime, 
         string? WeekendEndShift,
-        Dictionary<string, object>? Questions  // Dynamic questions to merge
+        Dictionary<string, object>? Questions,  // Dynamic questions to merge
+        string? TimezoneId  // IANA timezone ID (e.g., "America/Chicago", "America/New_York"). If null, assumes times are already in UTC.
     );
 } 

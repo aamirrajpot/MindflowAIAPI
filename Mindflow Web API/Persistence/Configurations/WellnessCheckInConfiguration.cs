@@ -56,6 +56,10 @@ namespace Mindflow_Web_API.Persistence.Configurations
             builder.Property(w => w.WeekendEndShift)
                    .HasMaxLength(2);
 
+            builder.Property(w => w.TimezoneId)
+                   .HasMaxLength(100)
+                   .IsRequired(false);
+
             // Configure UTC time fields (stored as DateTime in UTC)
             builder.Property(w => w.WeekdayStartTimeUtc)
                    .IsRequired(false);
