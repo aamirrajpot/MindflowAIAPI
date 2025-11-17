@@ -419,9 +419,9 @@ namespace Mindflow_Web_API.Services
 		_logger.LogInformation("[DEBUG] Wellness data UTC: WeekendStartTimeUtc='{WeekendStartTimeUtc}', WeekendEndTimeUtc='{WeekendEndTimeUtc}'", 
 			wellnessData?.WeekendStartTimeUtc, wellnessData?.WeekendEndTimeUtc);
 		
-		// Use UTC fields (already in 24-hour format, no shift needed)
-		var weekdaySlots = ParseTimeSlots(wellnessData?.WeekdayStartTimeUtc, wellnessData?.WeekdayEndTimeUtc, null, null);
-		var weekendSlots = ParseTimeSlots(wellnessData?.WeekendStartTimeUtc, wellnessData?.WeekendEndTimeUtc, null, null);
+		// Use UTC fields (DateTime objects)
+		var weekdaySlots = ParseTimeSlots(wellnessData?.WeekdayStartTimeUtc, wellnessData?.WeekdayEndTimeUtc);
+		var weekendSlots = ParseTimeSlots(wellnessData?.WeekendStartTimeUtc, wellnessData?.WeekendEndTimeUtc);
 
 		_logger.LogInformation("Weekday slots: {WeekdayStart} to {WeekdayEnd}", weekdaySlots.start, weekdaySlots.end);
 		_logger.LogInformation("Weekend slots: {WeekendStart} to {WeekendEnd}", weekendSlots.start, weekendSlots.end);
@@ -471,84 +471,17 @@ namespace Mindflow_Web_API.Services
 		private async Task<(DateTime date, TimeSpan time)> DetermineOptimalScheduleWithTimeSlotsAsync(AddToCalendarRequest request, DTOs.WellnessCheckInDto? wellnessData, int durationMinutes, Guid userId)
 		{
 			// Parse available time slots from wellness data
-			// Use UTC fields (already in 24-hour format, no shift needed)
-			var weekdaySlots = ParseTimeSlots(wellnessData?.WeekdayStartTimeUtc, wellnessData?.WeekdayEndTimeUtc, null, null);
-			var weekendSlots = ParseTimeSlots(wellnessData?.WeekendStartTimeUtc, wellnessData?.WeekendEndTimeUtc, null, null);
+			// Use UTC fields (DateTime objects)
+			var weekdaySlots = ParseTimeSlots(wellnessData?.WeekdayStartTimeUtc, wellnessData?.WeekdayEndTimeUtc);
+			var weekendSlots = ParseTimeSlots(wellnessData?.WeekendStartTimeUtc, wellnessData?.WeekendEndTimeUtc);
 
 			_logger.LogDebug("Determining optimal schedule for task with duration {Duration} minutes", durationMinutes);
 			_logger.LogDebug("Weekday slots: {WeekdayStart} to {WeekdayEnd}", weekdaySlots.start, weekdaySlots.end);
 			_logger.LogDebug("Weekend slots: {WeekendStart} to {WeekendEnd}", weekendSlots.start, weekendSlots.end);
 
-			// If user provided specific date and time, try to use it
-			if (request.Date.HasValue && request.Time.HasValue)
-			{
-				// Ensure user date is treated as UTC
-				var userDate = DateTime.SpecifyKind(request.Date.Value.Date, DateTimeKind.Utc);
-				var userTime = request.Time.Value;
-				
-				_logger.LogDebug("User provided specific date and time: {Date} at {Time}", userDate.ToString("yyyy-MM-dd"), userTime);
-				
-				// Check if the user's preferred time fits within available slots
-				var isWeekend = userDate.DayOfWeek == DayOfWeek.Saturday || userDate.DayOfWeek == DayOfWeek.Sunday;
-				var slots = isWeekend ? weekendSlots : weekdaySlots;
-				
-				if (userTime >= slots.start && userTime.Add(TimeSpan.FromMinutes(durationMinutes)) <= slots.end)
-				{
-					// Check if this time slot is available
-					if (await IsTimeSlotAvailableAsync(userDate, userTime, durationMinutes, userId))
-					{
-						_logger.LogDebug("User's preferred time slot is available");
-						return (userDate, userTime);
-					}
-					else
-					{
-						_logger.LogDebug("User's preferred time slot is not available, finding alternative");
-					}
-				}
-				else
-				{
-					_logger.LogDebug("User's preferred time is outside available slots");
-				}
-			}
-
-			// If user provided only date, find best time on that date
-			if (request.Date.HasValue)
-			{
-				// Ensure user date is treated as UTC
-				var userDate = DateTime.SpecifyKind(request.Date.Value.Date, DateTimeKind.Utc);
-				var isWeekend = userDate.DayOfWeek == DayOfWeek.Saturday || userDate.DayOfWeek == DayOfWeek.Sunday;
-				var slots = isWeekend ? weekendSlots : weekdaySlots;
-				
-				_logger.LogDebug("User provided specific date: {Date}, finding best time", userDate.ToString("yyyy-MM-dd"));
-				
-				var availableTime = await FindAvailableTimeInDayAsync(userDate, slots, durationMinutes, userId);
-				if (availableTime != TimeSpan.Zero)
-				{
-					_logger.LogDebug("Found available time on user's preferred date: {Time}", availableTime);
-					return (userDate, availableTime);
-				}
-				else
-				{
-					_logger.LogDebug("No available time found on user's preferred date");
-				}
-			}
-
-			// If user provided only time, find next available date
-			if (request.Time.HasValue)
-			{
-				var userTime = request.Time.Value;
-				_logger.LogDebug("User provided specific time: {Time}, finding next available date", userTime);
-				
-				var (date, time) = await FindNextAvailableDateForTimeAsync(userTime, durationMinutes, weekdaySlots, weekendSlots, userId);
-				if (date != DateTime.MinValue)
-				{
-					_logger.LogDebug("Found next available date for user's preferred time: {Date}", date.ToString("yyyy-MM-dd"));
-					return (date, time);
-				}
-			}
-
-			// No specific preferences - find optimal date and time
-			_logger.LogDebug("No user preferences, finding optimal date and time");
+			// Calculate optimal date and time based on available slots
+			// No user preferences - find optimal date and time using wellness data slots
+			_logger.LogDebug("Calculating optimal date and time based on available slots");
 			var (optimalDate, optimalTime) = await FindNextAvailableSlotAsync(durationMinutes, weekdaySlots, weekendSlots, userId);
 			_logger.LogDebug("Found optimal slot: {Date} at {Time}", optimalDate.ToString("yyyy-MM-dd"), optimalTime);
 			return (optimalDate, optimalTime);
@@ -804,9 +737,9 @@ namespace Mindflow_Web_API.Services
 			return (new TimeSpan(19, 0, 0), new TimeSpan(22, 0, 0)); // Default 7 PM to 10 PM UTC
 		}
 
-		// Parse times as UTC - times entered by user are stored as-is in UTC
-		// The frontend (React Native) will handle timezone conversion for display
-		// Example: User enters "7PM" -> stored as 19:00 UTC -> frontend converts to local time for display
+		// Parse times - handle both ISO 8601 format (from UTC fields) and simple time format
+		// UTC fields are in ISO 8601 format: "2025-11-17T19:00:00Z"
+		// Original fields are in simple format: "19:00" with optional shift
 		var startUtc = ParseTimeString(startTime, startShift);
 		var endUtc = ParseTimeString(endTime, endShift);
 		
@@ -819,6 +752,41 @@ namespace Mindflow_Web_API.Services
 			// This is valid for time slots that span midnight
 			var isDayBoundaryCrossing = startUtc.TotalMinutes > endUtc.TotalMinutes && 
 				(startUtc.TotalMinutes >= 22 * 60 || endUtc.TotalMinutes <= 2 * 60); // After 10 PM or before 2 AM
+			
+			Console.WriteLine($"[DEBUG] Day boundary check - isDayBoundaryCrossing: {isDayBoundaryCrossing}");
+			
+			if (!isDayBoundaryCrossing)
+			{
+				Console.WriteLine("[DEBUG] Invalid time slots, using defaults");
+				return (new TimeSpan(19, 0, 0), new TimeSpan(22, 0, 0)); // Default 7 PM to 10 PM UTC
+			}
+		}
+		
+		Console.WriteLine($"[DEBUG] Final UTC time slots: {startUtc} to {endUtc}");
+		return (startUtc, endUtc);
+	}
+
+	// Overload for DateTime? parameters (from UTC fields)
+	private static (TimeSpan start, TimeSpan end) ParseTimeSlots(DateTime? startTime, DateTime? endTime)
+	{
+		if (!startTime.HasValue || !endTime.HasValue)
+		{
+			Console.WriteLine("[DEBUG] Missing DateTime time data, using default slots: 7 PM to 10 PM UTC");
+			return (new TimeSpan(19, 0, 0), new TimeSpan(22, 0, 0)); // Default 7 PM to 10 PM UTC
+		}
+
+		// Extract time portion from DateTime objects
+		var startUtc = startTime.Value.TimeOfDay;
+		var endUtc = endTime.Value.TimeOfDay;
+		
+		Console.WriteLine($"[DEBUG] Parsed UTC time slots from DateTime - Start: {startUtc}, End: {endUtc}");
+		
+		// Validate that start is before end (handle day boundary crossing)
+		if (startUtc >= endUtc)
+		{
+			// Check if this is a day boundary crossing (e.g., 22:00 to 01:00 next day)
+			var isDayBoundaryCrossing = startUtc.TotalMinutes > endUtc.TotalMinutes && 
+				(startUtc.TotalMinutes >= 22 * 60 || endUtc.TotalMinutes <= 2 * 60);
 			
 			Console.WriteLine($"[DEBUG] Day boundary check - isDayBoundaryCrossing: {isDayBoundaryCrossing}");
 			
@@ -1057,14 +1025,14 @@ namespace Mindflow_Web_API.Services
 		
 		if (isWeekend)
 		{
-			// Use UTC fields (already in 24-hour format, no shift needed)
-			var weekendSlots = ParseTimeSlots(wellnessData.WeekendStartTimeUtc, wellnessData.WeekendEndTimeUtc, null, null);
+			// Use UTC fields (DateTime objects)
+			var weekendSlots = ParseTimeSlots(wellnessData.WeekendStartTimeUtc, wellnessData.WeekendEndTimeUtc);
 			return GetOptimalTimeInRange(weekendSlots.start, weekendSlots.end);
 		}
 		else
 		{
-			// Use UTC fields (already in 24-hour format, no shift needed)
-			var weekdaySlots = ParseTimeSlots(wellnessData.WeekdayStartTimeUtc, wellnessData.WeekdayEndTimeUtc, null, null);
+			// Use UTC fields (DateTime objects)
+			var weekdaySlots = ParseTimeSlots(wellnessData.WeekdayStartTimeUtc, wellnessData.WeekdayEndTimeUtc);
 			return GetOptimalTimeInRange(weekdaySlots.start, weekdaySlots.end);
 		}
 	}
@@ -1083,13 +1051,13 @@ namespace Mindflow_Web_API.Services
 				(TimeSpan startTime, TimeSpan endTime) slots;
 				if (isWeekend)
 				{
-					// Use UTC fields (already in 24-hour format, no shift needed)
-					slots = ParseTimeSlots(wellnessData.WeekendStartTimeUtc, wellnessData.WeekendEndTimeUtc, null, null);
+					// Use UTC fields (DateTime objects)
+					slots = ParseTimeSlots(wellnessData.WeekendStartTimeUtc, wellnessData.WeekendEndTimeUtc);
 				}
 				else
 				{
-					// Use UTC fields (already in 24-hour format, no shift needed)
-					slots = ParseTimeSlots(wellnessData.WeekdayStartTimeUtc, wellnessData.WeekdayEndTimeUtc, null, null);
+					// Use UTC fields (DateTime objects)
+					slots = ParseTimeSlots(wellnessData.WeekdayStartTimeUtc, wellnessData.WeekdayEndTimeUtc);
 				}
 
 				// Check if preferred time falls within available range
@@ -1130,6 +1098,14 @@ namespace Mindflow_Web_API.Services
 	{
 		if (string.IsNullOrWhiteSpace(timeStr))
 			return new TimeSpan(9, 0, 0); // Default 9 AM
+
+		// Check if timeStr is actually a DateTime (when passed from UTC fields)
+		// This handles the case where UTC fields are DateTime objects converted to string
+		if (timeStr != null && DateTime.TryParse(timeStr, out var isoDateTime))
+		{
+			// Extract time portion from datetime
+			return isoDateTime.TimeOfDay;
+		}
 
 		// Parse time like "09:30" or "9:30"
 		if (TimeSpan.TryParse(timeStr, out var time))

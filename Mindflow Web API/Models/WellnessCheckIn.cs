@@ -27,11 +27,11 @@ namespace Mindflow_Web_API.Models
         public string? WeekendEndTime { get; set; }        // Weekend end time (e.g., "18:00")
         public string? WeekendEndShift { get; set; }       // Weekend end AM/PM
         
-        // UTC time fields (for backend processing) - stored in 24-hour format
-        public string? WeekdayStartTimeUtc { get; set; }   // Weekday start time in UTC (e.g., "19:00")
-        public string? WeekdayEndTimeUtc { get; set; }     // Weekday end time in UTC (e.g., "22:00")
-        public string? WeekendStartTimeUtc { get; set; }   // Weekend start time in UTC (e.g., "15:30")
-        public string? WeekendEndTimeUtc { get; set; }     // Weekend end time in UTC (e.g., "21:00")
+        // UTC time fields (for backend processing) - stored as DateTime in UTC
+        public DateTime? WeekdayStartTimeUtc { get; set; }   // Weekday start time in UTC
+        public DateTime? WeekdayEndTimeUtc { get; set; }     // Weekday end time in UTC
+        public DateTime? WeekendStartTimeUtc { get; set; }   // Weekend start time in UTC
+        public DateTime? WeekendEndTimeUtc { get; set; }     // Weekend end time in UTC
         
         // Dynamic questions/answers stored as JSON
         // Stores all conditional questions based on selected focus areas
@@ -51,7 +51,7 @@ namespace Mindflow_Web_API.Models
             MoodLevel = string.Empty;
         }
 
-        private WellnessCheckIn(Guid userId, string moodLevel, DateTime checkInDate, bool reminderEnabled, string? reminderTime, string? ageRange, string[]? focusAreas, string? weekdayStartTime, string? weekdayStartShift, string? weekdayEndTime, string? weekdayEndShift, string? weekendStartTime, string? weekendStartShift, string? weekendEndTime, string? weekendEndShift, string? weekdayStartTimeUtc, string? weekdayEndTimeUtc, string? weekendStartTimeUtc, string? weekendEndTimeUtc, Dictionary<string, object> questions)
+        private WellnessCheckIn(Guid userId, string moodLevel, DateTime checkInDate, bool reminderEnabled, string? reminderTime, string? ageRange, string[]? focusAreas, string? weekdayStartTime, string? weekdayStartShift, string? weekdayEndTime, string? weekdayEndShift, string? weekendStartTime, string? weekendStartShift, string? weekendEndTime, string? weekendEndShift, DateTime? weekdayStartTimeUtc, DateTime? weekdayEndTimeUtc, DateTime? weekendStartTimeUtc, DateTime? weekendEndTimeUtc, Dictionary<string, object> questions)
         {
             UserId = userId;
             MoodLevel = moodLevel;
@@ -75,13 +75,13 @@ namespace Mindflow_Web_API.Models
             Questions = questions ?? new Dictionary<string, object>();
         }
 
-        public static WellnessCheckIn Create(Guid userId, string moodLevel, DateTime checkInDate, bool reminderEnabled = false, string? reminderTime = null, string? ageRange = null, string[]? focusAreas = null, string? weekdayStartTime = null, string? weekdayStartShift = null, string? weekdayEndTime = null, string? weekdayEndShift = null, string? weekendStartTime = null, string? weekendStartShift = null, string? weekendEndTime = null, string? weekendEndShift = null, string? weekdayStartTimeUtc = null, string? weekdayEndTimeUtc = null, string? weekendStartTimeUtc = null, string? weekendEndTimeUtc = null, Dictionary<string, object>? questions = null)
+        public static WellnessCheckIn Create(Guid userId, string moodLevel, DateTime checkInDate, bool reminderEnabled = false, string? reminderTime = null, string? ageRange = null, string[]? focusAreas = null, string? weekdayStartTime = null, string? weekdayStartShift = null, string? weekdayEndTime = null, string? weekdayEndShift = null, string? weekendStartTime = null, string? weekendStartShift = null, string? weekendEndTime = null, string? weekendEndShift = null, DateTime? weekdayStartTimeUtc = null, DateTime? weekdayEndTimeUtc = null, DateTime? weekendStartTimeUtc = null, DateTime? weekendEndTimeUtc = null, Dictionary<string, object>? questions = null)
         {
             ValidateInputs(moodLevel, checkInDate, ageRange, focusAreas, weekdayStartTime, weekdayStartShift, weekdayEndTime, weekdayEndShift, weekendStartTime, weekendStartShift, weekendEndTime, weekendEndShift, questions);
             return new WellnessCheckIn(userId, moodLevel, checkInDate, reminderEnabled, reminderTime, ageRange, focusAreas, weekdayStartTime, weekdayStartShift, weekdayEndTime, weekdayEndShift, weekendStartTime, weekendStartShift, weekendEndTime, weekendEndShift, weekdayStartTimeUtc, weekdayEndTimeUtc, weekendStartTimeUtc, weekendEndTimeUtc, questions ?? new Dictionary<string, object>());
         }
 
-        public void Update(string moodLevel, DateTime checkInDate, bool reminderEnabled, string? reminderTime, string? ageRange, string[]? focusAreas, string? weekdayStartTime, string? weekdayStartShift, string? weekdayEndTime, string? weekdayEndShift, string? weekendStartTime, string? weekendStartShift, string? weekendEndTime, string? weekendEndShift, string? weekdayStartTimeUtc, string? weekdayEndTimeUtc, string? weekendStartTimeUtc, string? weekendEndTimeUtc, Dictionary<string, object>? questions)
+        public void Update(string moodLevel, DateTime checkInDate, bool reminderEnabled, string? reminderTime, string? ageRange, string[]? focusAreas, string? weekdayStartTime, string? weekdayStartShift, string? weekdayEndTime, string? weekdayEndShift, string? weekendStartTime, string? weekendStartShift, string? weekendEndTime, string? weekendEndShift, DateTime? weekdayStartTimeUtc, DateTime? weekdayEndTimeUtc, DateTime? weekendStartTimeUtc, DateTime? weekendEndTimeUtc, Dictionary<string, object>? questions)
         {
             ValidateInputs(moodLevel, checkInDate, ageRange, focusAreas, weekdayStartTime, weekdayStartShift, weekdayEndTime, weekdayEndShift, weekendStartTime, weekendStartShift, weekendEndTime, weekendEndShift, questions);
 

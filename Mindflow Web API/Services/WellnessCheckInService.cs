@@ -1156,13 +1156,13 @@ Keep responses concise and practical. Focus on actionable items. [/INST]";
         }
 
         /// <summary>
-        /// Converts time string with AM/PM shift to UTC 24-hour format.
+        /// Converts time string with AM/PM shift to UTC DateTime.
         /// Assumes times from frontend are already in UTC (or user's local time that frontend converted).
         /// </summary>
         /// <param name="timeStr">Time string (e.g., "07:00", "7:00", "3:30")</param>
         /// <param name="shift">AM/PM shift (e.g., "PM", "AM")</param>
-        /// <returns>Time in 24-hour format as string (e.g., "19:00")</returns>
-        private string? ConvertTimeToUtc24Hour(string? timeStr, string? shift)
+        /// <returns>UTC DateTime with today's date and the specified time</returns>
+        private DateTime? ConvertTimeToUtc24Hour(string? timeStr, string? shift)
         {
             // If time is null or empty, return null
             if (string.IsNullOrWhiteSpace(timeStr))
@@ -1242,16 +1242,16 @@ Keep responses concise and practical. Focus on actionable items. [/INST]";
                 _logger.LogDebug("No shift provided, assuming time is already in 24-hour format: {Time}", time);
             }
 
-            // Convert to 24-hour format string - TimeSpan doesn't support HH format, so format manually
-            // Format: "HH:mm" where HH is 00-23 (24-hour format)
-            var finalHours = time.Hours;
-            var finalMinutes = time.Minutes;
-            var timeUtc = $"{finalHours:D2}:{finalMinutes:D2}";
+            // Convert to UTC DateTime
+            // Use today's date as reference date for the time slot
+            var today = DateTime.UtcNow.Date;
+            var inputTime = today.Add(time);
+            var utcDateTime = DateTime.SpecifyKind(inputTime, DateTimeKind.Utc);
             
-            _logger.LogDebug("Final converted time: {TimeUtc} (from {TimeStr} {Shift})", timeUtc, timeStr, shift);
+            _logger.LogDebug("Final converted time: {TimeUtc} (from {TimeStr} {Shift})", utcDateTime, timeStr, shift);
             
-            // Return UTC time in 24-hour format
-            return timeUtc;
+            // Return UTC DateTime
+            return utcDateTime;
         }
     }
 } 

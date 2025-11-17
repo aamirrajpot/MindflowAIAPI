@@ -8,9 +8,9 @@ namespace Mindflow_Web_API.EndPoints
     public static class RunPodEndpoints
     {
         /// <summary>
-        /// Helper method to convert time string with AM/PM shift to UTC 24-hour format.
+        /// Helper method to convert time string with AM/PM shift to UTC DateTime.
         /// </summary>
-        private static string? ConvertTimeToUtc24Hour(string? timeStr, string? shift)
+        private static DateTime? ConvertTimeToUtc24Hour(string? timeStr, string? shift)
         {
             if (string.IsNullOrWhiteSpace(timeStr))
                 return null;
@@ -44,7 +44,10 @@ namespace Mindflow_Web_API.EndPoints
                 }
             }
 
-            return $"{time.Hours:D2}:{time.Minutes:D2}";
+            // Convert to UTC DateTime using today's date
+            var today = DateTime.UtcNow.Date;
+            var inputTime = today.Add(time);
+            return DateTime.SpecifyKind(inputTime, DateTimeKind.Utc);
         }
         public static void MapRunPodEndpoints(this IEndpointRouteBuilder app)
         {
