@@ -147,32 +147,19 @@ namespace Mindflow_Web_API.Utilities
 					sb.Append("\n\n");
 				}
 
-				if (wellnessData != null)
-				{
-					var wdStartUtc = ConvertUsEasternToUtcString(wellnessData.WeekdayStartTime, wellnessData.WeekdayStartShift);
-					var wdEndUtc = ConvertUsEasternToUtcString(wellnessData.WeekdayEndTime, wellnessData.WeekdayEndShift);
-					var weStartUtc = ConvertUsEasternToUtcString(wellnessData.WeekendStartTime, wellnessData.WeekendStartShift);
-					var weEndUtc = ConvertUsEasternToUtcString(wellnessData.WeekendEndTime, wellnessData.WeekendEndShift);
-
-					sb.Append("=== AVAILABLE TIME SLOTS (UTC, for realistic scheduling only) ===\n");
-					if (!string.IsNullOrWhiteSpace(wdStartUtc) && !string.IsNullOrWhiteSpace(wdEndUtc))
-						sb.Append($"- Weekdays (UTC): {wdStartUtc} to {wdEndUtc}\n");
-					if (!string.IsNullOrWhiteSpace(weStartUtc) && !string.IsNullOrWhiteSpace(weEndUtc))
-						sb.Append($"- Weekends (UTC): {weStartUtc} to {weEndUtc}\n");
-					sb.Append("\n");
-				}
-
 				sb.Append("=== INSTRUCTIONS ===\n");
 				sb.Append("- Focus on emotional understanding: reflect how the user feels and what they might need right now.\n");
-				sb.Append("- Link each activity to what the user expressed — e.g., if they feel overwhelmed, suggest grounding or rest.\n");
-				sb.Append("- Identify all concrete tasks mentioned in the brain dump and include them.\n");
-				sb.Append("- Add supportive or wellness tasks that directly help improve the user's emotional state.\n");
+				sb.Append("- Tie every activity to explicit statements from the brain dump (quote or paraphrase the trigger in the notes).\n");
+				sb.Append("- Prioritize concrete actions the user mentioned, needs to finish, or implied (errands, follow-ups, work items, appointments).\n");
+				sb.Append("- Include at most two purely wellness/self-care tasks unless the brain dump contains no actionable items; otherwise keep the list task-heavy.\n");
+				sb.Append("- When suggesting supportive or wellness tasks, explain exactly how they unblock something mentioned in the brain dump.\n");
 				sb.Append("- Each activity should sound personal and natural — like something you'd suggest to a friend, not a robot.\n");
 				if (forceMinimumActivities)
 				{
 					sb.Append("- Always include between 6 and 8 total activities. If there are fewer explicit ones, fill with wellness/self-care tasks that match the user’s tone.\n");
 				}
 				sb.Append("- Avoid generic suggestions (like 'make a list') or vague ones (like 'take care of yourself'). Keep them actionable and human.\n");
+				sb.Append("- Never invent commitments that weren't hinted at; stay grounded in the brain dump facts.\n");
 				sb.Append("- Use the available time slots to make scheduling realistic but focus on the emotional fit first.\n");
 
 				sb.Append("Output only the JSON object. Do not include any text outside JSON. [/INST]");
@@ -452,53 +439,6 @@ Example format: anxious,work,planning,morning [/INST]";
             }
 
             return parsed.ToString("hh\\:mm");
-        }
-
-        /// <summary>
-        /// Converts US Eastern Time to UTC string for AI prompt display.
-        /// Assumes US Eastern Standard Time (UTC-5).
-        /// </summary>
-        private static string? ConvertUsEasternToUtcString(string? time, string? shift)
-        {
-            if (string.IsNullOrWhiteSpace(time)) return null;
-
-            // Parse the time string (e.g., "3:00" + "PM")
-            var t = time.Trim();
-            var upper = (shift ?? string.Empty).Trim().ToUpperInvariant();
-            var isPM = upper.Contains("PM") || t.ToUpperInvariant().Contains("PM");
-            var isAM = upper.Contains("AM") || t.ToUpperInvariant().Contains("AM");
-
-            t = t.Replace("AM", "", StringComparison.OrdinalIgnoreCase)
-                 .Replace("PM", "", StringComparison.OrdinalIgnoreCase)
-                 .Trim();
-
-            if (!TimeSpan.TryParse(t, out var easternTime)) return null;
-
-            // Convert AM/PM to 24-hour format
-            if (isPM && easternTime.Hours >= 1 && easternTime.Hours <= 12)
-            {
-                easternTime = easternTime.Add(new TimeSpan(12, 0, 0));
-            }
-            else if (isAM && easternTime.Hours == 12)
-            {
-                easternTime = easternTime.Subtract(new TimeSpan(12, 0, 0));
-            }
-
-            // Convert US Eastern to UTC (UTC-5 for EST)
-            var utcOffset = TimeSpan.FromHours(5);
-            var utcTime = easternTime.Add(utcOffset);
-
-            // Handle day boundary crossing
-            if (utcTime.TotalMinutes < 0)
-            {
-                utcTime = utcTime.Add(TimeSpan.FromDays(1));
-            }
-            else if (utcTime.TotalMinutes >= 1440) // 24 hours
-            {
-                utcTime = utcTime.Subtract(TimeSpan.FromDays(1));
-            }
-
-            return utcTime.ToString("hh\\:mm");
         }
 
 		public static string ParseTagExtractionResponse(string response, ILogger? logger = null)
