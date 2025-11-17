@@ -120,7 +120,7 @@ namespace Mindflow_Web_API.Utilities
 				sb.Append("      \"task\": \"Personalized, concrete activity (short phrase)\",\n");
 				sb.Append("      \"frequency\": \"Realistic frequency (e.g., 'Once today', 'Every morning', 'Twice this week')\",\n");
 				sb.Append("      \"duration\": \"Time needed (e.g., '10 minutes', '30 minutes')\",\n");
-				sb.Append("      \"notes\": \"Brief reason why this task helps — must connect emotionally to the user's current state or themes\",\n");
+				sb.Append("      \"notes\": \"Quote or paraphrase the exact line from the brain dump that makes this task necessary + why it helps\",\n");
 				sb.Append("      \"priority\": \"High/Medium/Low - based on urgency and emotional importance\",\n");
 				sb.Append("      \"suggestedTime\": \"Optional preferred time (e.g., 'Morning', 'After work', 'Evening')\"\n");
 				sb.Append("    }\n");
@@ -151,7 +151,9 @@ namespace Mindflow_Web_API.Utilities
 				sb.Append("- Focus on emotional understanding: reflect how the user feels and what they might need right now.\n");
 				sb.Append("- Tie every activity to explicit statements from the brain dump (quote or paraphrase the trigger in the notes).\n");
 				sb.Append("- Prioritize concrete actions the user mentioned, needs to finish, or implied (errands, follow-ups, work items, appointments).\n");
+				sb.Append("- Preserve the order of importance from the brain dump when possible so the user recognizes their own list.\n");
 				sb.Append("- Include at most two purely wellness/self-care tasks unless the brain dump contains no actionable items; otherwise keep the list task-heavy.\n");
+				sb.Append("- If the brain dump contains N actionable items (N ≥ 3), ensure at least N activities directly handle those items before adding wellness extras.\n");
 				sb.Append("- When suggesting supportive or wellness tasks, explain exactly how they unblock something mentioned in the brain dump.\n");
 				sb.Append("- Each activity should sound personal and natural — like something you'd suggest to a friend, not a robot.\n");
 				if (forceMinimumActivities)
