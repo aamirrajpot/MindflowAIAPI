@@ -162,7 +162,7 @@ namespace Mindflow_Web_API.Utilities
 
             if (forceMinimumActivities)
 				{
-					sb.Append("- Always include between 6 and 8 total activities. If there are fewer explicit ones, fill with wellness/self-care tasks that match the user’s tone.\n");
+					sb.Append("- Always include between 8 and 10 total activities. If there are fewer explicit ones, fill with wellness/self-care tasks that match the user’s tone.\n");
 				}
 				sb.Append("- Avoid generic suggestions (like 'make a list') or vague ones (like 'take care of yourself'). Keep them actionable and human.\n");
 				sb.Append("- Never invent commitments that weren't hinted at; stay grounded in the brain dump facts.\n");
