@@ -120,7 +120,7 @@ namespace Mindflow_Web_API.Utilities
 				sb.Append("      \"task\": \"Personalized, concrete activity (short phrase)\",\n");
 				sb.Append("      \"frequency\": \"Realistic frequency (e.g., 'Once today', 'Every morning', 'Twice this week')\",\n");
 				sb.Append("      \"duration\": \"Time needed (e.g., '10 minutes', '30 minutes')\",\n");
-				sb.Append("      \"notes\": \"Quote or paraphrase the exact line from the brain dump that makes this task necessary + why it helps\",\n");
+				sb.Append("      \"notes\": \"Explain to *you* why this task matters, referencing the user's own words (quote or paraphrase)\",\n");
 				sb.Append("      \"priority\": \"High/Medium/Low - based on urgency and emotional importance\",\n");
 				sb.Append("      \"suggestedTime\": \"Optional preferred time (e.g., 'Morning', 'After work', 'Evening')\"\n");
 				sb.Append("    }\n");
@@ -148,15 +148,19 @@ namespace Mindflow_Web_API.Utilities
 				}
 
 				sb.Append("=== INSTRUCTIONS ===\n");
-				sb.Append("- Focus on emotional understanding: reflect how the user feels and what they might need right now.\n");
-				sb.Append("- Tie every activity to explicit statements from the brain dump (quote or paraphrase the trigger in the notes).\n");
-				sb.Append("- Prioritize concrete actions the user mentioned, needs to finish, or implied (errands, follow-ups, work items, appointments).\n");
-				sb.Append("- Preserve the order of importance from the brain dump when possible so the user recognizes their own list.\n");
-				sb.Append("- Include at most two purely wellness/self-care tasks unless the brain dump contains no actionable items; otherwise keep the list task-heavy.\n");
-				sb.Append("- If the brain dump contains N actionable items (N ≥ 3), ensure at least N activities directly handle those items before adding wellness extras.\n");
-				sb.Append("- When suggesting supportive or wellness tasks, explain exactly how they unblock something mentioned in the brain dump.\n");
-				sb.Append("- Each activity should sound personal and natural — like something you'd suggest to a friend, not a robot.\n");
-				if (forceMinimumActivities)
+				sb.Append("- Focus on understanding how you feel and what you might need right now.\n");
+				sb.Append("- Base every activity on explicit statements from the brain dump (quote or paraphrase the trigger in the notes).\n");
+				sb.Append("- Use second-person perspective: speak directly to you using “you” and “your”. Do NOT use “the user” or their name in the activity descriptions.\n");
+				sb.Append("- Example: “Organize your workspace” instead of “Help the user organize their workspace.”\n");
+				sb.Append("- Prioritize concrete actions mentioned or implied in the brain dump (tasks, follow-ups, appointments, errands).\n");
+				sb.Append("- List all actionable, brain-dump-based tasks first in the suggestedActivities array, in the order of importance reflected in the brain dump.\n");
+				sb.Append("- Only after all actionable items are listed, include up to two wellness or self-care activities, unless there are no actionable items.\n");
+				sb.Append("- Do not mix wellness items with actionable tasks; actionable tasks always come first, wellness last.\n");
+				sb.Append("- If the brain dump has N actionable items (N ≥ 3), ensure at least N activities directly address those items before adding wellness tasks.\n");
+				sb.Append("- For wellness/supportive tasks, explain clearly how they help you manage or unblock something mentioned in the brain dump.\n");
+				sb.Append("- Make every activity personal, specific, and natural — like advice from a caring friend, not generic guidance.\n");
+
+            if (forceMinimumActivities)
 				{
 					sb.Append("- Always include between 6 and 8 total activities. If there are fewer explicit ones, fill with wellness/self-care tasks that match the user’s tone.\n");
 				}
