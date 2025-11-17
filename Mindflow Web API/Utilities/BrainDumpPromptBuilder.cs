@@ -117,7 +117,7 @@ namespace Mindflow_Web_API.Utilities
 				sb.Append("  \"aiSummary\": \"Empathetic 2–3 sentence summary capturing the user’s current mindset, needs, and emotional tone\",\n");
 				sb.Append("  \"suggestedActivities\": [\n");
 				sb.Append("    {\n");
-				sb.Append("      \"task\": \"Personalized, concrete activity (short phrase)\",\n");
+				sb.Append("      \"task\": \"Short (<=12 words) action title in second-person\",\n");
 				sb.Append("      \"frequency\": \"Realistic frequency (e.g., 'Once today', 'Every morning', 'Twice this week')\",\n");
 				sb.Append("      \"duration\": \"Time needed (e.g., '10 minutes', '30 minutes')\",\n");
 				sb.Append("      \"notes\": \"Explain to *you* why this task matters, referencing the user's own words (quote or paraphrase)\",\n");
@@ -150,10 +150,12 @@ namespace Mindflow_Web_API.Utilities
 				sb.Append("=== INSTRUCTIONS ===\n");
 				sb.Append("- Focus on understanding how you feel and what you might need right now.\n");
 				sb.Append("- Base every activity on explicit statements from the brain dump (quote or paraphrase the trigger in the notes).\n");
-				sb.Append("- Use second-person perspective: speak directly to you using “you” and “your”. Do NOT use “the user” or their name in the activity descriptions except in user profile name section.\n");
-				sb.Append("- Example: “Organize your workspace” instead of “Help the user organize their workspace.”\n");
+				sb.Append("- Use second-person perspective: speak directly to you using \"you\"/\"your\". Do NOT use \"the user\".\n");
+				sb.Append("- The `userProfile.name` value is already correct. Repeat it exactly; never replace it with \"You\".\n");
+				sb.Append("- Example: task title \"Call the insurance adjuster\" instead of \"Help the user call...\".\n");
+				sb.Append("- Task titles must stay concise (max 8 words) and action-oriented.\n");
 				sb.Append("- Prioritize concrete actions mentioned or implied in the brain dump (tasks, follow-ups, appointments, errands).\n");
-				sb.Append("- List all actionable, brain-dump-based tasks first in the suggestedActivities array, in the order of importance reflected in the brain dump.\n");
+				sb.Append("- List all actionable, brain-dump-based tasks first in the suggestedActivities array, preserving the dump’s order of importance.\n");
 				sb.Append("- Only after all actionable items are listed, include up to two wellness or self-care activities, unless there are no actionable items.\n");
 				sb.Append("- Do not mix wellness items with actionable tasks; actionable tasks always come first, wellness last.\n");
 				sb.Append("- If the brain dump has N actionable items (N ≥ 3), ensure at least N activities directly address those items before adding wellness tasks.\n");
