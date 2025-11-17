@@ -150,7 +150,7 @@ namespace Mindflow_Web_API.Utilities
 				sb.Append("=== INSTRUCTIONS ===\n");
 				sb.Append("- Focus on understanding how you feel and what you might need right now.\n");
 				sb.Append("- Base every activity on explicit statements from the brain dump (quote or paraphrase the trigger in the notes).\n");
-				sb.Append("- Use second-person perspective: speak directly to you using “you” and “your”. Do NOT use “the user” or their name in the activity descriptions.\n");
+				sb.Append("- Use second-person perspective: speak directly to you using “you” and “your”. Do NOT use “the user” or their name in the activity descriptions except in user profile name section.\n");
 				sb.Append("- Example: “Organize your workspace” instead of “Help the user organize their workspace.”\n");
 				sb.Append("- Prioritize concrete actions mentioned or implied in the brain dump (tasks, follow-ups, appointments, errands).\n");
 				sb.Append("- List all actionable, brain-dump-based tasks first in the suggestedActivities array, in the order of importance reflected in the brain dump.\n");
