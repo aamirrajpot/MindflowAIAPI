@@ -955,15 +955,16 @@ namespace Mindflow_Web_API.Services
 			if (string.IsNullOrWhiteSpace(frequency))
 				return RepeatType.Never;
 
-			var freq = frequency.ToLower();
+			var freq = frequency.Trim().ToLowerInvariant();
 			return freq switch
 			{
-				"daily" or "every day" => RepeatType.Day,
-				"weekly" or "every week" => RepeatType.Week,
-				"monthly" or "every month" => RepeatType.Month,
-				"weekdays" or "weekday" => RepeatType.Day, // Could be enhanced to handle weekdays specifically
-				"bi-weekly" or "biweekly" => RepeatType.Week, // Could be enhanced for every 2 weeks
-				"once" or "one time" or "never" => RepeatType.Never,
+				"once" => RepeatType.Never,
+				"never" => RepeatType.Never,
+				"daily" => RepeatType.Day,
+				"weekdays" => RepeatType.Day, // Treat weekday blocks as daily for now
+				"weekly" => RepeatType.Week,
+				"bi-weekly" or "biweekly" => RepeatType.Week,
+				"monthly" => RepeatType.Month,
 				_ => RepeatType.Never
 			};
 		}
