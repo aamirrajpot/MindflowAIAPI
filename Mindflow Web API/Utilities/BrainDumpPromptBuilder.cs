@@ -123,7 +123,7 @@ namespace Mindflow_Web_API.Utilities
 				sb.Append("  \"suggestedActivities\": [\n");
 				sb.Append("    {\n");
 				sb.Append("      \"task\": \"Short action title in second-person (plain text only)\",\n");
-				sb.Append("      \"frequency\": \"Realistic frequency (e.g., 'Once today', 'Every morning', 'Twice this week')\",\n");
+				sb.Append("      \"frequency\": \"Use one of: 'once', 'daily', 'weekly', 'bi-weekly', 'monthly', 'weekdays', or 'never'\",\n");
 				sb.Append("      \"duration\": \"Time needed (e.g., '10 minutes', '30 minutes')\",\n");
 				sb.Append("      \"notes\": \"Explain to you why this task matters, referencing the user's own words (quote or paraphrase) without markdown\",\n");
 				sb.Append("      \"priority\": \"High/Medium/Low - based on urgency and emotional importance\",\n");
