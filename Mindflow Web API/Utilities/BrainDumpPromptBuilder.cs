@@ -122,10 +122,10 @@ namespace Mindflow_Web_API.Utilities
 				sb.Append("  \"aiSummary\": \"Empathetic 2–3 sentence summary capturing the user’s current mindset, needs, and emotional tone\",\n");
 				sb.Append("  \"suggestedActivities\": [\n");
 				sb.Append("    {\n");
-				sb.Append("      \"task\": \"Short (<=12 words) action title in second-person\",\n");
+				sb.Append("      \"task\": \"Short action title in second-person (plain text only)\",\n");
 				sb.Append("      \"frequency\": \"Realistic frequency (e.g., 'Once today', 'Every morning', 'Twice this week')\",\n");
 				sb.Append("      \"duration\": \"Time needed (e.g., '10 minutes', '30 minutes')\",\n");
-				sb.Append("      \"notes\": \"Explain to *you* why this task matters, referencing the user's own words (quote or paraphrase)\",\n");
+				sb.Append("      \"notes\": \"Explain to you why this task matters, referencing the user's own words (quote or paraphrase) without markdown\",\n");
 				sb.Append("      \"priority\": \"High/Medium/Low - based on urgency and emotional importance\",\n");
 				sb.Append("      \"suggestedTime\": \"Optional preferred time (e.g., 'Morning', 'After work', 'Evening')\"\n");
 				sb.Append("    }\n");
