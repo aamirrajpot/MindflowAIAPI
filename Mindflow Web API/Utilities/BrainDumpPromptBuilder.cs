@@ -122,7 +122,7 @@ namespace Mindflow_Web_API.Utilities
 				sb.Append("  \"aiSummary\": \"Empathetic 2–3 sentence summary capturing the user’s current mindset, needs, and emotional tone\",\n");
 				sb.Append("  \"suggestedActivities\": [\n");
 				sb.Append("    {\n");
-				sb.Append("      \"task\": \"Short action title in second-person (plain text only)\",\n");
+				sb.Append("      \"task\": \"Short action title in second-person (plain text only, do NOT include priority keywords or extra commentary)\",\n");
 				sb.Append("      \"frequency\": \"Use one of: 'once', 'daily', 'weekly', 'bi-weekly', 'monthly', 'weekdays', or 'never'\",\n");
 				sb.Append("      \"duration\": \"Time needed (e.g., '10 minutes', '30 minutes')\",\n");
 				sb.Append("      \"notes\": \"Explain to you why this task matters, referencing the user's own words (quote or paraphrase) without markdown\",\n");
@@ -163,6 +163,7 @@ namespace Mindflow_Web_API.Utilities
 				sb.Append("- Output at least 8 activities TOTAL whenever possible. At least 6 must be actionable items drawn from the brain dump. Wellness/self-care items are capped at 2 (never more than 3) and only allowed after all actionable items appear.\n");
 				sb.Append("- Prioritize concrete actions mentioned or implied in the brain dump (tasks, follow-ups, appointments, errands).\n");
 				sb.Append("- List all actionable, brain-dump-based tasks first in the suggestedActivities array, sorted by priority (High → Medium → Low) and still preserving the dump’s order inside each priority tier.\n");
+				sb.Append("- Never merge multiple actions into one entry. If the brain dump mentions 'call insurance and schedule blood draw', those MUST be two separate activities, each with its own trigger quote.\n");
 				sb.Append("- Only after all actionable items are listed, include up to two wellness or self-care activities, unless there are no actionable items.\n");
 				sb.Append("- Do not mix wellness items with actionable tasks; actionable tasks always come first, wellness last.\n");
 				sb.Append("- If the brain dump has N actionable items (N ≥ 3), ensure at least N activities directly address those items before adding wellness tasks.\n");
