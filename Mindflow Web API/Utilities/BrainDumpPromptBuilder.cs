@@ -135,7 +135,7 @@ namespace Mindflow_Web_API.Utilities
 				sb.Append("=== USER BRAIN DUMP (PRIMARY SOURCE) ===\n");
 				sb.Append(request.Text.Replace("\r", "").Replace("\n", "\\n"));
 				sb.Append("\n\n");
-				sb.Append("Before producing activities, parse every sentence and list ALL concrete obligations, decisions, pending conversations, errands, deadlines, blockers, and emotional pain points you spot. Treat that list as a checklist that must be fully addressed in the JSON output.\n\n");
+				sb.Append("Before producing activities, parse every sentence and list ALL concrete obligations, decisions, pending conversations, errands, deadlines, blockers, and emotional pain points you spot. Each checklist entry must map to exactly one suggested activity.\n\n");
 
 				if (!string.IsNullOrWhiteSpace(request.Context))
 				{
@@ -163,7 +163,8 @@ namespace Mindflow_Web_API.Utilities
 				sb.Append("- Output at least 8 activities TOTAL whenever possible. At least 6 must be actionable items drawn from the brain dump. Wellness/self-care items are capped at 2 (never more than 3) and only allowed after all actionable items appear.\n");
 				sb.Append("- Prioritize concrete actions mentioned or implied in the brain dump (tasks, follow-ups, appointments, errands).\n");
 				sb.Append("- List all actionable, brain-dump-based tasks first in the suggestedActivities array, sorted by priority (High → Medium → Low) and still preserving the dump’s order inside each priority tier.\n");
-				sb.Append("- Never merge multiple actions into one entry. If the brain dump mentions 'call insurance and schedule blood draw', those MUST be two separate activities, each with its own trigger quote.\n");
+				sb.Append("- Never merge multiple actions into one entry. If the brain dump mentions 'call insurance' and 'schedule blood draw', those MUST be two separate activities, each referencing its own trigger line.\n");
+				sb.Append("- When you encounter connectors like 'and/also/then' within the same sentence, split them into discrete tasks unless they are truly the same physical action.\n");
 				sb.Append("- Only after all actionable items are listed, include up to two wellness or self-care activities, unless there are no actionable items.\n");
 				sb.Append("- Do not mix wellness items with actionable tasks; actionable tasks always come first, wellness last.\n");
 				sb.Append("- If the brain dump has N actionable items (N ≥ 3), ensure at least N activities directly address those items before adding wellness tasks.\n");
