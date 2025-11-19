@@ -123,11 +123,11 @@ namespace Mindflow_Web_API.Utilities
 				sb.Append("  \"suggestedActivities\": [\n");
 				sb.Append("    {\n");
 				sb.Append("      \"task\": \"Short action title in second-person (plain text only, do NOT include priority keywords or extra commentary)\",\n");
-				sb.Append("      \"frequency\": \"Use one of: 'once', 'daily', 'weekly', 'bi-weekly', 'monthly', 'weekdays', or 'never'\",\n");
-				sb.Append("      \"duration\": \"Time needed (e.g., '10 minutes', '30 minutes')\",\n");
-				sb.Append("      \"notes\": \"Explain to you why this task matters, referencing the user's own words (quote or paraphrase) without markdown\",\n");
-				sb.Append("      \"priority\": \"High/Medium/Low - based on urgency and emotional importance\",\n");
-				sb.Append("      \"suggestedTime\": \"Optional preferred time (e.g., 'Morning', 'After work', 'Evening')\"\n");
+				sb.Append("      \"frequency\": \"Use exactly one of: 'once', 'daily', 'weekly', 'bi-weekly', 'monthly', 'weekdays', 'never'\",\n");
+				sb.Append("      \"duration\": \"Concrete time needed (e.g., '10 minutes', '45 minutes', '2 hours')\",\n");
+				sb.Append("      \"notes\": \"Quote or paraphrase the exact trigger line and explain why this matters. Must not be empty\",\n");
+				sb.Append("      \"priority\": \"High/Medium/Low - distribute across the list (do NOT make them all Medium)\",\n");
+				sb.Append("      \"suggestedTime\": \"Concrete anchor such as 'Morning', 'Afternoon', 'Evening', or a precise clock time\"\n");
 				sb.Append("    }\n");
 				sb.Append("  ]\n");
 				sb.Append("}\n\n");
@@ -135,7 +135,7 @@ namespace Mindflow_Web_API.Utilities
 				sb.Append("=== USER BRAIN DUMP (PRIMARY SOURCE) ===\n");
 				sb.Append(request.Text.Replace("\r", "").Replace("\n", "\\n"));
 				sb.Append("\n\n");
-				sb.Append("Before producing activities, parse every sentence and list ALL concrete obligations, decisions, pending conversations, errands, deadlines, blockers, and emotional pain points you spot. Each checklist entry must map to exactly one suggested activity.\n\n");
+				sb.Append("Before producing activities, parse every sentence and list ALL concrete obligations, decisions, pending conversations, errands, deadlines, blockers, and emotional pain points you spot. Each checklist entry must map to exactly one suggested activity and you may NOT drop any entry.\n\n");
 
 				if (!string.IsNullOrWhiteSpace(request.Context))
 				{
@@ -160,7 +160,7 @@ namespace Mindflow_Web_API.Utilities
 				sb.Append("- The `userProfile.name` value is already correct. Repeat it exactly; never replace it with \"You\".\n");
 				sb.Append("- Example: task title \"Call the insurance adjuster\" instead of \"Help the user call...\".\n");
 				sb.Append("- Task titles must stay concise (max 8 words) and action-oriented.\n");
-				sb.Append("- Output at least 8 activities TOTAL whenever possible. At least 6 must be actionable items drawn from the brain dump. Wellness/self-care items are capped at 2 (never more than 3) and only allowed after all actionable items appear.\n");
+				sb.Append("- Output all possible activities. All must be actionable items drawn from the brain dump (aim for all possible actionable items when the text warrants it). Wellness/self-care items are capped at 2-3 (never more than 3) and only allowed after all actionable items appear.\n");
 				sb.Append("- Prioritize concrete actions mentioned or implied in the brain dump (tasks, follow-ups, appointments, errands).\n");
 				sb.Append("- List all actionable, brain-dump-based tasks first in the suggestedActivities array, sorted by priority (High → Medium → Low) and still preserving the dump’s order inside each priority tier.\n");
 				sb.Append("- Never merge multiple actions into one entry. If the brain dump mentions 'call insurance' and 'schedule blood draw', those MUST be two separate activities, each referencing its own trigger line.\n");
@@ -173,11 +173,12 @@ namespace Mindflow_Web_API.Utilities
 
 				if (forceMinimumActivities)
 				{
-					sb.Append("- The user explicitly requested a full list; ensure there are at least 10 activities (minimum 8 actionable + 2 wellness max).\n");
+					sb.Append("- The user explicitly requested a full list; ensure there are at least 12 activities (minimum 10 actionable + 2 wellness max).\n");
 				}
 				sb.Append("- Avoid generic suggestions (like 'make a list') or vague ones (like 'take care of yourself'). Keep them actionable and human.\n");
 				sb.Append("- Never invent commitments that weren't hinted at; stay grounded in the brain dump facts.\n");
 				sb.Append("- Use the available time slots to make scheduling realistic but focus on the emotional fit first.\n");
+				sb.Append("- Double-check that every field (task/frequency/duration/notes/priority/suggestedTime) is filled. Empty strings are not allowed.\n");
 
 				sb.Append("Output only the JSON object. Do not include any text outside JSON. [/INST]");
 
