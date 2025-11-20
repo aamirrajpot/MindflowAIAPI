@@ -251,7 +251,12 @@ namespace Mindflow_Web_API.Utilities
                 sb.Append("\n\n");
             }
 
-            sb.Append("Return ONLY the JSON array. No description. No commentary. No text outside JSON. [/INST]");
+            sb.Append("Return ONLY the JSON array. No description. No commentary. No text outside JSON.\n");
+            sb.Append("\nLINKING RULES:\n");
+            sb.Append("- Every keyTheme you output MUST have at least one matching task in suggestedActivities that addresses it.\n");
+            sb.Append("- If you list 9 themes or obligations, you must return at least 9 actionable tasks (one per theme, plus extra tasks if a theme implies multiple steps).\n");
+            sb.Append("- Do not output more themes than tasks. Tasks and themes must correspond 1:1 or 1:many (never fewer tasks than themes).\n");
+            sb.Append("\n[/INST]");
 
             return sb.ToString();
         }
