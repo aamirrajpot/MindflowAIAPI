@@ -96,71 +96,166 @@ namespace Mindflow_Web_API.Utilities
         //	return sb.ToString();
         //}
 
-// 		public static string BuildTaskSuggestionsPrompt(
-// 				BrainDumpRequest request,
-// 				DTOs.WellnessCheckInDto? wellnessData = null,
-// 				string? userName = null,
-// 				bool forceMinimumActivities = false)
-// 			{
-// 				/* ... previous prompt removed for brevity ... */
-// 			}
+        // 		public static string BuildTaskSuggestionsPrompt(
+        // 				BrainDumpRequest request,
+        // 				DTOs.WellnessCheckInDto? wellnessData = null,
+        // 				string? userName = null,
+        // 				bool forceMinimumActivities = false)
+        // 			{
+        // 				/* ... previous prompt removed for brevity ... */
+        // 			}
+
+        //      public static string BuildTaskSuggestionsPrompt(
+        //	BrainDumpRequest request,
+        //	DTOs.WellnessCheckInDto? wellnessData = null,
+        //	string? userName = null,
+        //	bool forceMinimumActivities = false)
+        //{
+        //	var sb = new StringBuilder();
+        //	var prompt = $@"[INST] You are a warm wellness coach and a precise action-extraction engine. 
+        //				Your job is to analyze the user’s brain dump deeply.
+
+        //				IMPORTANT RULES (READ FIRST):
+        //				- You MUST return one actionable task for every actionable or implied item mentioned.
+        //				- If the brain dump has N obligations, you MUST output at least N actionable tasks.
+        //				- You MUST NOT merge tasks.
+        //				- You MUST NOT drop tasks.
+        //				- Do NOT summarize the tasks; list each one separately.
+        //				- Keep outputs concrete and actionable.
+        //				- Do NOT sort tasks; keep them in the order they appear.
+
+        //				OUTPUT FORMAT:
+        //				Return ONLY a single JSON object:
+        //				{{
+        //					""userProfile"": {{
+        //					""name"": ""{userName ?? "User"}"",
+        //					""currentState"": ""Short emotional state"",
+        //					""emoji"": ""Emoji""
+        //					}},
+        //					""keyThemes"": [""Theme 1"", ""Theme 2"", ""Theme 3""],
+        //					""aiSummary"": ""Empathetic 2–3 sentence summary"",
+        //					""suggestedActivities"": [
+        //					{{
+        //						""task"": ""Short action title"",
+        //						""frequency"": ""once | daily | weekly | bi-weekly | monthly | weekdays | never"",
+        //						""duration"": ""Concrete duration"",
+        //						""notes"": ""A short reason based directly on the brain dump. Do NOT include the phrase 'Paraphrased trigger' or anything similar."",
+        //						""priority"": ""High | Medium | Low"",
+        //						""suggestedTime"": ""Morning | Afternoon | Evening | specific time""
+        //					}}
+        //					]
+        //				}}
+
+        //				=== USER BRAIN DUMP (SOURCE) ===
+        //				{request.Text.Replace("\r", "").Replace("\n", "\\n")}
+
+        //				Instructions:
+        //				- Identify every explicit or implied action, follow-up, decision, conversation, appointment, errand, or emotional need.
+        //				- For ambiguous statements, internally consider multiple interpretations, but output only the final tasks.
+        //				- Generate one activity per actionable point. Do not compress tasks.
+        //				- After all actionable items, you may add up to 2 wellness tasks.
+        //				- Fill all fields. No empty values.
+
+        //				ADDITIONAL HARD RULES:
+        //				- The ""task"" field must contain ONLY the short action title. Never begin it with ""Task:"" or include other fields in it.
+        //				- The ""notes"" field must contain ONLY a paraphrase of the trigger from the brain dump. 
+        //				  Never include priority, suggestedTime, or frequency in notes.
+        //				- Never leave any field blank. Fill frequency, duration, priority, and suggestedTime based on the most reasonable assumption.
+        //				- Do NOT place commentary or explanations after the JSON output.
+        //				- Do NOT label any tasks as ""Wellness Task"". Just write them as normal tasks.
+        //				- Do NOT embed long text, emojis, or sentences in suggestedTime. Only ""Morning"", ""Afternoon"", ""Evening"", or specific times.
+        //				- Ever
+
+        //				Return only JSON. [/INST]";
+
+        //	sb.Append(prompt);
+        //	return sb.ToString();
+        //}
 
         public static string BuildTaskSuggestionsPrompt(
-			BrainDumpRequest request,
-			DTOs.WellnessCheckInDto? wellnessData = null,
-			string? userName = null,
-			bool forceMinimumActivities = false)
-		{
-			var sb = new StringBuilder();
-			var prompt = $@"[INST] You are a warm wellness coach and a precise action-extraction engine. 
-						Your job is to analyze the user’s brain dump deeply.
+    BrainDumpRequest request,
+    DTOs.WellnessCheckInDto? wellnessData = null,
+    string? userName = null,
+    bool forceMinimumActivities = false)
+        {
+            var sb = new StringBuilder();
 
-						IMPORTANT RULES (READ FIRST):
-						- You MUST return one actionable task for every actionable or implied item mentioned.
-						- If the brain dump has N obligations, you MUST output at least N actionable tasks.
-						- You MUST NOT merge tasks.
-						- You MUST NOT drop tasks.
-						- Do NOT summarize the tasks; list each one separately.
-						- Keep outputs concrete and actionable.
-						- Do NOT sort tasks; keep them in the order they appear.
+            sb.Append("[INST] You are a warm, expert wellness coach and an accurate extraction engine. ");
+            sb.Append("Your job is to read the user's brain dump and extract EVERY actionable item without skipping anything. ");
+            sb.Append("This includes tasks, errands, calls, follow-ups, decisions, appointments, and implied obligations.\n\n");
 
-						OUTPUT FORMAT:
-						Return ONLY a single JSON object:
-						{{
-							""userProfile"": {{
-							""name"": ""{userName ?? "User"}"",
-							""currentState"": ""Short emotional state"",
-							""emoji"": ""Emoji""
-							}},
-							""keyThemes"": [""Theme 1"", ""Theme 2"", ""Theme 3""],
-							""aiSummary"": ""Empathetic 2–3 sentence summary"",
-							""suggestedActivities"": [
-							{{
-								""task"": ""Short action title"",
-								""frequency"": ""once | daily | weekly | bi-weekly | monthly | weekdays | never"",
-								""duration"": ""Concrete duration"",
-								""notes"": ""Paraphrased trigger from brain dump"",
-								""priority"": ""High | Medium | Low"",
-								""suggestedTime"": ""Morning | Afternoon | Evening | specific time""
-							}}
-							]
-						}}
+            sb.Append("IMPORTANT REQUIREMENT:\n");
+            sb.Append("→ You MUST return at least one task for every actionable or implied point mentioned in the brain dump.\n");
+            sb.Append("→ If the brain dump contains 14 items, you must return at least 14 tasks. Never fewer.\n");
+            sb.Append("→ Never merge multiple tasks into one. Split at every 'and', 'also', or separate verb.\n\n");
 
-						=== USER BRAIN DUMP (SOURCE) ===
-						{request.Text.Replace("\r", "").Replace("\n", "\\n")}
+            sb.AppendLine("SAMPLE OUTPUT FORMAT:");
+            sb.AppendLine("Return ONLY a single JSON object:");
+            sb.AppendLine("{");
+            sb.AppendLine("    \"userProfile\": {");
+            sb.AppendLine($"        \"name\": \"{userName ?? "User"}\",");
+            sb.AppendLine("        \"currentState\": \"Analyze the user's emotional state based on the brain dump, 1–2 words or a short phrase\",");
+            sb.AppendLine("        \"emoji\": \"Select one emoji representing the user's current mood\"");
+            sb.AppendLine("    },");
+            sb.AppendLine("    \"keyThemes\": [\"Analyze 3 key themes or topics mentioned in the brain dump\"],");
+            sb.AppendLine("    \"aiSummary\": \"Generate a 2–3 sentence empathetic summary describing the user's mindset, needs, and emotional tone\"");
+            sb.AppendLine("    \"suggestedActivities\": [");
+            sb.AppendLine("        {");
+            sb.AppendLine("            \"task\": \"Short action title\",");
+            sb.AppendLine("            \"frequency\": \"once | daily | weekly | bi-weekly | monthly | weekdays | never\",");
+            sb.AppendLine("            \"duration\": \"Concrete duration\",");
+            sb.AppendLine("            \"notes\": \"Short reason directly from the user's text\",");
+            sb.AppendLine("            \"priority\": \"High | Medium | Low\",");
+            sb.AppendLine("            \"suggestedTime\": \"Morning | Afternoon | Evening | specific time\"");
+            sb.AppendLine("        }");
+            sb.AppendLine("    ]");
+            sb.AppendLine("}");
 
-						Instructions:
-						- Identify every explicit or implied action, follow-up, decision, conversation, appointment, errand, or emotional need.
-						- For ambiguous statements, internally consider multiple interpretations, but output only the final tasks.
-						- Generate one activity per actionable point. Do not compress tasks.
-						- After all actionable items, you may add up to 2 wellness tasks.
-						- Fill all fields. No empty values.
 
-						Return only JSON. [/INST]";
+            sb.Append("Duration Rules:\n");
+            sb.Append("- The duration field must contain ONLY a time estimate in minutes or hours.\n");
+            sb.Append("- Valid examples: \"10 minutes\", \"20 minutes\", \"45 minutes\", \"1 hour\", \"2 hours\".\n");
+            sb.Append("- NEVER include sentences, actions, or extra words.\n\n");
 
-			sb.Append(prompt);
-			return sb.ToString();
-		}
+            sb.Append("Notes Rules:\n");
+            sb.Append("- Notes must be a short, natural explanation referencing the source text.\n");
+            sb.Append("- Example: \"You said you need to call the insurance company about a check.\"\n");
+            sb.Append("- Do NOT use template phrases like: 'Paraphrased trigger', 'Trigger phrase', 'From brain dump'.\n");
+            sb.Append("- Keep it personal, warm, and human.\n\n");
+
+            sb.Append("Task Ordering Rules:\n");
+            sb.Append("- List tasks in the same order they appear in the brain dump.\n");
+            sb.Append("- Priority distribution must vary (not all Medium).\n");
+            sb.Append("- Actionable tasks first, optional wellness tasks last (max 2 wellness tasks).\n\n");
+
+            if (forceMinimumActivities)
+                sb.Append("- Because the user requested a full list, return at least 12 total tasks.\n\n");
+
+            sb.Append("=== USER BRAIN DUMP ===\n");
+            sb.Append(request.Text.Replace("\r", "").Replace("\n", "\\n"));
+            sb.Append("\n\n");
+
+            if (!string.IsNullOrWhiteSpace(request.Context))
+            {
+                sb.Append("Additional Context:\\n");
+                sb.Append(request.Context!.Replace("\r", "").Replace("\n", "\\n"));
+                sb.Append("\n\n");
+            }
+
+            if (request.Mood.HasValue || request.Stress.HasValue || request.Purpose.HasValue)
+            {
+                sb.Append("Self-Reported Scores (0-10): ");
+                if (request.Mood.HasValue) sb.Append($"Mood={request.Mood.Value} ");
+                if (request.Stress.HasValue) sb.Append($"Stress={request.Stress.Value} ");
+                if (request.Purpose.HasValue) sb.Append($"Purpose={request.Purpose.Value} ");
+                sb.Append("\n\n");
+            }
+
+            sb.Append("Return ONLY the JSON array. No description. No commentary. No text outside JSON. [/INST]");
+
+            return sb.ToString();
+        }
+
 
 
         public static BrainDumpResponse? ParseBrainDumpResponse(string aiResponse, ILogger? logger = null)
