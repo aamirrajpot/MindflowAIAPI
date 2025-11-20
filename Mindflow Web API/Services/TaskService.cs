@@ -11,14 +11,16 @@ namespace Mindflow_Web_API.Services
 {
     public class TaskItemService : ITaskItemService
     {
-        private readonly MindflowDbContext _dbContext;
-        private readonly ILogger<TaskItemService> _logger;
+		private readonly MindflowDbContext _dbContext;
+		private readonly ILogger<TaskItemService> _logger;
+		private readonly IWellnessCheckInService _wellnessService;
 
-        public TaskItemService(MindflowDbContext dbContext, ILogger<TaskItemService> logger)
-        {
-            _dbContext = dbContext;
-            _logger = logger;
-        }
+		public TaskItemService(MindflowDbContext dbContext, ILogger<TaskItemService> logger, IWellnessCheckInService wellnessService)
+		{
+			_dbContext = dbContext;
+			_logger = logger;
+			_wellnessService = wellnessService;
+		}
 
         public async Task<TaskItemDto> CreateAsync(Guid userId, CreateTaskItemDto dto)
         {
@@ -207,38 +209,42 @@ namespace Mindflow_Web_API.Services
                 .AnyAsync(t => t.ParentTaskId == templateId && t.Date.Date == date.Date);
         }
 
-        public async Task<TaskItemDto> GenerateTaskInstanceAsync(Guid templateId, DateTime date)
-        {
-            var template = await _dbContext.Tasks.FirstOrDefaultAsync(t => t.Id == templateId);
-            if (template == null)
-                throw new ArgumentException("Template not found");
+		public async Task<TaskItemDto> GenerateTaskInstanceAsync(Guid templateId, DateTime date)
+		{
+			var template = await _dbContext.Tasks.FirstOrDefaultAsync(t => t.Id == templateId);
+			if (template == null)
+				throw new ArgumentException("Template not found");
 
-            var instance = new TaskItem
-            {
-                UserId = template.UserId,
-                Title = template.Title,
-                Description = template.Description,
-                Category = template.Category,
-                OtherCategoryName = template.OtherCategoryName,
-                Date = date,
-                Time = date.Date.Add(template.Time.TimeOfDay), // Use same time as template
-                DurationMinutes = template.DurationMinutes,
-                ReminderEnabled = template.ReminderEnabled,
-                RepeatType = RepeatType.Never, // Instances don't repeat
-                CreatedBySuggestionEngine = template.CreatedBySuggestionEngine,
-                IsApproved = template.IsApproved,
-                Status = Models.TaskStatus.Pending,
-                // Recurring task fields
-                ParentTaskId = templateId,
-                IsTemplate = false,
-                IsActive = true
-            };
+			var wellness = await _wellnessService.GetAsync(template.UserId);
+			var isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
+			var scheduledTime = DetermineSmartRecurringTime(date, template.Time.TimeOfDay, template.DurationMinutes, isWeekend, wellness);
 
-            _dbContext.Tasks.Add(instance);
-            await _dbContext.SaveChangesAsync();
-            
-            return ToDto(instance);
-        }
+			var instance = new TaskItem
+			{
+				UserId = template.UserId,
+				Title = template.Title,
+				Description = template.Description,
+				Category = template.Category,
+				OtherCategoryName = template.OtherCategoryName,
+				Date = date,
+				Time = scheduledTime,
+				DurationMinutes = template.DurationMinutes,
+				ReminderEnabled = template.ReminderEnabled,
+				RepeatType = RepeatType.Never, // Instances don't repeat
+				CreatedBySuggestionEngine = template.CreatedBySuggestionEngine,
+				IsApproved = template.IsApproved,
+				Status = Models.TaskStatus.Pending,
+				// Recurring task fields
+				ParentTaskId = templateId,
+				IsTemplate = false,
+				IsActive = true
+			};
+
+			_dbContext.Tasks.Add(instance);
+			await _dbContext.SaveChangesAsync();
+			
+			return ToDto(instance);
+		}
 
         private async Task<TaskItem> GetTaskItemByIdAsync(Guid taskId)
         {
@@ -248,7 +254,7 @@ namespace Mindflow_Web_API.Services
             return task;
         }
 
-        private static bool ShouldGenerateInstanceForDate(TaskItemDto template, DateTime date)
+		private static bool ShouldGenerateInstanceForDate(TaskItemDto template, DateTime date)
         {
             // Check if template should generate an instance for this date
             if (!template.IsTemplate || !template.IsActive)
@@ -274,5 +280,92 @@ namespace Mindflow_Web_API.Services
                 _ => false
             };
         }
+
+		private static (TimeSpan start, TimeSpan end)? ExtractSlot(DateTime? startUtc, DateTime? endUtc)
+		{
+			if (!startUtc.HasValue || !endUtc.HasValue)
+			{
+				return null;
+			}
+
+			var start = startUtc.Value.TimeOfDay;
+			var end = endUtc.Value.TimeOfDay;
+
+			// If slot crosses midnight, fallback to null (smart scheduling handles only same-day windows here)
+			if (start >= end)
+			{
+				return null;
+			}
+
+			return (start, end);
+		}
+
+		private DateTime DetermineSmartRecurringTime(DateTime date, TimeSpan desiredTime, int durationMinutes, bool isWeekend, WellnessCheckInDto? wellness)
+		{
+			var slots = isWeekend
+				? ExtractSlot(wellness?.WeekendStartTimeUtc, wellness?.WeekendEndTimeUtc)
+				: ExtractSlot(wellness?.WeekdayStartTimeUtc, wellness?.WeekdayEndTimeUtc);
+
+			if (slots == null)
+			{
+				return date.Date.Add(desiredTime);
+			}
+
+			var start = slots.Value.start;
+			var end = slots.Value.end;
+			var duration = TimeSpan.FromMinutes(durationMinutes <= 0 ? 30 : durationMinutes);
+			var scheduled = desiredTime;
+
+			if (scheduled < start || scheduled + duration > end)
+			{
+				scheduled = start;
+				if (scheduled + duration > end)
+				{
+					scheduled = start;
+				}
+			}
+
+			var startDateTime = DateTime.SpecifyKind(date.Date.Add(scheduled), DateTimeKind.Utc);
+			if (IsSlotOccupied(templateUserId: wellness?.UserId ?? Guid.Empty, startDateTime, durationMinutes))
+			{
+				var alternate = FindNextAvailableWithinSlot(date, start, end, scheduled, duration, templateUserId: wellness?.UserId ?? Guid.Empty, durationMinutes);
+				return alternate ?? startDateTime;
+			}
+
+			return startDateTime;
+		}
+
+		private bool IsSlotOccupied(Guid templateUserId, DateTime start, int durationMinutes)
+		{
+			if (templateUserId == Guid.Empty)
+			{
+				return false;
+			}
+
+			var end = start.AddMinutes(durationMinutes);
+			return _dbContext.Tasks.Any(t => t.UserId == templateUserId && t.IsActive && t.Time < end && t.Time.AddMinutes(t.DurationMinutes) > start);
+		}
+
+		private DateTime? FindNextAvailableWithinSlot(DateTime date, TimeSpan slotStart, TimeSpan slotEnd, TimeSpan current, TimeSpan duration, Guid templateUserId, int durationMinutes)
+		{
+			var start = DateTime.SpecifyKind(date.Date.Add(current), DateTimeKind.Utc);
+			var maxIterations = (int)((slotEnd - slotStart).TotalMinutes / 30);
+			var iterator = 0;
+			var cursor = current.Add(TimeSpan.FromMinutes(30));
+
+			while (cursor.Add(duration) <= slotEnd && iterator < maxIterations)
+			{
+				var candidate = DateTime.SpecifyKind(date.Date.Add(cursor), DateTimeKind.Utc);
+				if (!IsSlotOccupied(templateUserId, candidate, durationMinutes))
+				{
+					return candidate;
+				}
+
+				cursor = cursor.Add(TimeSpan.FromMinutes(30));
+				iterator++;
+			}
+
+			return null;
+		}
     }
 }
