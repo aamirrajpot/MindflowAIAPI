@@ -59,20 +59,82 @@ namespace Mindflow_Web_API.Services
             return task == null ? null : ToDto(task);
         }
 
-        public async Task<IEnumerable<TaskItemDto>> GetAllAsync(Guid userId, DateTime? date = null)
+        public async Task<IEnumerable<TaskItemDto>> GetAllAsync(Guid userId, DateTime? date = null, string? timezoneId = null)
         {
             List<TaskItem> tasks;
             
             if (date.HasValue)
             {
-                // Use raw SQL for date filtering
-                tasks = await _dbContext.Tasks
-                    .FromSqlRaw(@"
-                        SELECT * FROM Tasks 
-                        WHERE UserId = {0} 
-                        AND DATE(Date) = DATE({1})
-                        ORDER BY Time ASC", userId, date.Value)
-                    .ToListAsync();
+                // Convert the user's local date to UTC date range for filtering
+                // Since tasks are stored in UTC, we need to find all tasks that fall within
+                // the user's local date when converted to their timezone
+                if (!string.IsNullOrWhiteSpace(timezoneId))
+                {
+                    try
+                    {
+                        // Get timezone info
+                        TimeZoneInfo timeZone;
+                        try
+                        {
+                            timeZone = TimeZoneInfo.FindSystemTimeZoneById(timezoneId);
+                        }
+                        catch (TimeZoneNotFoundException)
+                        {
+                            // Map IANA to Windows timezone IDs
+                            var windowsId = timezoneId switch
+                            {
+                                "America/Chicago" => "Central Standard Time",
+                                "America/New_York" => "Eastern Standard Time",
+                                "America/Denver" => "Mountain Standard Time",
+                                "America/Los_Angeles" => "Pacific Standard Time",
+                                "America/Phoenix" => "US Mountain Standard Time",
+                                _ => timezoneId
+                            };
+                            timeZone = TimeZoneInfo.FindSystemTimeZoneById(windowsId);
+                        }
+
+                        // Convert local date start (00:00:00) to UTC
+                        var localDateStart = date.Value.Date;
+                        var localDateTimeStart = DateTime.SpecifyKind(localDateStart, DateTimeKind.Unspecified);
+                        var utcDateStart = TimeZoneInfo.ConvertTimeToUtc(localDateTimeStart, timeZone);
+
+                        // Convert local date end (23:59:59.999) to UTC
+                        var localDateEnd = date.Value.Date.AddDays(1).AddTicks(-1);
+                        var localDateTimeEnd = DateTime.SpecifyKind(localDateEnd, DateTimeKind.Unspecified);
+                        var utcDateEnd = TimeZoneInfo.ConvertTimeToUtc(localDateTimeEnd, timeZone);
+
+                        // Filter tasks where Time (UTC) falls within the UTC date range
+                        tasks = await _dbContext.Tasks
+                            .Where(t => t.UserId == userId 
+                                && t.Time >= utcDateStart 
+                                && t.Time <= utcDateEnd)
+                            .OrderBy(t => t.Time)
+                            .ToListAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to convert date using timezone {Timezone}, falling back to UTC date comparison", timezoneId);
+                        // Fallback to simple UTC date comparison
+                        tasks = await _dbContext.Tasks
+                            .FromSqlRaw(@"
+                                SELECT * FROM Tasks 
+                                WHERE UserId = {0} 
+                                AND DATE(Date) = DATE({1})
+                                ORDER BY Time ASC", userId, date.Value)
+                            .ToListAsync();
+                    }
+                }
+                else
+                {
+                    // No timezone provided, use simple UTC date comparison
+                    tasks = await _dbContext.Tasks
+                        .FromSqlRaw(@"
+                            SELECT * FROM Tasks 
+                            WHERE UserId = {0} 
+                            AND DATE(Date) = DATE({1})
+                            ORDER BY Time ASC", userId, date.Value)
+                        .ToListAsync();
+                }
             }
             else
             {
@@ -172,8 +234,12 @@ namespace Mindflow_Web_API.Services
         // Recurring task methods
         public async Task<IEnumerable<TaskItemDto>> GetTasksWithRecurringAsync(Guid userId, DateTime date)
         {
-            // 1. Get existing tasks for the date
-            var existingTasks = await GetAllAsync(userId, date);
+            // Get user's timezone from wellness data for proper date filtering
+            var wellnessData = await _wellnessService.GetAsync(userId);
+            var timezoneId = wellnessData?.TimezoneId;
+            
+            // 1. Get existing tasks for the date (with timezone-aware filtering)
+            var existingTasks = await GetAllAsync(userId, date, timezoneId);
             
             // 2. Get active templates that should have instances for this date
             var templates = await GetActiveTemplatesAsync(userId);
@@ -302,9 +368,38 @@ namespace Mindflow_Web_API.Services
 
 		private DateTime DetermineSmartRecurringTime(DateTime date, TimeSpan desiredTime, int durationMinutes, bool isWeekend, WellnessCheckInDto? wellness)
 		{
-			var slots = isWeekend
-				? ExtractSlot(wellness?.WeekendStartTimeUtc, wellness?.WeekendEndTimeUtc)
-				: ExtractSlot(wellness?.WeekdayStartTimeUtc, wellness?.WeekdayEndTimeUtc);
+			// Convert local time slots to UTC for the target date
+			(TimeSpan start, TimeSpan end)? slots = null;
+			if (wellness != null && !string.IsNullOrWhiteSpace(wellness.TimezoneId))
+			{
+				if (isWeekend)
+				{
+					slots = ParseTimeSlotsForDate(
+						wellness.WeekendStartTime,
+						wellness.WeekendStartShift,
+						wellness.WeekendEndTime,
+						wellness.WeekendEndShift,
+						date,
+						wellness.TimezoneId);
+				}
+				else
+				{
+					slots = ParseTimeSlotsForDate(
+						wellness.WeekdayStartTime,
+						wellness.WeekdayStartShift,
+						wellness.WeekdayEndTime,
+						wellness.WeekdayEndShift,
+						date,
+						wellness.TimezoneId);
+				}
+			}
+			else
+			{
+				// Fallback to UTC fields if timezone not available
+				slots = isWeekend
+					? ExtractSlot(wellness?.WeekendStartTimeUtc, wellness?.WeekendEndTimeUtc)
+					: ExtractSlot(wellness?.WeekdayStartTimeUtc, wellness?.WeekdayEndTimeUtc);
+			}
 
 			if (slots == null)
 			{
@@ -333,6 +428,118 @@ namespace Mindflow_Web_API.Services
 			}
 
 			return startDateTime;
+		}
+
+		/// <summary>
+		/// Parses time slots from local time strings and converts them to UTC TimeSpan for a specific target date.
+		/// </summary>
+		private static (TimeSpan start, TimeSpan end) ParseTimeSlotsForDate(
+			string? startTime,
+			string? startShift,
+			string? endTime,
+			string? endShift,
+			DateTime targetDate,
+			string? timezoneId)
+		{
+			if (string.IsNullOrWhiteSpace(startTime) || string.IsNullOrWhiteSpace(endTime))
+			{
+				return (new TimeSpan(19, 0, 0), new TimeSpan(22, 0, 0)); // Default
+			}
+
+			// Parse local time strings to TimeSpan
+			var localStartTime = ParseTimeString(startTime, startShift);
+			var localEndTime = ParseTimeString(endTime, endShift);
+
+			// Convert local time to UTC for the target date
+			var startUtc = ConvertLocalTimeToUtcForDate(localStartTime, targetDate, timezoneId);
+			var endUtc = ConvertLocalTimeToUtcForDate(localEndTime, targetDate, timezoneId);
+
+			// Handle day boundary crossing
+			if (startUtc >= endUtc)
+			{
+				var isDayBoundaryCrossing = (localStartTime.TotalMinutes >= 22 * 60 || localEndTime.TotalMinutes <= 2 * 60);
+				if (!isDayBoundaryCrossing)
+				{
+					return (new TimeSpan(19, 0, 0), new TimeSpan(22, 0, 0)); // Default
+				}
+			}
+
+			return (startUtc, endUtc);
+		}
+
+		/// <summary>
+		/// Parses a time string with optional AM/PM shift to TimeSpan.
+		/// </summary>
+		private static TimeSpan ParseTimeString(string? timeStr, string? shift)
+		{
+			if (string.IsNullOrWhiteSpace(timeStr))
+				return new TimeSpan(9, 0, 0); // Default 9 AM
+
+			if (TimeSpan.TryParse(timeStr, out var time))
+			{
+				if (!string.IsNullOrWhiteSpace(shift))
+				{
+					var shiftUpper = shift.ToUpper();
+					var isPM = shiftUpper.Contains("PM");
+					var isAM = shiftUpper.Contains("AM");
+
+					if (isPM && time.Hours >= 1 && time.Hours <= 12)
+					{
+						time = time.Add(new TimeSpan(12, 0, 0));
+					}
+					else if (isAM && time.Hours == 12)
+					{
+						time = time.Subtract(new TimeSpan(12, 0, 0));
+					}
+				}
+				return time;
+			}
+
+			return new TimeSpan(9, 0, 0); // Default fallback
+		}
+
+		/// <summary>
+		/// Converts a local time (TimeSpan) to UTC TimeSpan for a specific date using the timezone ID.
+		/// </summary>
+		private static TimeSpan ConvertLocalTimeToUtcForDate(TimeSpan localTime, DateTime targetDate, string? timezoneId)
+		{
+			if (string.IsNullOrWhiteSpace(timezoneId))
+			{
+				return localTime; // Assume already UTC
+			}
+
+			try
+			{
+				TimeZoneInfo timeZone;
+				try
+				{
+					timeZone = TimeZoneInfo.FindSystemTimeZoneById(timezoneId);
+				}
+				catch (TimeZoneNotFoundException)
+				{
+					var windowsId = timezoneId switch
+					{
+						"America/Chicago" => "Central Standard Time",
+						"America/New_York" => "Eastern Standard Time",
+						"America/Denver" => "Mountain Standard Time",
+						"America/Los_Angeles" => "Pacific Standard Time",
+						"America/Phoenix" => "US Mountain Standard Time",
+						_ => timezoneId
+					};
+					timeZone = TimeZoneInfo.FindSystemTimeZoneById(windowsId);
+				}
+
+				var localDateTime = targetDate.Date.Add(localTime);
+				var localDateTimeUnspecified = DateTime.SpecifyKind(localDateTime, DateTimeKind.Unspecified);
+				var utcDateTime = TimeZoneInfo.ConvertTimeToUtc(localDateTimeUnspecified, timeZone);
+				utcDateTime = DateTime.SpecifyKind(utcDateTime, DateTimeKind.Utc);
+
+				return utcDateTime.TimeOfDay;
+			}
+			catch
+			{
+				return localTime; // Fallback: assume already UTC
+			}
 		}
 
 		private bool IsSlotOccupied(Guid templateUserId, DateTime start, int durationMinutes)

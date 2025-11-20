@@ -236,16 +236,135 @@ namespace Mindflow_Web_API.Services
 			var adjustedDate = DateTime.SpecifyKind(taskDate.Date, DateTimeKind.Utc);
 			var adjustedTime = taskTime;
 			
+			// Get slot boundaries for the adjusted date to ensure we don't exceed them
+			var isWeekend = adjustedDate.DayOfWeek == DayOfWeek.Saturday || adjustedDate.DayOfWeek == DayOfWeek.Sunday;
+			(TimeSpan slotStart, TimeSpan slotEnd) slotBounds;
+			if (wellnessData != null)
+			{
+				// Use UTC fields if available (they're already converted to UTC)
+				if (isWeekend && wellnessData.WeekendStartTimeUtc.HasValue && wellnessData.WeekendEndTimeUtc.HasValue)
+				{
+					slotBounds = (wellnessData.WeekendStartTimeUtc.Value.TimeOfDay, wellnessData.WeekendEndTimeUtc.Value.TimeOfDay);
+				}
+				else if (!isWeekend && wellnessData.WeekdayStartTimeUtc.HasValue && wellnessData.WeekdayEndTimeUtc.HasValue)
+				{
+					slotBounds = (wellnessData.WeekdayStartTimeUtc.Value.TimeOfDay, wellnessData.WeekdayEndTimeUtc.Value.TimeOfDay);
+				}
+				else if (!string.IsNullOrWhiteSpace(wellnessData.TimezoneId))
+				{
+					// Fall back to converting local time fields
+					if (isWeekend)
+					{
+						slotBounds = ParseTimeSlotsForDate(
+							wellnessData.WeekendStartTime,
+							wellnessData.WeekendStartShift,
+							wellnessData.WeekendEndTime,
+							wellnessData.WeekendEndShift,
+							adjustedDate,
+							wellnessData.TimezoneId);
+					}
+					else
+					{
+						slotBounds = ParseTimeSlotsForDate(
+							wellnessData.WeekdayStartTime,
+							wellnessData.WeekdayStartShift,
+							wellnessData.WeekdayEndTime,
+							wellnessData.WeekdayEndShift,
+							adjustedDate,
+							wellnessData.TimezoneId);
+					}
+				}
+				else
+				{
+					// No timezone, use default slots (24 hours)
+					slotBounds = (TimeSpan.Zero, new TimeSpan(24, 0, 0));
+				}
+			}
+			else
+			{
+				// No wellness data, use default slots (24 hours)
+				slotBounds = (TimeSpan.Zero, new TimeSpan(24, 0, 0));
+			}
+			
 			// Prevent stacking: if chosen time is occupied, move forward in 30-minute increments
-			while (!await IsTimeSlotAvailableAsync(adjustedDate, adjustedTime, durationMinutes, userId))
+			// BUT ensure we stay within slot boundaries
+			var maxAttempts = 100; // Prevent infinite loops
+			var attempts = 0;
+			while (
+				attempts < maxAttempts &&
+				(
+					!await IsTimeSlotAvailableAsync(adjustedDate, adjustedTime, durationMinutes, userId)
+					|| adjustedTime < slotBounds.slotStart
+					|| adjustedTime.Add(TimeSpan.FromMinutes(durationMinutes)) > slotBounds.slotEnd
+				)
+			)
 			{
 				adjustedTime = adjustedTime.Add(TimeSpan.FromMinutes(30));
-				// If we cross past midnight, move to next day 00:00
+				
+				// Check if we've exceeded the slot end time
+				if (adjustedTime.Add(TimeSpan.FromMinutes(durationMinutes)) > slotBounds.slotEnd)
+				{
+					// Move to next day and reset to slot start
+					adjustedDate = DateTime.SpecifyKind(adjustedDate.AddDays(1).Date, DateTimeKind.Utc);
+					isWeekend = adjustedDate.DayOfWeek == DayOfWeek.Saturday || adjustedDate.DayOfWeek == DayOfWeek.Sunday;
+					
+					// Recalculate slot bounds for the new date
+					if (wellnessData != null)
+					{
+						// Use UTC fields if available (they're already converted to UTC)
+						if (isWeekend && wellnessData.WeekendStartTimeUtc.HasValue && wellnessData.WeekendEndTimeUtc.HasValue)
+						{
+							slotBounds = (wellnessData.WeekendStartTimeUtc.Value.TimeOfDay, wellnessData.WeekendEndTimeUtc.Value.TimeOfDay);
+						}
+						else if (!isWeekend && wellnessData.WeekdayStartTimeUtc.HasValue && wellnessData.WeekdayEndTimeUtc.HasValue)
+						{
+							slotBounds = (wellnessData.WeekdayStartTimeUtc.Value.TimeOfDay, wellnessData.WeekdayEndTimeUtc.Value.TimeOfDay);
+						}
+						else if (!string.IsNullOrWhiteSpace(wellnessData.TimezoneId))
+						{
+							// Fall back to converting local time fields
+							if (isWeekend)
+							{
+								slotBounds = ParseTimeSlotsForDate(
+									wellnessData.WeekendStartTime,
+									wellnessData.WeekendStartShift,
+									wellnessData.WeekendEndTime,
+									wellnessData.WeekendEndShift,
+									adjustedDate,
+									wellnessData.TimezoneId);
+							}
+							else
+							{
+								slotBounds = ParseTimeSlotsForDate(
+									wellnessData.WeekdayStartTime,
+									wellnessData.WeekdayStartShift,
+									wellnessData.WeekdayEndTime,
+									wellnessData.WeekdayEndShift,
+									adjustedDate,
+									wellnessData.TimezoneId);
+							}
+						}
+					}
+					
+					adjustedTime = slotBounds.slotStart;
+				}
+				
+				// Handle day boundary crossing (fallback)
 				if (adjustedTime.TotalMinutes >= 24 * 60)
 				{
 					adjustedDate = DateTime.SpecifyKind(adjustedDate.AddDays(1).Date, DateTimeKind.Utc);
 					adjustedTime = TimeSpan.Zero;
 				}
+				
+				attempts++;
+			}
+			
+			// If we couldn't find a valid slot, throw an exception
+			if (attempts >= maxAttempts)
+			{
+				_logger.LogWarning("Could not find available slot for task '{Task}' after {Attempts} attempts", 
+					request.Task, attempts);
+				throw new InvalidOperationException($"Could not find an available time slot for the task within the user's wellness schedule after {attempts} attempts.");
 			}
 
 			// Compose UTC datetime for storage/return
@@ -348,19 +467,123 @@ namespace Mindflow_Web_API.Services
 				var candidateDate = DateTime.SpecifyKind(scheduledTask.Date.Date, DateTimeKind.Utc);
 				var candidateTime = scheduledTask.Time;
 				
+				// Get slot boundaries for the candidate date to ensure we don't exceed them
+				var isWeekend = candidateDate.DayOfWeek == DayOfWeek.Saturday || candidateDate.DayOfWeek == DayOfWeek.Sunday;
+				(TimeSpan slotStart, TimeSpan slotEnd) slotBounds;
+				if (wellnessData != null)
+				{
+					// Use UTC fields if available (they're already converted to UTC)
+					if (isWeekend && wellnessData.WeekendStartTimeUtc.HasValue && wellnessData.WeekendEndTimeUtc.HasValue)
+					{
+						slotBounds = (wellnessData.WeekendStartTimeUtc.Value.TimeOfDay, wellnessData.WeekendEndTimeUtc.Value.TimeOfDay);
+					}
+					else if (!isWeekend && wellnessData.WeekdayStartTimeUtc.HasValue && wellnessData.WeekdayEndTimeUtc.HasValue)
+					{
+						slotBounds = (wellnessData.WeekdayStartTimeUtc.Value.TimeOfDay, wellnessData.WeekdayEndTimeUtc.Value.TimeOfDay);
+					}
+					else if (!string.IsNullOrWhiteSpace(wellnessData.TimezoneId))
+					{
+						// Fall back to converting local time fields
+						if (isWeekend)
+						{
+							slotBounds = ParseTimeSlotsForDate(
+								wellnessData.WeekendStartTime,
+								wellnessData.WeekendStartShift,
+								wellnessData.WeekendEndTime,
+								wellnessData.WeekendEndShift,
+								candidateDate,
+								wellnessData.TimezoneId);
+						}
+						else
+						{
+							slotBounds = ParseTimeSlotsForDate(
+								wellnessData.WeekdayStartTime,
+								wellnessData.WeekdayStartShift,
+								wellnessData.WeekdayEndTime,
+								wellnessData.WeekdayEndShift,
+								candidateDate,
+								wellnessData.TimezoneId);
+						}
+					}
+					else
+					{
+						// No timezone, use default slots (24 hours)
+						slotBounds = (TimeSpan.Zero, new TimeSpan(24, 0, 0));
+					}
+				}
+				else
+				{
+					// No wellness data, use default slots (24 hours)
+					slotBounds = (TimeSpan.Zero, new TimeSpan(24, 0, 0));
+				}
+				
 				// Move forward until there is no conflict with already created tasks and DB tasks
+				// AND the task fits within the slot boundaries
+				var maxAttempts = 100; // Prevent infinite loops
+				var attempts = 0;
 				while (
-					createdTasks.Any(t => t.Date == candidateDate.Date && t.Time.TimeOfDay == candidateTime)
-					|| !(await IsTimeSlotAvailableAsync(candidateDate, candidateTime, durationMinutes, userId))
+					attempts < maxAttempts &&
+					(
+						createdTasks.Any(t => t.Date == candidateDate.Date && t.Time.TimeOfDay == candidateTime)
+						|| !(await IsTimeSlotAvailableAsync(candidateDate, candidateTime, durationMinutes, userId))
+						|| candidateTime < slotBounds.slotStart
+						|| candidateTime.Add(TimeSpan.FromMinutes(durationMinutes)) > slotBounds.slotEnd
+					)
 				)
 				{
 					candidateTime = candidateTime.Add(TimeSpan.FromMinutes(30));
-					// Handle day boundary crossing
+					
+					// Check if we've exceeded the slot end time
+					if (candidateTime.Add(TimeSpan.FromMinutes(durationMinutes)) > slotBounds.slotEnd)
+					{
+						// Move to next day and reset to slot start
+						candidateDate = DateTime.SpecifyKind(candidateDate.AddDays(1).Date, DateTimeKind.Utc);
+						isWeekend = candidateDate.DayOfWeek == DayOfWeek.Saturday || candidateDate.DayOfWeek == DayOfWeek.Sunday;
+						
+						// Recalculate slot bounds for the new date
+						if (wellnessData != null && !string.IsNullOrWhiteSpace(wellnessData.TimezoneId))
+						{
+							if (isWeekend)
+							{
+								slotBounds = ParseTimeSlotsForDate(
+									wellnessData.WeekendStartTime,
+									wellnessData.WeekendStartShift,
+									wellnessData.WeekendEndTime,
+									wellnessData.WeekendEndShift,
+									candidateDate,
+									wellnessData.TimezoneId);
+							}
+							else
+							{
+								slotBounds = ParseTimeSlotsForDate(
+									wellnessData.WeekdayStartTime,
+									wellnessData.WeekdayStartShift,
+									wellnessData.WeekdayEndTime,
+									wellnessData.WeekdayEndShift,
+									candidateDate,
+									wellnessData.TimezoneId);
+							}
+						}
+						
+						candidateTime = slotBounds.slotStart;
+					}
+					
+					// Handle day boundary crossing (fallback)
 					if (candidateTime.TotalMinutes >= 24 * 60)
 					{
 						candidateDate = DateTime.SpecifyKind(candidateDate.AddDays(1).Date, DateTimeKind.Utc);
 						candidateTime = TimeSpan.Zero;
 					}
+					
+					attempts++;
+				}
+				
+				// Skip this task if we couldn't find a valid slot
+				if (attempts >= maxAttempts)
+				{
+					_logger.LogWarning("Could not find available slot for task '{Task}' after {Attempts} attempts, skipping", 
+						scheduledTask.Suggestion.Task, attempts);
+					continue;
 				}
 
 				// Extract brain dump linking information if available
@@ -413,18 +636,55 @@ namespace Mindflow_Web_API.Services
 		
 		_logger.LogInformation("Starting task scheduling for {TaskCount} tasks", suggestions.Count);
 		
-		// Parse available time slots
-		_logger.LogInformation("[DEBUG] Wellness data UTC: WeekdayStartTimeUtc='{WeekdayStartTimeUtc}', WeekdayEndTimeUtc='{WeekdayEndTimeUtc}'", 
-			wellnessData?.WeekdayStartTimeUtc, wellnessData?.WeekdayEndTimeUtc);
-		_logger.LogInformation("[DEBUG] Wellness data UTC: WeekendStartTimeUtc='{WeekendStartTimeUtc}', WeekendEndTimeUtc='{WeekendEndTimeUtc}'", 
-			wellnessData?.WeekendStartTimeUtc, wellnessData?.WeekendEndTimeUtc);
+		// Use UTC fields if available (they're already converted to UTC)
+		// Otherwise fall back to converting local time fields
+		(TimeSpan start, TimeSpan end) weekdaySlots;
+		(TimeSpan start, TimeSpan end) weekendSlots;
 		
-		// Use UTC fields (DateTime objects)
-		var weekdaySlots = ParseTimeSlots(wellnessData?.WeekdayStartTimeUtc, wellnessData?.WeekdayEndTimeUtc);
-		var weekendSlots = ParseTimeSlots(wellnessData?.WeekendStartTimeUtc, wellnessData?.WeekendEndTimeUtc);
+		if (wellnessData?.WeekdayStartTimeUtc.HasValue == true && wellnessData?.WeekdayEndTimeUtc.HasValue == true)
+		{
+			// Use UTC fields directly - extract time portion
+			weekdaySlots = (wellnessData.WeekdayStartTimeUtc.Value.TimeOfDay, wellnessData.WeekdayEndTimeUtc.Value.TimeOfDay);
+			_logger.LogInformation("Using UTC fields for weekday slots: {Start} to {End}", weekdaySlots.start, weekdaySlots.end);
+		}
+		else
+		{
+			// Fall back to converting local time fields
+			var defaultDate = DateTime.UtcNow.Date.AddDays(1);
+			_logger.LogInformation("[DEBUG] Wellness data: WeekdayStartTime='{WeekdayStartTime}' {WeekdayStartShift}, TimezoneId='{TimezoneId}'", 
+				wellnessData?.WeekdayStartTime, wellnessData?.WeekdayStartShift, wellnessData?.TimezoneId);
+			weekdaySlots = ParseTimeSlotsForDate(
+				wellnessData?.WeekdayStartTime,
+				wellnessData?.WeekdayStartShift,
+				wellnessData?.WeekdayEndTime,
+				wellnessData?.WeekdayEndShift,
+				defaultDate,
+				wellnessData?.TimezoneId);
+		}
+		
+		if (wellnessData?.WeekendStartTimeUtc.HasValue == true && wellnessData?.WeekendEndTimeUtc.HasValue == true)
+		{
+			// Use UTC fields directly - extract time portion
+			weekendSlots = (wellnessData.WeekendStartTimeUtc.Value.TimeOfDay, wellnessData.WeekendEndTimeUtc.Value.TimeOfDay);
+			_logger.LogInformation("Using UTC fields for weekend slots: {Start} to {End}", weekendSlots.start, weekendSlots.end);
+		}
+		else
+		{
+			// Fall back to converting local time fields
+			var defaultDate = DateTime.UtcNow.Date.AddDays(1);
+			_logger.LogInformation("[DEBUG] Wellness data: WeekendStartTime='{WeekendStartTime}' {WeekendStartShift}, TimezoneId='{TimezoneId}'", 
+				wellnessData?.WeekendStartTime, wellnessData?.WeekendStartShift, wellnessData?.TimezoneId);
+			weekendSlots = ParseTimeSlotsForDate(
+				wellnessData?.WeekendStartTime,
+				wellnessData?.WeekendStartShift,
+				wellnessData?.WeekendEndTime,
+				wellnessData?.WeekendEndShift,
+				defaultDate,
+				wellnessData?.TimezoneId);
+		}
 
-		_logger.LogInformation("Weekday slots: {WeekdayStart} to {WeekdayEnd}", weekdaySlots.start, weekdaySlots.end);
-		_logger.LogInformation("Weekend slots: {WeekendStart} to {WeekendEnd}", weekendSlots.start, weekendSlots.end);
+		_logger.LogInformation("Weekday slots (UTC): {WeekdayStart} to {WeekdayEnd}", weekdaySlots.start, weekdaySlots.end);
+		_logger.LogInformation("Weekend slots (UTC): {WeekendStart} to {WeekendEnd}", weekendSlots.start, weekendSlots.end);
 
 		// Create a time slot manager to track available slots
 		var slotManager = new TimeSlotManager(weekdaySlots, weekendSlots);
@@ -470,19 +730,57 @@ namespace Mindflow_Web_API.Services
 
 		private async Task<(DateTime date, TimeSpan time)> DetermineOptimalScheduleWithTimeSlotsAsync(AddToCalendarRequest request, DTOs.WellnessCheckInDto? wellnessData, int durationMinutes, Guid userId)
 		{
-			// Parse available time slots from wellness data
-			// Use UTC fields (DateTime objects)
-			var weekdaySlots = ParseTimeSlots(wellnessData?.WeekdayStartTimeUtc, wellnessData?.WeekdayEndTimeUtc);
-			var weekendSlots = ParseTimeSlots(wellnessData?.WeekendStartTimeUtc, wellnessData?.WeekendEndTimeUtc);
+			// Use UTC fields if available (they're already converted to UTC)
+			// Otherwise fall back to converting local time fields
+			(TimeSpan start, TimeSpan end) weekdaySlots;
+			(TimeSpan start, TimeSpan end) weekendSlots;
+			
+			if (wellnessData?.WeekdayStartTimeUtc.HasValue == true && wellnessData?.WeekdayEndTimeUtc.HasValue == true)
+			{
+				// Use UTC fields directly - extract time portion
+				weekdaySlots = (wellnessData.WeekdayStartTimeUtc.Value.TimeOfDay, wellnessData.WeekdayEndTimeUtc.Value.TimeOfDay);
+				_logger.LogDebug("Using UTC fields for weekday slots: {Start} to {End}", weekdaySlots.start, weekdaySlots.end);
+			}
+			else
+			{
+				// Fall back to converting local time fields
+				var defaultDate = DateTime.UtcNow.Date.AddDays(1);
+				weekdaySlots = ParseTimeSlotsForDate(
+					wellnessData?.WeekdayStartTime,
+					wellnessData?.WeekdayStartShift,
+					wellnessData?.WeekdayEndTime,
+					wellnessData?.WeekdayEndShift,
+					defaultDate,
+					wellnessData?.TimezoneId);
+			}
+			
+			if (wellnessData?.WeekendStartTimeUtc.HasValue == true && wellnessData?.WeekendEndTimeUtc.HasValue == true)
+			{
+				// Use UTC fields directly - extract time portion
+				weekendSlots = (wellnessData.WeekendStartTimeUtc.Value.TimeOfDay, wellnessData.WeekendEndTimeUtc.Value.TimeOfDay);
+				_logger.LogDebug("Using UTC fields for weekend slots: {Start} to {End}", weekendSlots.start, weekendSlots.end);
+			}
+			else
+			{
+				// Fall back to converting local time fields
+				var defaultDate = DateTime.UtcNow.Date.AddDays(1);
+				weekendSlots = ParseTimeSlotsForDate(
+					wellnessData?.WeekendStartTime,
+					wellnessData?.WeekendStartShift,
+					wellnessData?.WeekendEndTime,
+					wellnessData?.WeekendEndShift,
+					defaultDate,
+					wellnessData?.TimezoneId);
+			}
 
 			_logger.LogDebug("Determining optimal schedule for task with duration {Duration} minutes", durationMinutes);
-			_logger.LogDebug("Weekday slots: {WeekdayStart} to {WeekdayEnd}", weekdaySlots.start, weekdaySlots.end);
-			_logger.LogDebug("Weekend slots: {WeekendStart} to {WeekendEnd}", weekendSlots.start, weekendSlots.end);
+			_logger.LogDebug("Weekday slots (UTC): {WeekdayStart} to {WeekdayEnd}", weekdaySlots.start, weekdaySlots.end);
+			_logger.LogDebug("Weekend slots (UTC): {WeekendStart} to {WeekendEnd}", weekendSlots.start, weekendSlots.end);
 
 			// Calculate optimal date and time based on available slots
 			// No user preferences - find optimal date and time using wellness data slots
 			_logger.LogDebug("Calculating optimal date and time based on available slots");
-			var (optimalDate, optimalTime) = await FindNextAvailableSlotAsync(durationMinutes, weekdaySlots, weekendSlots, userId);
+			var (optimalDate, optimalTime) = await FindNextAvailableSlotAsync(durationMinutes, weekdaySlots, weekendSlots, userId, wellnessData);
 			_logger.LogDebug("Found optimal slot: {Date} at {Time}", optimalDate.ToString("yyyy-MM-dd"), optimalTime);
 			return (optimalDate, optimalTime);
 		}
@@ -622,7 +920,7 @@ namespace Mindflow_Web_API.Services
 		return (DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc), TimeSpan.Zero);
 	}
 
-	private async Task<(DateTime date, TimeSpan time)> FindNextAvailableSlotAsync(int durationMinutes, (TimeSpan start, TimeSpan end) weekdaySlots, (TimeSpan start, TimeSpan end) weekendSlots, Guid userId)
+	private async Task<(DateTime date, TimeSpan time)> FindNextAvailableSlotAsync(int durationMinutes, (TimeSpan start, TimeSpan end) weekdaySlots, (TimeSpan start, TimeSpan end) weekendSlots, Guid userId, DTOs.WellnessCheckInDto? wellnessData = null)
 	{
 		// Use UTC date explicitly - Start from tomorrow (UTC)
 		var startDate = DateTime.SpecifyKind(DateTime.UtcNow.Date.AddDays(1), DateTimeKind.Utc);
@@ -632,7 +930,56 @@ namespace Mindflow_Web_API.Services
 		{
 			var date = DateTime.SpecifyKind(startDate.AddDays(dayOffset).Date, DateTimeKind.Utc);
 			var isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
-			var slots = isWeekend ? weekendSlots : weekdaySlots;
+			
+			// Use UTC fields if available (they're already converted to UTC)
+			// Otherwise use the slots passed in or fall back to converting local time fields
+			(TimeSpan start, TimeSpan end) slots;
+			if (wellnessData != null)
+			{
+				if (isWeekend && wellnessData.WeekendStartTimeUtc.HasValue && wellnessData.WeekendEndTimeUtc.HasValue)
+				{
+					// Use UTC fields directly - extract time portion
+					slots = (wellnessData.WeekendStartTimeUtc.Value.TimeOfDay, wellnessData.WeekendEndTimeUtc.Value.TimeOfDay);
+				}
+				else if (!isWeekend && wellnessData.WeekdayStartTimeUtc.HasValue && wellnessData.WeekdayEndTimeUtc.HasValue)
+				{
+					// Use UTC fields directly - extract time portion
+					slots = (wellnessData.WeekdayStartTimeUtc.Value.TimeOfDay, wellnessData.WeekdayEndTimeUtc.Value.TimeOfDay);
+				}
+				else if (!string.IsNullOrWhiteSpace(wellnessData.TimezoneId))
+				{
+					// Fall back to converting local time fields
+					if (isWeekend)
+					{
+						slots = ParseTimeSlotsForDate(
+							wellnessData.WeekendStartTime,
+							wellnessData.WeekendStartShift,
+							wellnessData.WeekendEndTime,
+							wellnessData.WeekendEndShift,
+							date,
+							wellnessData.TimezoneId);
+					}
+					else
+					{
+						slots = ParseTimeSlotsForDate(
+							wellnessData.WeekdayStartTime,
+							wellnessData.WeekdayStartShift,
+							wellnessData.WeekdayEndTime,
+							wellnessData.WeekdayEndShift,
+							date,
+							wellnessData.TimezoneId);
+					}
+				}
+				else
+				{
+					// No timezone, use passed-in slots
+					slots = isWeekend ? weekendSlots : weekdaySlots;
+				}
+			}
+			else
+			{
+				slots = isWeekend ? weekendSlots : weekdaySlots;
+			}
 
 			// Find available time within the day's slots
 			var availableTime = await FindAvailableTimeInDayAsync(date, slots, durationMinutes, userId);
@@ -766,7 +1113,7 @@ namespace Mindflow_Web_API.Services
 		return (startUtc, endUtc);
 	}
 
-	// Overload for DateTime? parameters (from UTC fields)
+	// Overload for DateTime? parameters (from UTC fields) - DEPRECATED: Use ParseTimeSlotsForDate instead
 	private static (TimeSpan start, TimeSpan end) ParseTimeSlots(DateTime? startTime, DateTime? endTime)
 	{
 		if (!startTime.HasValue || !endTime.HasValue)
@@ -799,6 +1146,112 @@ namespace Mindflow_Web_API.Services
 		
 		Console.WriteLine($"[DEBUG] Final UTC time slots: {startUtc} to {endUtc}");
 		return (startUtc, endUtc);
+	}
+
+	/// <summary>
+	/// Parses time slots from local time strings and converts them to UTC TimeSpan for a specific target date.
+	/// This ensures correct timezone conversion for the target scheduling date.
+	/// </summary>
+	private static (TimeSpan start, TimeSpan end) ParseTimeSlotsForDate(
+		string? startTime, 
+		string? startShift, 
+		string? endTime, 
+		string? endShift, 
+		DateTime targetDate,
+		string? timezoneId)
+	{
+		if (string.IsNullOrWhiteSpace(startTime) || string.IsNullOrWhiteSpace(endTime))
+		{
+			Console.WriteLine("[DEBUG] Missing time data, using default slots: 7 PM to 10 PM UTC");
+			return (new TimeSpan(19, 0, 0), new TimeSpan(22, 0, 0));
+		}
+
+		// Parse local time strings to TimeSpan
+		var localStartTime = ParseTimeString(startTime, startShift);
+		var localEndTime = ParseTimeString(endTime, endShift);
+
+		// Convert local time to UTC for the target date
+		var startUtc = ConvertLocalTimeToUtcForDate(localStartTime, targetDate, timezoneId);
+		var endUtc = ConvertLocalTimeToUtcForDate(localEndTime, targetDate, timezoneId);
+
+		Console.WriteLine($"[DEBUG] Parsed time slots for date {targetDate:yyyy-MM-dd}: Local {localStartTime}-{localEndTime} -> UTC {startUtc}-{endUtc}");
+
+		// Handle day boundary crossing (e.g., 10 PM to 1 AM next day)
+		if (startUtc >= endUtc)
+		{
+			// If end time is earlier than start time, it might cross midnight
+			// Check if this is a valid day boundary crossing
+			var isDayBoundaryCrossing = (localStartTime.TotalMinutes >= 22 * 60 || localEndTime.TotalMinutes <= 2 * 60);
+			
+			if (!isDayBoundaryCrossing)
+			{
+				Console.WriteLine("[DEBUG] Invalid time slots, using defaults");
+				return (new TimeSpan(19, 0, 0), new TimeSpan(22, 0, 0));
+			}
+		}
+
+		Console.WriteLine($"[DEBUG] Final UTC time slots for {targetDate:yyyy-MM-dd}: {startUtc} to {endUtc}");
+		return (startUtc, endUtc);
+	}
+
+	/// <summary>
+	/// Converts a local time (TimeSpan) to UTC TimeSpan for a specific date using the timezone ID.
+	/// </summary>
+	private static TimeSpan ConvertLocalTimeToUtcForDate(TimeSpan localTime, DateTime targetDate, string? timezoneId)
+	{
+		if (string.IsNullOrWhiteSpace(timezoneId))
+		{
+			// No timezone provided, assume time is already in UTC
+			return localTime;
+		}
+
+		try
+		{
+			// Get the timezone info
+			TimeZoneInfo timeZone;
+			try
+			{
+				timeZone = TimeZoneInfo.FindSystemTimeZoneById(timezoneId);
+			}
+			catch (TimeZoneNotFoundException)
+			{
+				// Map common IANA IDs to Windows IDs
+				var windowsId = timezoneId switch
+				{
+					"America/Chicago" => "Central Standard Time",
+					"America/New_York" => "Eastern Standard Time",
+					"America/Denver" => "Mountain Standard Time",
+					"America/Los_Angeles" => "Pacific Standard Time",
+					"America/Phoenix" => "US Mountain Standard Time",
+					_ => timezoneId
+				};
+				timeZone = TimeZoneInfo.FindSystemTimeZoneById(windowsId);
+			}
+
+			// targetDate is a UTC date representing the target day (e.g., 2025-11-20 00:00:00 UTC)
+			// We need to interpret the DATE part as a LOCAL date in the user's timezone
+			// Extract just the date part (year, month, day) and treat it as local
+			var year = targetDate.Year;
+			var month = targetDate.Month;
+			var day = targetDate.Day;
+			
+			// Create a DateTime in the user's local timezone using the date components + local time
+			// This represents the local date/time (e.g., Nov 20, 2025 7:00 PM CST)
+			var localDateTime = new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Unspecified).Add(localTime);
+			
+			// Convert to UTC using the timezone
+			var utcDateTime = TimeZoneInfo.ConvertTimeToUtc(localDateTime, timeZone);
+			utcDateTime = DateTime.SpecifyKind(utcDateTime, DateTimeKind.Utc);
+
+			// Return the time portion (TimeSpan) - this is the UTC time
+			return utcDateTime.TimeOfDay;
+		}
+		catch (Exception ex)
+		{
+			Console.WriteLine($"[DEBUG] Failed to convert time using timezone {timezoneId}, assuming time is already in UTC: {ex.Message}");
+			// Fallback: assume time is already in UTC
+			return localTime;
+		}
 	}
 
 	/// <summary>
@@ -1026,14 +1479,26 @@ namespace Mindflow_Web_API.Services
 		
 		if (isWeekend)
 		{
-			// Use UTC fields (DateTime objects)
-			var weekendSlots = ParseTimeSlots(wellnessData.WeekendStartTimeUtc, wellnessData.WeekendEndTimeUtc);
+			// Convert local time to UTC for the target date
+			var weekendSlots = ParseTimeSlotsForDate(
+				wellnessData.WeekendStartTime, 
+				wellnessData.WeekendStartShift,
+				wellnessData.WeekendEndTime,
+				wellnessData.WeekendEndShift,
+				date,
+				wellnessData.TimezoneId);
 			return GetOptimalTimeInRange(weekendSlots.start, weekendSlots.end);
 		}
 		else
 		{
-			// Use UTC fields (DateTime objects)
-			var weekdaySlots = ParseTimeSlots(wellnessData.WeekdayStartTimeUtc, wellnessData.WeekdayEndTimeUtc);
+			// Convert local time to UTC for the target date
+			var weekdaySlots = ParseTimeSlotsForDate(
+				wellnessData.WeekdayStartTime,
+				wellnessData.WeekdayStartShift,
+				wellnessData.WeekdayEndTime,
+				wellnessData.WeekdayEndShift,
+				date,
+				wellnessData.TimezoneId);
 			return GetOptimalTimeInRange(weekdaySlots.start, weekdaySlots.end);
 		}
 	}

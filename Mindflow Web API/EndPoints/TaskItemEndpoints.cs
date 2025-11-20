@@ -27,19 +27,31 @@ namespace Mindflow_Web_API.EndPoints
                 return op;
             });
 
-            tasksApi.MapGet("/", async (ITaskItemService taskService, HttpContext context) =>
+            tasksApi.MapGet("/", async (ITaskItemService taskService, IWellnessCheckInService wellnessService, HttpContext context) =>
             {
                 if (!context.User.Identity?.IsAuthenticated ?? true)
                     throw ApiExceptions.Unauthorized("User is not authenticated");
                 var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
                 if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
                     throw ApiExceptions.Unauthorized("Invalid user token");
+                
+                // Get user's timezone from wellness data
+                var wellnessData = await wellnessService.GetAsync(userId);
+                var timezoneId = wellnessData?.TimezoneId;
+                
                 var dateStr = context.Request.Query["date"].FirstOrDefault();
                 DateTime? date = null;
                 if (!string.IsNullOrEmpty(dateStr) && DateTime.TryParse(dateStr, out var parsedDate))
                     date = parsedDate.Date;
-                var tasks = await taskService.GetAllAsync(userId, date);
-                return Results.Ok(tasks);
+                
+                var tasks = await taskService.GetAllAsync(userId, date, timezoneId);
+                
+                // Return tasks with timezoneId
+                return Results.Ok(new
+                {
+                    timezoneId = timezoneId,
+                    tasks = tasks
+                });
             })
             .RequireAuthorization()
             .WithOpenApi(op => {

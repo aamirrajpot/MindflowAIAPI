@@ -1243,12 +1243,19 @@ Keep responses concise and practical. Focus on actionable items. [/INST]";
                 
                 if (isPM)
                 {
-                    // For PM times, add 12 hours if it's in 12-hour format (1-12)
-                    // Don't add if already in 24-hour format (13-23)
-                    if (time.Hours >= 1 && time.Hours <= 12)
+                    // For PM times:
+                    // - 12:xx PM = 12:xx (noon, no conversion needed)
+                    // - 1:xx PM - 11:xx PM = 13:xx - 23:xx (add 12 hours)
+                    // - Don't add if already in 24-hour format (13-23)
+                    if (time.Hours >= 1 && time.Hours <= 11)
                     {
                         time = time.Add(new TimeSpan(12, 0, 0));
                         _logger.LogDebug("Converted PM time: added 12 hours, new time: {Time}", time);
+                    }
+                    else if (time.Hours == 12)
+                    {
+                        // 12 PM (noon) stays as 12:xx in 24-hour format
+                        _logger.LogDebug("12 PM (noon) - no conversion needed: {Time}", time);
                     }
                     else if (time.Hours > 12)
                     {
