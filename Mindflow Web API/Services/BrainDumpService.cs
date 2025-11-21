@@ -330,6 +330,10 @@ namespace Mindflow_Web_API.Services
 			// BUT ensure we stay within slot boundaries
 			var maxAttempts = 100; // Prevent infinite loops
 			var attempts = 0;
+			
+			_logger.LogDebug("Starting conflict check loop for task. Initial time: {Time}, Slot bounds: {Start} to {End}", 
+				adjustedTime, slotBounds.slotStart, slotBounds.slotEnd);
+			
 			while (
 				attempts < maxAttempts &&
 				(
@@ -338,6 +342,9 @@ namespace Mindflow_Web_API.Services
 				)
 			)
 			{
+				_logger.LogDebug("Time {Time} is not available or not within slot. Attempt {Attempt}. Moving forward by 30 minutes.", 
+					adjustedTime, attempts + 1);
+				
 				adjustedTime = adjustedTime.Add(TimeSpan.FromMinutes(30));
 				
 				// Check if we've exceeded the slot end time (handle midnight crossing)
@@ -587,6 +594,71 @@ namespace Mindflow_Web_API.Services
 					slotBounds = (TimeSpan.Zero, new TimeSpan(24, 0, 0));
 				}
 				
+				// Helper function to check if time conflicts with created tasks in this batch
+				bool ConflictsWithCreatedTasks(DateTime date, TimeSpan time, int duration)
+				{
+					var taskStart = date.Date.Add(time);
+					var taskEnd = taskStart.AddMinutes(duration);
+					
+					foreach (var existingTask in createdTasks)
+					{
+						if (existingTask.Date.Date == date.Date)
+						{
+							var existingStart = existingTask.Time;
+							var existingEnd = existingStart.AddMinutes(existingTask.DurationMinutes);
+							
+							// Check for overlap with 15-minute buffer
+							var bufferMinutes = 15;
+							var taskStartWithBuffer = taskStart.AddMinutes(-bufferMinutes);
+							var taskEndWithBuffer = taskEnd.AddMinutes(bufferMinutes);
+							var existingStartWithBuffer = existingStart.AddMinutes(-bufferMinutes);
+							var existingEndWithBuffer = existingEnd.AddMinutes(bufferMinutes);
+							
+							// Two tasks conflict if their buffered time ranges overlap
+							if ((taskStartWithBuffer < existingEndWithBuffer) && (taskEndWithBuffer > existingStartWithBuffer))
+							{
+								return true;
+							}
+						}
+					}
+					return false;
+				}
+				
+				// Helper function to check if time is within slot bounds (handles midnight crossing)
+				bool IsTimeWithinSlot(TimeSpan time, TimeSpan duration, TimeSpan slotStart, TimeSpan slotEnd)
+				{
+					var timeEnd = time.Add(duration);
+					
+					// Case 1: Normal slot (start < end, e.g., 07:00 - 10:00)
+					if (slotEnd > slotStart)
+					{
+						return time >= slotStart && timeEnd <= slotEnd;
+					}
+					
+					// Case 2: Slot crosses midnight (start > end, e.g., 23:00 - 02:30)
+					if (time >= slotStart)
+					{
+						// Time is after start (before midnight)
+						if (timeEnd.TotalMinutes > 24 * 60)
+						{
+							// Duration crosses midnight, check if it fits within slot window
+							var slotDuration = (24 * 60 - slotStart.TotalMinutes) + slotEnd.TotalMinutes;
+							return duration.TotalMinutes <= slotDuration;
+						}
+						return true; // Fits before midnight
+					}
+					else if (time <= slotEnd)
+					{
+						// Time is before end (after midnight)
+						return timeEnd <= slotEnd;
+					}
+					else
+					{
+						// Time is between slotEnd and slotStart (invalid zone)
+						return false;
+					}
+				}
+				
 				// Move forward until there is no conflict with already created tasks and DB tasks
 				// AND the task fits within the slot boundaries
 				var maxAttempts = 100; // Prevent infinite loops
@@ -594,17 +666,30 @@ namespace Mindflow_Web_API.Services
 				while (
 					attempts < maxAttempts &&
 					(
-						createdTasks.Any(t => t.Date == candidateDate.Date && t.Time.TimeOfDay == candidateTime)
+						ConflictsWithCreatedTasks(candidateDate, candidateTime, durationMinutes)
 						|| !(await IsTimeSlotAvailableAsync(candidateDate, candidateTime, durationMinutes, userId))
-						|| candidateTime < slotBounds.slotStart
-						|| candidateTime.Add(TimeSpan.FromMinutes(durationMinutes)) > slotBounds.slotEnd
+						|| !IsTimeWithinSlot(candidateTime, TimeSpan.FromMinutes(durationMinutes), slotBounds.slotStart, slotBounds.slotEnd)
 					)
 				)
 				{
 					candidateTime = candidateTime.Add(TimeSpan.FromMinutes(30));
 					
-					// Check if we've exceeded the slot end time
-					if (candidateTime.Add(TimeSpan.FromMinutes(durationMinutes)) > slotBounds.slotEnd)
+					// Check if we've exceeded the slot end time (handle midnight crossing)
+					bool exceededSlot = false;
+					var timeEnd = candidateTime.Add(TimeSpan.FromMinutes(durationMinutes));
+					
+					if (slotBounds.slotEnd > slotBounds.slotStart)
+					{
+						// Normal slot: check if time exceeds end
+						exceededSlot = timeEnd > slotBounds.slotEnd;
+					}
+					else
+					{
+						// Slot crosses midnight: we've exceeded if we're past end and before start
+						exceededSlot = candidateTime > slotBounds.slotEnd && candidateTime < slotBounds.slotStart;
+					}
+					
+					if (exceededSlot)
 					{
 						// Move to next day and reset to slot start
 						candidateDate = DateTime.SpecifyKind(candidateDate.AddDays(1).Date, DateTimeKind.Utc);
@@ -877,56 +962,68 @@ namespace Mindflow_Web_API.Services
 		}
 
 		private async Task<bool> IsTimeSlotAvailableAsync(DateTime date, TimeSpan time, int durationMinutes, Guid userId)
-	{
-		try
 		{
+			try
+			{
 				// Treat input as UTC for comparisons
 				var newTaskStart = DateTime.SpecifyKind(date.Date.Add(time), DateTimeKind.Utc);
-			var newTaskEnd = newTaskStart.AddMinutes(durationMinutes);
-			
-			_logger.LogDebug("Checking availability for new task: {StartTime} to {EndTime}", newTaskStart, newTaskEnd);
-			
-			// Check for existing tasks that overlap with this time slot
+				var newTaskEnd = newTaskStart.AddMinutes(durationMinutes);
+				
+				_logger.LogDebug("Checking availability for new task: {StartTime} to {EndTime} (Date: {Date})", 
+					newTaskStart, newTaskEnd, date.Date);
+				
+				// Check for existing tasks that overlap with this time slot
+				// Compare using both Date field and Time field to catch all conflicts
 				var conflictingTasks = await _db.Tasks
-				.Where(t => t.UserId == userId 
-					&& t.IsActive 
-						&& t.Date.Date == newTaskStart.Date)
-				.ToListAsync();
-			
-			foreach (var existingTask in conflictingTasks)
-			{
-				var existingTaskStart = existingTask.Time;
-				var existingTaskEnd = existingTaskStart.AddMinutes(existingTask.DurationMinutes);
+					.Where(t => t.UserId == userId 
+						&& t.IsActive 
+						&& (t.Date.Date == newTaskStart.Date || t.Time.Date == newTaskStart.Date))
+					.ToListAsync();
 				
-				_logger.LogDebug("Checking against existing task: {StartTime} to {EndTime}", existingTaskStart, existingTaskEnd);
+				_logger.LogDebug("Found {Count} existing tasks on date {Date} to check for conflicts", 
+					conflictingTasks.Count, newTaskStart.Date);
 				
-				// Check for overlap with 15-minute buffer
-				var bufferMinutes = 15;
-				var newTaskStartWithBuffer = newTaskStart.AddMinutes(-bufferMinutes);
-				var newTaskEndWithBuffer = newTaskEnd.AddMinutes(bufferMinutes);
-				var existingTaskStartWithBuffer = existingTaskStart.AddMinutes(-bufferMinutes);
-				var existingTaskEndWithBuffer = existingTaskEnd.AddMinutes(bufferMinutes);
-				
-				// Two tasks conflict if their buffered time ranges overlap
-				bool hasOverlap = (newTaskStartWithBuffer < existingTaskEndWithBuffer) && (newTaskEndWithBuffer > existingTaskStartWithBuffer);
-				
-				if (hasOverlap)
+				foreach (var existingTask in conflictingTasks)
 				{
-					_logger.LogDebug("CONFLICT DETECTED: New task {NewStart}-{NewEnd} overlaps with existing task {ExistingStart}-{ExistingEnd}", 
-						newTaskStartWithBuffer, newTaskEndWithBuffer, existingTaskStartWithBuffer, existingTaskEndWithBuffer);
-					return false;
+					// Use the Time field (full DateTime) for comparison, as it's more accurate
+					var existingTaskStart = existingTask.Time;
+					// Ensure it's treated as UTC
+					if (existingTaskStart.Kind != DateTimeKind.Utc)
+					{
+						existingTaskStart = DateTime.SpecifyKind(existingTaskStart, DateTimeKind.Utc);
+					}
+					var existingTaskEnd = existingTaskStart.AddMinutes(existingTask.DurationMinutes);
+					
+					_logger.LogDebug("Checking against existing task: {StartTime} to {EndTime} (Task ID: {TaskId})", 
+						existingTaskStart, existingTaskEnd, existingTask.Id);
+					
+					// Check for overlap with 15-minute buffer
+					var bufferMinutes = 15;
+					var newTaskStartWithBuffer = newTaskStart.AddMinutes(-bufferMinutes);
+					var newTaskEndWithBuffer = newTaskEnd.AddMinutes(bufferMinutes);
+					var existingTaskStartWithBuffer = existingTaskStart.AddMinutes(-bufferMinutes);
+					var existingTaskEndWithBuffer = existingTaskEnd.AddMinutes(bufferMinutes);
+					
+					// Two tasks conflict if their buffered time ranges overlap
+					bool hasOverlap = (newTaskStartWithBuffer < existingTaskEndWithBuffer) && (newTaskEndWithBuffer > existingTaskStartWithBuffer);
+					
+					if (hasOverlap)
+					{
+						_logger.LogWarning("CONFLICT DETECTED: New task {NewStart}-{NewEnd} overlaps with existing task {ExistingStart}-{ExistingEnd} (Task ID: {TaskId})", 
+							newTaskStartWithBuffer, newTaskEndWithBuffer, existingTaskStartWithBuffer, existingTaskEndWithBuffer, existingTask.Id);
+						return false;
+					}
 				}
+				
+				_logger.LogDebug("No conflicts found for time slot {Time} on date {Date}", time, date.Date);
+				return true;
 			}
-			
-			_logger.LogDebug("No conflicts found for time slot {Time}", time);
-			return true;
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Error checking time slot availability for {Date} at {Time}", date, time);
+				return false; // Conservative approach - assume slot is not available if we can't check
+			}
 		}
-		catch (Exception ex)
-		{
-			_logger.LogError(ex, "Error checking time slot availability for {Date} at {Time}", date, time);
-			return false; // Conservative approach - assume slot is not available if we can't check
-		}
-	}
 
 	private async Task<TimeSpan> FindAvailableTimeInDayAsync(DateTime date, (TimeSpan start, TimeSpan end) slots, int durationMinutes, Guid userId)
 	{
