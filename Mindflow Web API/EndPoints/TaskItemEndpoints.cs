@@ -35,7 +35,7 @@ namespace Mindflow_Web_API.EndPoints
                 if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
                     throw ApiExceptions.Unauthorized("Invalid user token");
                 
-                // Get user's timezone from wellness data
+                // Get user's timezone from wellness data for filtering
                 var wellnessData = await wellnessService.GetAsync(userId);
                 var timezoneId = wellnessData?.TimezoneId;
                 
@@ -46,12 +46,8 @@ namespace Mindflow_Web_API.EndPoints
                 
                 var tasks = await taskService.GetAllAsync(userId, date, timezoneId);
                 
-                // Return tasks with timezoneId
-                return Results.Ok(new
-                {
-                    timezoneId = timezoneId,
-                    tasks = tasks
-                });
+                // Return just the tasks array (original response format)
+                return Results.Ok(tasks);
             })
             .RequireAuthorization()
             .WithOpenApi(op => {
