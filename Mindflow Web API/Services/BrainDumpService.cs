@@ -286,6 +286,46 @@ namespace Mindflow_Web_API.Services
 				slotBounds = (TimeSpan.Zero, new TimeSpan(24, 0, 0));
 			}
 			
+			// Helper function to check if time is within slot bounds (handles midnight crossing)
+			bool IsTimeWithinSlot(TimeSpan time, TimeSpan duration, TimeSpan slotStart, TimeSpan slotEnd)
+			{
+				var timeEnd = time.Add(duration);
+				
+				// Case 1: Normal slot (start < end, e.g., 07:00 - 10:00)
+				if (slotEnd > slotStart)
+				{
+					return time >= slotStart && timeEnd <= slotEnd;
+				}
+				
+				// Case 2: Slot crosses midnight (start > end, e.g., 23:00 - 02:30)
+				// Valid times are:
+				// - From slotStart to midnight (23:00 - 24:00)
+				// - From midnight to slotEnd (00:00 - 02:30)
+				if (time >= slotStart)
+				{
+					// Time is after start (before midnight), check if entire duration fits before midnight
+					// If duration would cross midnight, check if it fits within the slot window
+					if (timeEnd.TotalMinutes > 24 * 60)
+					{
+						// Duration crosses midnight, check if it fits within slot window
+						var slotDuration = (24 * 60 - slotStart.TotalMinutes) + slotEnd.TotalMinutes;
+						return duration.TotalMinutes <= slotDuration;
+					}
+					return true; // Fits before midnight
+				}
+				else if (time <= slotEnd)
+				{
+					// Time is before end (after midnight), check if entire duration fits
+					return timeEnd <= slotEnd;
+				}
+				else
+				{
+					// Time is between slotEnd and slotStart (invalid zone for midnight-crossing slots)
+					// This is the "dead zone" (e.g., 02:30 - 23:00 is invalid)
+					return false;
+				}
+			}
+			
 			// Prevent stacking: if chosen time is occupied, move forward in 30-minute increments
 			// BUT ensure we stay within slot boundaries
 			var maxAttempts = 100; // Prevent infinite loops
@@ -294,15 +334,32 @@ namespace Mindflow_Web_API.Services
 				attempts < maxAttempts &&
 				(
 					!await IsTimeSlotAvailableAsync(adjustedDate, adjustedTime, durationMinutes, userId)
-					|| adjustedTime < slotBounds.slotStart
-					|| adjustedTime.Add(TimeSpan.FromMinutes(durationMinutes)) > slotBounds.slotEnd
+					|| !IsTimeWithinSlot(adjustedTime, TimeSpan.FromMinutes(durationMinutes), slotBounds.slotStart, slotBounds.slotEnd)
 				)
 			)
 			{
 				adjustedTime = adjustedTime.Add(TimeSpan.FromMinutes(30));
 				
-				// Check if we've exceeded the slot end time
-				if (adjustedTime.Add(TimeSpan.FromMinutes(durationMinutes)) > slotBounds.slotEnd)
+				// Check if we've exceeded the slot end time (handle midnight crossing)
+				bool exceededSlot = false;
+				var timeEnd = adjustedTime.Add(TimeSpan.FromMinutes(durationMinutes));
+				
+				if (slotBounds.slotEnd > slotBounds.slotStart)
+				{
+					// Normal slot: check if time exceeds end
+					exceededSlot = timeEnd > slotBounds.slotEnd;
+				}
+				else
+				{
+					// Slot crosses midnight: we've exceeded if:
+					// - We're past the end time (after midnight portion) AND
+					// - We're before the start time (before evening portion) AND  
+					// - The task end would also be past end
+					// This means we're in the "dead zone" between slotEnd and slotStart
+					exceededSlot = adjustedTime > slotBounds.slotEnd && adjustedTime < slotBounds.slotStart;
+				}
+				
+				if (exceededSlot)
 				{
 					// Move to next day and reset to slot start
 					adjustedDate = DateTime.SpecifyKind(adjustedDate.AddDays(1).Date, DateTimeKind.Utc);
@@ -350,10 +407,23 @@ namespace Mindflow_Web_API.Services
 				}
 				
 				// Handle day boundary crossing (fallback)
+				// Only move to next day if we're not in a midnight-crossing slot
+				// For midnight-crossing slots, times after midnight (00:00-XX:XX) are valid on the same date
 				if (adjustedTime.TotalMinutes >= 24 * 60)
 				{
-					adjustedDate = DateTime.SpecifyKind(adjustedDate.AddDays(1).Date, DateTimeKind.Utc);
-					adjustedTime = TimeSpan.Zero;
+					// Check if we're in a midnight-crossing slot
+					if (slotBounds.slotEnd <= slotBounds.slotStart && adjustedTime <= slotBounds.slotEnd)
+					{
+						// We're in the after-midnight portion of a midnight-crossing slot
+						// Wrap time back to the after-midnight portion (already done by TimeSpan arithmetic)
+						adjustedTime = new TimeSpan(0, (int)(adjustedTime.TotalMinutes % (24 * 60)), 0);
+					}
+					else
+					{
+						// Normal case: move to next day
+						adjustedDate = DateTime.SpecifyKind(adjustedDate.AddDays(1).Date, DateTimeKind.Utc);
+						adjustedTime = TimeSpan.Zero;
+					}
 				}
 				
 				attempts++;
