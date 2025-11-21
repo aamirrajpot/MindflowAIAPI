@@ -12,7 +12,7 @@ namespace Mindflow_Web_API.EndPoints
 			var dashboard = app.MapGroup("/braindump-dashboard").WithTags("BraindumpDashboard");
 
 			// Get today's tasks with a minimal summary for the dashboard
-			dashboard.MapGet("/tasks/today", async (ITaskItemService taskService, HttpContext context) =>
+			dashboard.MapGet("/tasks/today", async (ITaskItemService taskService, IWellnessCheckInService wellnessService, HttpContext context) =>
 			{
 				if (!context.User.Identity?.IsAuthenticated ?? true)
 					throw ApiExceptions.Unauthorized("User is not authenticated");
@@ -20,7 +20,52 @@ namespace Mindflow_Web_API.EndPoints
 				if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
 					throw ApiExceptions.Unauthorized("Invalid user token");
 
-				var today = DateTime.UtcNow.Date;
+				// Get user's timezone to determine their local "today"
+				var wellnessData = await wellnessService.GetAsync(userId);
+				var timezoneId = wellnessData?.TimezoneId;
+				
+				// Calculate user's local "today" date
+				DateTime today;
+				if (!string.IsNullOrWhiteSpace(timezoneId))
+				{
+					try
+					{
+						// Get timezone info
+						TimeZoneInfo timeZone;
+						try
+						{
+							timeZone = TimeZoneInfo.FindSystemTimeZoneById(timezoneId);
+						}
+						catch (TimeZoneNotFoundException)
+						{
+							// Map IANA to Windows timezone IDs
+							var windowsId = timezoneId switch
+							{
+								"America/Chicago" => "Central Standard Time",
+								"America/New_York" => "Eastern Standard Time",
+								"America/Denver" => "Mountain Standard Time",
+								"America/Los_Angeles" => "Pacific Standard Time",
+								"America/Phoenix" => "US Mountain Standard Time",
+								_ => timezoneId
+							};
+							timeZone = TimeZoneInfo.FindSystemTimeZoneById(windowsId);
+						}
+						
+						// Convert UTC now to user's local timezone and get the date
+						var localNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, timeZone);
+						today = localNow.Date;
+					}
+					catch
+					{
+						// Fallback to UTC date if timezone conversion fails
+						today = DateTime.UtcNow.Date;
+					}
+				}
+				else
+				{
+					// No timezone, use UTC date
+					today = DateTime.UtcNow.Date;
+				}
 				var tasks = (await taskService.GetTasksWithRecurringAsync(userId, today)).ToList();
 				var total = tasks.Count;
 				var completed = tasks.Count(t => t.Status == Models.TaskStatus.Completed);

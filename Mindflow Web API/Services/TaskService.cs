@@ -271,8 +271,20 @@ namespace Mindflow_Web_API.Services
 
         public async Task<bool> HasInstanceForDateAsync(Guid templateId, DateTime date)
         {
-            return await _dbContext.Tasks
+            // Check if an instance already exists for this date
+            var hasInstance = await _dbContext.Tasks
                 .AnyAsync(t => t.ParentTaskId == templateId && t.Date.Date == date.Date);
+            
+            if (hasInstance)
+                return true;
+            
+            // Also check if the template itself is scheduled for this date
+            // (templates can be scheduled for their original date)
+            var template = await _dbContext.Tasks.FirstOrDefaultAsync(t => t.Id == templateId);
+            if (template != null && template.Date.Date == date.Date)
+                return true;
+            
+            return false;
         }
 
 		public async Task<TaskItemDto> GenerateTaskInstanceAsync(Guid templateId, DateTime date)
@@ -330,6 +342,11 @@ namespace Mindflow_Web_API.Services
             if (template.EndDate.HasValue && date > template.EndDate.Value)
                 return false;
 
+            // For recurring tasks, don't generate an instance for the template's original date
+            // (the template itself covers that date)
+            if (date.Date == template.Date.Date)
+                return false;
+
             // Check if we've exceeded max occurrences
             if (template.MaxOccurrences.HasValue)
             {
@@ -340,9 +357,9 @@ namespace Mindflow_Web_API.Services
             // Check if the date matches the recurrence pattern
             return template.RepeatType switch
             {
-                RepeatType.Day => true, // Daily - always generate
-                RepeatType.Week => date.DayOfWeek == template.Date.DayOfWeek, // Same day of week
-                RepeatType.Month => date.Day == template.Date.Day, // Same day of month
+                RepeatType.Day => true, // Daily - generate for all dates after template date
+                RepeatType.Week => date.DayOfWeek == template.Date.DayOfWeek && date.Date > template.Date.Date, // Same day of week, after template date
+                RepeatType.Month => date.Day == template.Date.Day && date.Date > template.Date.Date, // Same day of month, after template date
                 _ => false
             };
         }
@@ -368,37 +385,44 @@ namespace Mindflow_Web_API.Services
 
 		private DateTime DetermineSmartRecurringTime(DateTime date, TimeSpan desiredTime, int durationMinutes, bool isWeekend, WellnessCheckInDto? wellness)
 		{
-			// Convert local time slots to UTC for the target date
+			// Use UTC fields if available (they're already converted to UTC)
+			// Otherwise fall back to converting local time fields
 			(TimeSpan start, TimeSpan end)? slots = null;
-			if (wellness != null && !string.IsNullOrWhiteSpace(wellness.TimezoneId))
+			if (wellness != null)
 			{
-				if (isWeekend)
+				// Prioritize UTC fields first (they're already converted to UTC)
+				if (isWeekend && wellness.WeekendStartTimeUtc.HasValue && wellness.WeekendEndTimeUtc.HasValue)
 				{
-					slots = ParseTimeSlotsForDate(
-						wellness.WeekendStartTime,
-						wellness.WeekendStartShift,
-						wellness.WeekendEndTime,
-						wellness.WeekendEndShift,
-						date,
-						wellness.TimezoneId);
+					slots = (wellness.WeekendStartTimeUtc.Value.TimeOfDay, wellness.WeekendEndTimeUtc.Value.TimeOfDay);
 				}
-				else
+				else if (!isWeekend && wellness.WeekdayStartTimeUtc.HasValue && wellness.WeekdayEndTimeUtc.HasValue)
 				{
-					slots = ParseTimeSlotsForDate(
-						wellness.WeekdayStartTime,
-						wellness.WeekdayStartShift,
-						wellness.WeekdayEndTime,
-						wellness.WeekdayEndShift,
-						date,
-						wellness.TimezoneId);
+					slots = (wellness.WeekdayStartTimeUtc.Value.TimeOfDay, wellness.WeekdayEndTimeUtc.Value.TimeOfDay);
 				}
-			}
-			else
-			{
-				// Fallback to UTC fields if timezone not available
-				slots = isWeekend
-					? ExtractSlot(wellness?.WeekendStartTimeUtc, wellness?.WeekendEndTimeUtc)
-					: ExtractSlot(wellness?.WeekdayStartTimeUtc, wellness?.WeekdayEndTimeUtc);
+				else if (!string.IsNullOrWhiteSpace(wellness.TimezoneId))
+				{
+					// Fall back to converting local time fields
+					if (isWeekend)
+					{
+						slots = ParseTimeSlotsForDate(
+							wellness.WeekendStartTime,
+							wellness.WeekendStartShift,
+							wellness.WeekendEndTime,
+							wellness.WeekendEndShift,
+							date,
+							wellness.TimezoneId);
+					}
+					else
+					{
+						slots = ParseTimeSlotsForDate(
+							wellness.WeekdayStartTime,
+							wellness.WeekdayStartShift,
+							wellness.WeekdayEndTime,
+							wellness.WeekdayEndShift,
+							date,
+							wellness.TimezoneId);
+					}
+				}
 			}
 
 			if (slots == null)
