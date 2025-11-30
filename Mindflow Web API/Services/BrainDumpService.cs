@@ -139,6 +139,7 @@ namespace Mindflow_Web_API.Services
 			while (attempt < maxAttempts)
 			{
 				var tasksPrompt = BrainDumpPromptBuilder.BuildTaskSuggestionsPrompt(
+					request.Text ?? string.Empty, // Original text for specific task extraction
 					summary,
 					emotions,
 					topics,

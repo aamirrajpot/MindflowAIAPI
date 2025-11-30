@@ -362,34 +362,49 @@ namespace Mindflow_Web_API.Utilities
             }
             
             sb.Append("EXAMPLE OF GOOD SUMMARY:\n");
-            sb.Append("\"You're navigating a lot right now - work deadlines are piling up, and you're feeling the weight of trying to balance everything. The fact that you're thinking about talking to your manager shows self-awareness, and it's understandable that you're feeling behind when juggling multiple priorities.\"\n\n");
+            sb.Append("You're navigating a lot right now - work deadlines are piling up, and you're feeling the weight of trying to balance everything. The fact that you're thinking about talking to your manager shows self-awareness, and it's understandable that you're feeling behind when juggling multiple priorities.\n\n");
             
             sb.Append("EXAMPLE OF BAD SUMMARY (avoid this):\n");
-            sb.Append("\"You seem overwhelmed and stressed about work. You have deadlines and feel overwhelmed. It seems like you need to manage your time better.\"\n\n");
+            sb.Append("You seem overwhelmed and stressed about work. You have deadlines and feel overwhelmed. It seems like you need to manage your time better.\n\n");
             
-            sb.Append("Now write a personalized, insightful summary that:\n");
-            sb.Append("1. Validates their experience without being repetitive\n");
-            sb.Append("2. References specific details they mentioned\n");
-            sb.Append("3. Shows you understand the deeper meaning\n");
-            sb.Append("4. Uses warm, supportive, therapy-informed language\n\n");
+            sb.Append("CRITICAL OUTPUT RULES:\n");
+            sb.Append("- Return ONLY the summary text itself\n");
+            sb.Append("- DO NOT include any introductory phrases like 'Sure, here is...', 'Here's a summary...', 'Here is a personalized...', etc.\n");
+            sb.Append("- DO NOT include phrases like 'that validates the user's experience' or 'that references specific details'\n");
+            sb.Append("- DO NOT include quotes around the text\n");
+            sb.Append("- DO NOT include JSON formatting\n");
+            sb.Append("- Start DIRECTLY with the summary content (e.g., 'You're navigating...' or 'It sounds like...')\n");
+            sb.Append("- The summary should:\n");
+            sb.Append("  1. Validate their experience without being repetitive\n");
+            sb.Append("  2. Reference specific details they mentioned\n");
+            sb.Append("  3. Show you understand the deeper meaning\n");
+            sb.Append("  4. Use warm, supportive, therapy-informed language\n\n");
             
-            sb.Append("Return ONLY the summary text. No JSON. No quotes. No prefixes like 'Summary:' or 'Here's'. Start directly with the summary content. [/INST]");
+            sb.Append("Return ONLY the summary text. Start directly with the summary content. [/INST]");
             return sb.ToString();
         }
 
         // Multi-prompt approach: Step 4 - Generate Task Suggestions
         public static string BuildTaskSuggestionsPrompt(
-            string summary,
-            List<string> emotions,
-            List<string> topics,
+            string originalText,
+    string summary,
+    List<string> emotions,
+    List<string> topics,
             List<string> themes,
-            WellnessSummary wellness,
-            BrainDumpRequest request,
-            bool forceMinimumActivities = false)
+    WellnessSummary wellness,
+    BrainDumpRequest request,
+    bool forceMinimumActivities = false)
         {
             var sb = new StringBuilder();
             sb.Append("[INST] ");
-            sb.Append("You are a wellness coach. Generate actionable task suggestions based on the provided information.\n\n");
+            sb.Append("You are a wellness coach. Extract and generate SPECIFIC, actionable task suggestions from the user's brain dump.\n\n");
+
+            sb.Append("CRITICAL: Your PRIMARY goal is to extract SPECIFIC tasks that are EXPLICITLY mentioned in the original text.\n");
+            sb.Append("Prioritize exact tasks with full context over generic suggestions.\n\n");
+
+            sb.Append("Original Text (READ CAREFULLY for specific tasks):\n");
+            sb.Append(originalText);
+            sb.Append("\n\n");
 
             sb.Append("Summary: ");
             sb.Append(summary);
@@ -429,7 +444,7 @@ namespace Mindflow_Web_API.Utilities
             sb.Append("Return ONLY a JSON array of task objects:\n");
             sb.Append("[\n");
             sb.Append("  {\n");
-            sb.Append("    \"task\": \"short actionable step\",\n");
+            sb.Append("    \"task\": \"SPECIFIC actionable task with full context\",\n");
             sb.Append("    \"frequency\": \"once | daily | weekly | bi-weekly | monthly | weekdays\",\n");
             sb.Append("    \"duration\": \"10 minutes | 20 minutes | 30 minutes | 1 hour\",\n");
             sb.Append("    \"notes\": \"short explanation tied to themes\",\n");
@@ -438,10 +453,27 @@ namespace Mindflow_Web_API.Utilities
             sb.Append("  }\n");
             sb.Append("]\n\n");
 
-            sb.Append("RULES:\n");
+            sb.Append("EXTRACTION RULES (PRIORITY ORDER):\n");
+            sb.Append("1. FIRST: Extract SPECIFIC tasks explicitly mentioned in the original text.\n");
+            sb.Append("   - Include ALL context: names, places, specific items, deadlines.\n");
+            sb.Append("   - Example: \"Call Dr. Smith about test results\" NOT \"Call doctor\"\n");
+            sb.Append("   - Example: \"Pack kitchen items into labeled boxes\" NOT \"organize belongings\"\n");
+            sb.Append("   - Example: \"Email Sarah about the project deadline on Friday\" NOT \"Send email\"\n\n");
+            sb.Append("2. SECOND: Break complex task mentions into separate, specific tasks.\n");
+            sb.Append("   - If text says \"I need to clean the garage and organize my office\", create TWO tasks.\n");
+            sb.Append("   - Each task should be specific: \"Clean garage and sort items into keep/donate/trash\" and \"Organize office desk and file important documents\"\n\n");
+            sb.Append("3. THIRD: Only if no explicit tasks found, infer actionable tasks from themes/emotions.\n");
+            sb.Append("   - Even inferred tasks should be specific and actionable.\n");
+            sb.Append("   - Example: If theme is \"work stress\", suggest \"Review workload and prioritize top 3 tasks for tomorrow\" NOT \"reduce stress\"\n\n");
+            sb.Append("4. ALWAYS: Include actionable details that make the task clear and executable.\n");
+            sb.Append("   - Specify what, where, when, or who when mentioned in the text.\n");
+            sb.Append("   - Make tasks concrete, not abstract.\n\n");
+
+            sb.Append("GENERAL RULES:\n");
             sb.Append("- Generate at least one task per theme.\n");
-            sb.Append("- Use ONLY information provided. No hallucinations.\n");
-            sb.Append("- Keep tasks practical and actionable.\n");
+            sb.Append("- Use ONLY information from the original text. No hallucinations.\n");
+            sb.Append("- Keep tasks practical, specific, and immediately actionable.\n");
+            sb.Append("- Preserve all specific details (names, places, items, dates) from the original text.\n");
             if (forceMinimumActivities)
                 sb.Append("- Return AT LEAST 12 tasks total.\n");
             sb.Append("\nReturn ONLY the JSON array. No commentary. [/INST]");
@@ -463,7 +495,8 @@ namespace Mindflow_Web_API.Utilities
             // For backward compatibility, we'll extract themes first, then build the full response
             // But ideally, callers should use the new multi-prompt methods directly
             var themes = new List<string> { "General", "Wellness", "Personal" }; // Fallback themes
-            return BuildTaskSuggestionsPrompt(summary, emotions, topics, themes, wellness, request, forceMinimumActivities);
+            var originalText = request.Text ?? string.Empty; // Use request text as original text
+            return BuildTaskSuggestionsPrompt(originalText, summary, emotions, topics, themes, wellness, request, forceMinimumActivities);
         }
 
 
@@ -586,16 +619,26 @@ namespace Mindflow_Web_API.Utilities
                         cleanText = cleanText.Replace("```", "").Trim();
                 }
                 
-                // Remove quotes if present
+                // First, try to extract content from quotes if the entire response is quoted
                 if (cleanText.StartsWith("\"") && cleanText.EndsWith("\""))
-                    cleanText = cleanText.Substring(1, cleanText.Length - 2);
+                    cleanText = cleanText.Substring(1, cleanText.Length - 2).Trim();
                 
                 // Remove common prefixes that LLMs sometimes add
+                // Use case-insensitive matching and remove the longest matching prefix
                 var prefixesToRemove = new[]
                 {
-                    "summary:",
-                    "here's the summary:",
+                    "sure, here is a personalized, insightful summary that validates the user's experience and references specific details they mentioned:",
+                    "sure, here's a personalized, insightful summary that validates the user's experience and references specific details they mentioned:",
+                    "here is a personalized, insightful summary that validates the user's experience and references specific details they mentioned:",
+                    "here's a personalized, insightful summary that validates the user's experience and references specific details they mentioned:",
+                    "sure, here is a personalized, insightful summary:",
+                    "sure, here's a personalized, insightful summary:",
+                    "here is a personalized, insightful summary:",
+                    "here's a personalized, insightful summary:",
+                    "sure, here is the summary:",
+                    "sure, here's the summary:",
                     "here is the summary:",
+                    "here's the summary:",
                     "summary:",
                     "the summary is:",
                     "based on your text,",
@@ -603,20 +646,45 @@ namespace Mindflow_Web_API.Utilities
                     "looking at your brain dump,",
                     "from your entry,",
                     "here's what i understand:",
-                    "here is what i understand:"
+                    "here is what i understand:",
+                    "sure, here is",
+                    "sure, here's",
+                    "here is",
+                    "here's"
                 };
                 
+                // Sort by length descending to match longest prefix first
+                var sortedPrefixes = prefixesToRemove.OrderByDescending(p => p.Length).ToArray();
                 var lowerText = cleanText.ToLower().TrimStart();
-                foreach (var prefix in prefixesToRemove)
+                
+                foreach (var prefix in sortedPrefixes)
                 {
                     if (lowerText.StartsWith(prefix))
                     {
                         cleanText = cleanText.Substring(prefix.Length).TrimStart();
-                        // Remove any leading colon or dash
-                        if (cleanText.StartsWith(":") || cleanText.StartsWith("-"))
+                        // Remove any leading colon, dash, or quote
+                        while (cleanText.Length > 0 && (cleanText[0] == ':' || cleanText[0] == '-' || cleanText[0] == '"' || cleanText[0] == '\''))
                             cleanText = cleanText.Substring(1).TrimStart();
                         break;
                     }
+                }
+                
+                // Additional pattern: Look for introductory phrases ending with colon followed by quoted text
+                // Pattern: "...summary:" or "...summary that..." followed by quote
+                var quotePattern = new System.Text.RegularExpressions.Regex(@"^[^""]*[""'](.+)[""']\s*$", System.Text.RegularExpressions.RegexOptions.Singleline);
+                var quoteMatch = quotePattern.Match(cleanText);
+                if (quoteMatch.Success && quoteMatch.Groups.Count > 1)
+                {
+                    cleanText = quoteMatch.Groups[1].Value.Trim();
+                }
+                
+                // If text still starts with common introductory patterns, try to find where actual summary starts
+                // Look for patterns like "that validates" or "that references" and remove everything before the quote
+                var introPattern = new System.Text.RegularExpressions.Regex(@".*?(?:validates|references|mentioned)[^""]*[""'](.+)[""']", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
+                var introMatch = introPattern.Match(cleanText);
+                if (introMatch.Success && introMatch.Groups.Count > 1)
+                {
+                    cleanText = introMatch.Groups[1].Value.Trim();
                 }
                 
                 // Ensure we have meaningful content (at least 20 characters)
@@ -661,7 +729,7 @@ namespace Mindflow_Web_API.Utilities
                     sb.Append($"   Notes: {tasks[i].Notes}\n");
             }
             sb.Append("\n");
-            
+
             sb.Append("Return ONLY a JSON object where keys are task numbers (1, 2, 3...) and values are arrays of sub-steps.\n");
             sb.Append("Only include tasks that need breakdown. Skip simple tasks.\n\n");
             
@@ -694,7 +762,7 @@ namespace Mindflow_Web_API.Utilities
             
             sb.Append("Original Text (for context):\n");
             sb.Append(originalText.Length > 600 ? originalText.Substring(0, 600) + "..." : originalText);
-            sb.Append("\n\n");
+                sb.Append("\n\n");
             
             sb.Append("Summary: ");
             sb.Append(summary);
@@ -724,7 +792,7 @@ namespace Mindflow_Web_API.Utilities
             sb.Append("  \"patternInsight\": \"1-2 sentences naming a pattern or theme you notice. Be specific and insightful, not generic.\",\n");
             sb.Append("  \"copingTools\": [\"One quick coping strategy (1-2 sentences)\", \"Another coping strategy (1-2 sentences)\"]\n");
             sb.Append("}\n\n");
-            
+
             sb.Append("EXAMPLES:\n\n");
             sb.Append("Example 1 (Stressed about work):\n");
             sb.Append("{\n");
