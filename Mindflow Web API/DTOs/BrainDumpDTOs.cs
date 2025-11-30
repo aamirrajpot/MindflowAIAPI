@@ -81,6 +81,13 @@ namespace Mindflow_Web_API.DTOs
 		// Brain dump entry ID for linking tasks
 		[JsonPropertyName("brainDumpEntryId")]
 		public Guid BrainDumpEntryId { get; set; } // ID of the brain dump entry (for linking tasks back to this dump)
+		// Emotional Intelligence Layer
+		[JsonPropertyName("emotionalValidation")]
+		public string? EmotionalValidation { get; set; } // Validates and acknowledges user's feelings
+		[JsonPropertyName("patternInsight")]
+		public string? PatternInsight { get; set; } // Names emotional patterns or themes
+		[JsonPropertyName("copingTools")]
+		public List<string>? CopingTools { get; set; } // 1-2 quick coping strategies
 	}
     public class WellnessSummary
     {

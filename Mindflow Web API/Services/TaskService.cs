@@ -199,6 +199,21 @@ namespace Mindflow_Web_API.Services
 
         private static TaskItemDto ToDto(TaskItem task)
         {
+            // Parse SubSteps from JSON string to List<string>
+            List<string>? subSteps = null;
+            if (!string.IsNullOrWhiteSpace(task.SubSteps))
+            {
+                try
+                {
+                    subSteps = System.Text.Json.JsonSerializer.Deserialize<List<string>>(task.SubSteps);
+                }
+                catch
+                {
+                    // If parsing fails, leave as null
+                    subSteps = null;
+                }
+            }
+            
             return new TaskItemDto(
                 task.Id,
                 task.UserId,
@@ -220,7 +235,9 @@ namespace Mindflow_Web_API.Services
                 task.NextOccurrence,
                 task.MaxOccurrences,
                 task.EndDate,
-                task.IsActive
+                task.IsActive,
+                // Micro-step breakdown
+                subSteps
             );
         }
 
@@ -315,7 +332,9 @@ namespace Mindflow_Web_API.Services
 				// Recurring task fields
 				ParentTaskId = templateId,
 				IsTemplate = false,
-				IsActive = true
+				IsActive = true,
+				// Copy sub-steps from template
+				SubSteps = template.SubSteps
 			};
 
 			_dbContext.Tasks.Add(instance);

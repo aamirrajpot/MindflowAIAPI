@@ -35,6 +35,10 @@ namespace Mindflow_Web_API.Models
         public string? LifeArea { get; set; } // Life area: "Work", "Family", "Health", "Relationships", "Personal", etc.
         [MaxLength(50)]
         public string? EmotionTag { get; set; } // Emotion tag: "Anxious", "Grateful", "Overwhelmed", etc.
+        
+        // Micro-step breakdown (stored as JSON array string)
+        [MaxLength(2000)]
+        public string? SubSteps { get; set; } // JSON array of sub-steps: ["Step 1", "Step 2", "Step 3"]
     }
 
     public enum TaskStatus

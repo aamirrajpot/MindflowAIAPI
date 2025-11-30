@@ -93,17 +93,37 @@ namespace Mindflow_Web_API.Services
 			}
 			_logger.LogDebug("Extracted {Count} themes: {Themes}", themes.Count, string.Join(", ", themes));
 
-			// Step 2: Generate User Profile
+			// Step 2: Generate User Profile (Enhanced with original text)
 			_logger.LogDebug("Step 2: Generating user profile");
-			var profilePrompt = BrainDumpPromptBuilder.BuildUserProfilePrompt(summary, emotions, userName);
-			var profileResponse = await _runPodService.SendPromptAsync(profilePrompt, 150, temperature);
-			var userProfileSummary = BrainDumpPromptBuilder.ParseUserProfileResponse(profileResponse, _logger);
-			_logger.LogDebug("Generated user profile: {State}, {Emoji}", userProfileSummary.CurrentState, userProfileSummary.Emoji);
+			var profilePrompt = BrainDumpPromptBuilder.BuildUserProfilePrompt(
+				request.Text ?? string.Empty, 
+				summary, 
+				emotions, 
+				userName
+			);
+			var profileResponse = await _runPodService.SendPromptAsync(profilePrompt, 300, temperature); // Increased tokens for better response
+			if (!string.IsNullOrWhiteSpace(profileResponse))
+			{
+				_logger.LogDebug("Raw profile response received: {Response}", profileResponse.Substring(0, Math.Min(200, profileResponse.Length)));
+			}
+			else
+			{
+				_logger.LogWarning("Profile response is null or empty");
+			}
+			var userProfileSummary = BrainDumpPromptBuilder.ParseUserProfileResponse(profileResponse ?? string.Empty, _logger);
+			_logger.LogInformation("Generated user profile: Name={Name}, State={State}, Emoji={Emoji}", 
+				userProfileSummary.Name, userProfileSummary.CurrentState, userProfileSummary.Emoji);
 
-			// Step 3: Generate AI Summary
-			_logger.LogDebug("Step 3: Generating AI summary");
-			var summaryPrompt = BrainDumpPromptBuilder.BuildAiSummaryPrompt(summary, emotions, themes);
-			var summaryResponse = await _runPodService.SendPromptAsync(summaryPrompt, 200, temperature);
+			// Step 3: Generate AI Summary (Enhanced with original text for deeper context)
+			_logger.LogDebug("Step 3: Generating enhanced AI summary");
+			var summaryPrompt = BrainDumpPromptBuilder.BuildAiSummaryPrompt(
+				request.Text ?? string.Empty, 
+				summary, 
+				emotions, 
+				themes, 
+				request
+			);
+			var summaryResponse = await _runPodService.SendPromptAsync(summaryPrompt, 400, temperature); // Increased tokens for deeper analysis
 			var aiSummary = BrainDumpPromptBuilder.ParseAiSummaryResponse(summaryResponse, _logger);
 			_logger.LogDebug("Generated AI summary: {Summary}", aiSummary.Substring(0, Math.Min(100, aiSummary.Length)));
 
@@ -143,13 +163,80 @@ namespace Mindflow_Web_API.Services
 				currentTemperature = Math.Max(0.2, currentTemperature - 0.2);
 			}
 
+			// Step 5: Break Down Complex Tasks into Micro-Steps
+			if (suggestedActivities != null && suggestedActivities.Count > 0)
+			{
+				_logger.LogDebug("Step 5: Breaking down complex tasks into micro-steps");
+				try
+				{
+					var breakdownPrompt = BrainDumpPromptBuilder.BuildTaskBreakdownPrompt(suggestedActivities, request.Text ?? string.Empty);
+					var breakdownResponse = await _runPodService.SendPromptAsync(breakdownPrompt, 600, temperature);
+					var taskBreakdown = BrainDumpPromptBuilder.ParseTaskBreakdownResponse(breakdownResponse, _logger);
+					
+					// Apply breakdown to tasks
+					foreach (var kvp in taskBreakdown)
+					{
+						if (kvp.Key >= 0 && kvp.Key < suggestedActivities.Count && kvp.Value != null && kvp.Value.Count > 0)
+						{
+							suggestedActivities[kvp.Key].SubSteps = kvp.Value;
+							_logger.LogDebug("Added {Count} sub-steps to task: {Task}", kvp.Value.Count, suggestedActivities[kvp.Key].Task);
+						}
+					}
+					
+					var tasksWithSubSteps = taskBreakdown.Count;
+					_logger.LogInformation("Successfully broke down {Count} tasks into micro-steps", tasksWithSubSteps);
+				}
+				catch (Exception ex)
+				{
+					_logger.LogWarning(ex, "Failed to break down tasks into micro-steps, continuing without breakdown");
+					// Continue without breakdown - tasks will still work
+				}
+			}
+
+			// Step 6: Generate Emotional Intelligence Layer
+			_logger.LogDebug("Step 6: Generating emotional intelligence layer");
+			string? emotionalValidation = null;
+			string? patternInsight = null;
+			List<string>? copingTools = null;
+			
+			try
+			{
+				var emotionalIntelligencePrompt = BrainDumpPromptBuilder.BuildEmotionalIntelligencePrompt(
+					request.Text ?? string.Empty,
+					summary,
+					emotions,
+					themes,
+					request
+				);
+				var emotionalIntelligenceResponse = await _runPodService.SendPromptAsync(emotionalIntelligencePrompt, 500, temperature);
+				var (validation, pattern, tools) = BrainDumpPromptBuilder.ParseEmotionalIntelligenceResponse(emotionalIntelligenceResponse, _logger);
+				
+				emotionalValidation = validation;
+				patternInsight = pattern;
+				copingTools = tools;
+				
+				_logger.LogInformation("Generated emotional intelligence: Validation={HasValidation}, Pattern={HasPattern}, Tools={ToolsCount}", 
+					!string.IsNullOrWhiteSpace(emotionalValidation),
+					!string.IsNullOrWhiteSpace(patternInsight),
+					copingTools?.Count ?? 0);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogWarning(ex, "Failed to generate emotional intelligence layer, continuing without it");
+				// Continue without emotional intelligence - response will still work
+			}
+
 			// Build the response object
 			brainDumpResponse = new BrainDumpResponse
 			{
 				UserProfile = userProfileSummary,
 				KeyThemes = themes,
 				AiSummary = aiSummary,
-				SuggestedActivities = suggestedActivities ?? new List<TaskSuggestion>()
+				SuggestedActivities = suggestedActivities ?? new List<TaskSuggestion>(),
+				// Emotional Intelligence Layer
+				EmotionalValidation = emotionalValidation,
+				PatternInsight = patternInsight,
+				CopingTools = copingTools
 			};
 
 			// If still no activities after retries, synthesize a minimal fallback list
@@ -800,6 +887,20 @@ namespace Mindflow_Web_API.Services
 					emotionTag = DetermineEmotionTag(brainDumpEntry.Text, brainDumpEntry.Tags);
 				}
 
+				// Serialize sub-steps to JSON string for storage
+				string? subStepsJson = null;
+				if (scheduledTask.Suggestion.SubSteps != null && scheduledTask.Suggestion.SubSteps.Count > 0)
+				{
+					try
+					{
+						subStepsJson = System.Text.Json.JsonSerializer.Serialize(scheduledTask.Suggestion.SubSteps);
+					}
+					catch (Exception ex)
+					{
+						_logger.LogWarning(ex, "Failed to serialize sub-steps for task: {Task}", scheduledTask.Suggestion.Task);
+					}
+				}
+				
 				var taskItem = new TaskItem
 				{
 					UserId = userId,
@@ -821,7 +922,9 @@ namespace Mindflow_Web_API.Services
 					SourceBrainDumpEntryId = brainDumpEntryId,
 					SourceTextExcerpt = sourceTextExcerpt,
 					LifeArea = lifeArea,
-					EmotionTag = emotionTag
+					EmotionTag = emotionTag,
+					// Micro-step breakdown
+					SubSteps = subStepsJson
 				};
 
 				_db.Tasks.Add(taskItem);

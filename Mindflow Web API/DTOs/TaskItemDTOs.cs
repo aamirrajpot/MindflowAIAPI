@@ -64,7 +64,9 @@ namespace Mindflow_Web_API.DTOs
         DateTime? NextOccurrence,
         int? MaxOccurrences,
         DateTime? EndDate,
-        bool IsActive
+        bool IsActive,
+        // Micro-step breakdown
+        List<string>? SubSteps = null // Sub-steps for complex tasks (parsed from JSON)
     );
     public record StatusUpdateDto(Mindflow_Web_API.Models.TaskStatus Status);
 
