@@ -172,96 +172,413 @@ namespace Mindflow_Web_API.Utilities
         //	return sb.ToString();
         //}
 
-        public static string BuildTaskSuggestionsPrompt(
-    BrainDumpRequest request,
-    DTOs.WellnessCheckInDto? wellnessData = null,
-    string? userName = null,
-    bool forceMinimumActivities = false)
+        //    public static string BuildTaskSuggestionsPrompt(
+        //BrainDumpRequest request,
+        //DTOs.WellnessCheckInDto? wellnessData = null,
+        //string? userName = null,
+        //bool forceMinimumActivities = false)
+        //    {
+        //        var sb = new StringBuilder();
+
+        //        sb.Append("[INST] You are a warm, expert wellness coach and an accurate extraction engine. ");
+        //        sb.Append("Your job is to read the user's brain dump and extract EVERY actionable item without skipping anything. ");
+        //        sb.Append("This includes tasks, errands, calls, follow-ups, decisions, appointments, and implied obligations.\n\n");
+
+        //        sb.Append("IMPORTANT REQUIREMENT:\n");
+        //        sb.Append("→ You MUST return at least one task for every actionable or implied point mentioned in the brain dump.\n");
+        //        sb.Append("→ If the brain dump contains 14 items, you must return at least 14 tasks. Never fewer.\n");
+        //        sb.Append("→ Never merge multiple tasks into one. Split at every 'and', 'also', or separate verb.\n\n");
+
+        //        sb.AppendLine("SAMPLE OUTPUT FORMAT:");
+        //        sb.AppendLine("Return ONLY a single JSON object:");
+        //        sb.AppendLine("{");
+        //        sb.AppendLine("    \"userProfile\": {");
+        //        sb.AppendLine($"        \"name\": \"{userName ?? "User"}\",");
+        //        sb.AppendLine("        \"currentState\": \"Analyze the user's emotional state based on the brain dump, 1–2 words or a short phrase\",");
+        //        sb.AppendLine("        \"emoji\": \"Select one emoji representing the user's current mood\"");
+        //        sb.AppendLine("    },");
+        //        sb.AppendLine("    \"keyThemes\": [\"Analyze 3 key themes or topics mentioned in the brain dump\"],");
+        //        sb.AppendLine("    \"aiSummary\": \"Generate a 2–3 sentence empathetic summary describing the user's mindset, needs, and emotional tone\"");
+        //        sb.AppendLine("    \"suggestedActivities\": [");
+        //        sb.AppendLine("        {");
+        //        sb.AppendLine("            \"task\": \"Short action title\",");
+        //        sb.AppendLine("            \"frequency\": \"once | daily | weekly | bi-weekly | monthly | weekdays | never\",");
+        //        sb.AppendLine("            \"duration\": \"Concrete duration\",");
+        //        sb.AppendLine("            \"notes\": \"Short reason directly from the user's text\",");
+        //        sb.AppendLine("            \"priority\": \"High | Medium | Low\",");
+        //        sb.AppendLine("            \"suggestedTime\": \"Morning | Afternoon | Evening | specific time\"");
+        //        sb.AppendLine("        }");
+        //        sb.AppendLine("    ]");
+        //        sb.AppendLine("}");
+
+
+        //        sb.Append("Duration Rules:\n");
+        //        sb.Append("- The duration field must contain ONLY a time estimate in minutes or hours.\n");
+        //        sb.Append("- Valid examples: \"10 minutes\", \"20 minutes\", \"45 minutes\", \"1 hour\", \"2 hours\".\n");
+        //        sb.Append("- NEVER include sentences, actions, or extra words.\n\n");
+
+        //        sb.Append("Notes Rules:\n");
+        //        sb.Append("- Notes must be a short, natural explanation referencing the source text.\n");
+        //        sb.Append("- Example: \"You said you need to call the insurance company about a check.\"\n");
+        //        sb.Append("- Do NOT use template phrases like: 'Paraphrased trigger', 'Trigger phrase', 'From brain dump'.\n");
+        //        sb.Append("- Keep it personal, warm, and human.\n\n");
+
+        //        sb.Append("Task Ordering Rules:\n");
+        //        sb.Append("- List tasks in the same order they appear in the brain dump.\n");
+        //        sb.Append("- Priority distribution must vary (not all Medium).\n");
+        //        sb.Append("- Actionable tasks first, optional wellness tasks last (max 2 wellness tasks).\n\n");
+
+        //        if (forceMinimumActivities)
+        //            sb.Append("- Because the user requested a full list, return at least 12 total tasks.\n\n");
+
+        //        sb.Append("=== USER BRAIN DUMP ===\n");
+        //        sb.Append(request.Text.Replace("\r", "").Replace("\n", "\\n"));
+        //        sb.Append("\n\n");
+
+        //        if (!string.IsNullOrWhiteSpace(request.Context))
+        //        {
+        //            sb.Append("Additional Context:\\n");
+        //            sb.Append(request.Context!.Replace("\r", "").Replace("\n", "\\n"));
+        //            sb.Append("\n\n");
+        //        }
+
+        //        if (request.Mood.HasValue || request.Stress.HasValue || request.Purpose.HasValue)
+        //        {
+        //            sb.Append("Self-Reported Scores (0-10): ");
+        //            if (request.Mood.HasValue) sb.Append($"Mood={request.Mood.Value} ");
+        //            if (request.Stress.HasValue) sb.Append($"Stress={request.Stress.Value} ");
+        //            if (request.Purpose.HasValue) sb.Append($"Purpose={request.Purpose.Value} ");
+        //            sb.Append("\n\n");
+        //        }
+
+        //        sb.Append("Return ONLY the JSON array. No description. No commentary. No text outside JSON.\n");
+        //        sb.Append("\nLINKING RULES:\n");
+        //        sb.Append("- Every keyTheme you output MUST have at least one matching task in suggestedActivities that addresses it.\n");
+        //        sb.Append("- If you list 9 themes or obligations, you must return at least 9 actionable tasks (one per theme, plus extra tasks if a theme implies multiple steps).\n");
+        //        sb.Append("- Do not output more themes than tasks. Tasks and themes must correspond 1:1 or 1:many (never fewer tasks than themes).\n");
+        //        sb.Append("\n[/INST]");
+
+        //        return sb.ToString();
+        //    }
+        // Multi-prompt approach: Step 1 - Extract Key Themes
+        public static string BuildExtractThemesPrompt(string summary, List<string> emotions, List<string> topics)
         {
             var sb = new StringBuilder();
+            sb.Append("[INST] ");
+            sb.Append("You are analyzing a user's brain dump. Extract exactly 3 key themes or main topics.\n\n");
+            sb.Append("Summary: ");
+            sb.Append(summary);
+            sb.Append("\n\n");
+            sb.Append("Emotions: ");
+            sb.Append(string.Join(", ", emotions));
+            sb.Append("\n\n");
+            sb.Append("Topics: ");
+            sb.Append(string.Join(", ", topics));
+            sb.Append("\n\n");
+            sb.Append("Return ONLY a JSON array with exactly 3 theme strings.\n");
+            sb.Append("Example: [\"Work stress\", \"Family time\", \"Health goals\"]\n");
+            sb.Append("No explanations. Just the JSON array. [/INST]");
+            return sb.ToString();
+        }
 
-            sb.Append("[INST] You are a warm, expert wellness coach and an accurate extraction engine. ");
-            sb.Append("Your job is to read the user's brain dump and extract EVERY actionable item without skipping anything. ");
-            sb.Append("This includes tasks, errands, calls, follow-ups, decisions, appointments, and implied obligations.\n\n");
+        // Multi-prompt approach: Step 2 - Generate User Profile
+        public static string BuildUserProfilePrompt(string summary, List<string> emotions, string? userName = null)
+        {
+            var sb = new StringBuilder();
+            sb.Append("[INST] ");
+            sb.Append("Based on the user's brain dump, determine their current emotional state.\n\n");
+            sb.Append("Summary: ");
+            sb.Append(summary);
+            sb.Append("\n\n");
+            sb.Append("Emotions: ");
+            sb.Append(string.Join(", ", emotions));
+            sb.Append("\n\n");
+            sb.Append("Return ONLY a JSON object:\n");
+            sb.Append("{\n");
+            sb.Append($"  \"name\": \"{userName ?? "User"}\",\n");
+            sb.Append("  \"currentState\": \"2-3 word emotional state (e.g., 'Reflective & Optimistic')\",\n");
+            sb.Append("  \"emoji\": \"one emoji that matches the emotional state\"\n");
+            sb.Append("}\n");
+            sb.Append("No explanations. Just the JSON. [/INST]");
+            return sb.ToString();
+        }
 
-            sb.Append("IMPORTANT REQUIREMENT:\n");
-            sb.Append("→ You MUST return at least one task for every actionable or implied point mentioned in the brain dump.\n");
-            sb.Append("→ If the brain dump contains 14 items, you must return at least 14 tasks. Never fewer.\n");
-            sb.Append("→ Never merge multiple tasks into one. Split at every 'and', 'also', or separate verb.\n\n");
+        // Multi-prompt approach: Step 3 - Generate AI Summary
+        public static string BuildAiSummaryPrompt(string summary, List<string> emotions, List<string> themes)
+        {
+            var sb = new StringBuilder();
+            sb.Append("[INST] ");
+            sb.Append("Write a warm, empathetic 1-2 sentence summary of the user's emotional and practical state.\n\n");
+            sb.Append("Summary: ");
+            sb.Append(summary);
+            sb.Append("\n\n");
+            sb.Append("Emotions: ");
+            sb.Append(string.Join(", ", emotions));
+            sb.Append("\n\n");
+            sb.Append("Themes: ");
+            sb.Append(string.Join(", ", themes));
+            sb.Append("\n\n");
+            sb.Append("Return ONLY the summary text. No JSON. No quotes. Just the text. [/INST]");
+            return sb.ToString();
+        }
 
-            sb.AppendLine("SAMPLE OUTPUT FORMAT:");
-            sb.AppendLine("Return ONLY a single JSON object:");
-            sb.AppendLine("{");
-            sb.AppendLine("    \"userProfile\": {");
-            sb.AppendLine($"        \"name\": \"{userName ?? "User"}\",");
-            sb.AppendLine("        \"currentState\": \"Analyze the user's emotional state based on the brain dump, 1–2 words or a short phrase\",");
-            sb.AppendLine("        \"emoji\": \"Select one emoji representing the user's current mood\"");
-            sb.AppendLine("    },");
-            sb.AppendLine("    \"keyThemes\": [\"Analyze 3 key themes or topics mentioned in the brain dump\"],");
-            sb.AppendLine("    \"aiSummary\": \"Generate a 2–3 sentence empathetic summary describing the user's mindset, needs, and emotional tone\"");
-            sb.AppendLine("    \"suggestedActivities\": [");
-            sb.AppendLine("        {");
-            sb.AppendLine("            \"task\": \"Short action title\",");
-            sb.AppendLine("            \"frequency\": \"once | daily | weekly | bi-weekly | monthly | weekdays | never\",");
-            sb.AppendLine("            \"duration\": \"Concrete duration\",");
-            sb.AppendLine("            \"notes\": \"Short reason directly from the user's text\",");
-            sb.AppendLine("            \"priority\": \"High | Medium | Low\",");
-            sb.AppendLine("            \"suggestedTime\": \"Morning | Afternoon | Evening | specific time\"");
-            sb.AppendLine("        }");
-            sb.AppendLine("    ]");
-            sb.AppendLine("}");
+        // Multi-prompt approach: Step 4 - Generate Task Suggestions
+        public static string BuildTaskSuggestionsPrompt(
+            string summary,
+            List<string> emotions,
+            List<string> topics,
+            List<string> themes,
+            WellnessSummary wellness,
+            BrainDumpRequest request,
+            bool forceMinimumActivities = false)
+        {
+            var sb = new StringBuilder();
+            sb.Append("[INST] ");
+            sb.Append("You are a wellness coach. Generate actionable task suggestions based on the provided information.\n\n");
 
-
-            sb.Append("Duration Rules:\n");
-            sb.Append("- The duration field must contain ONLY a time estimate in minutes or hours.\n");
-            sb.Append("- Valid examples: \"10 minutes\", \"20 minutes\", \"45 minutes\", \"1 hour\", \"2 hours\".\n");
-            sb.Append("- NEVER include sentences, actions, or extra words.\n\n");
-
-            sb.Append("Notes Rules:\n");
-            sb.Append("- Notes must be a short, natural explanation referencing the source text.\n");
-            sb.Append("- Example: \"You said you need to call the insurance company about a check.\"\n");
-            sb.Append("- Do NOT use template phrases like: 'Paraphrased trigger', 'Trigger phrase', 'From brain dump'.\n");
-            sb.Append("- Keep it personal, warm, and human.\n\n");
-
-            sb.Append("Task Ordering Rules:\n");
-            sb.Append("- List tasks in the same order they appear in the brain dump.\n");
-            sb.Append("- Priority distribution must vary (not all Medium).\n");
-            sb.Append("- Actionable tasks first, optional wellness tasks last (max 2 wellness tasks).\n\n");
-
-            if (forceMinimumActivities)
-                sb.Append("- Because the user requested a full list, return at least 12 total tasks.\n\n");
-
-            sb.Append("=== USER BRAIN DUMP ===\n");
-            sb.Append(request.Text.Replace("\r", "").Replace("\n", "\\n"));
+            sb.Append("Summary: ");
+            sb.Append(summary);
             sb.Append("\n\n");
 
-            if (!string.IsNullOrWhiteSpace(request.Context))
-            {
-                sb.Append("Additional Context:\\n");
-                sb.Append(request.Context!.Replace("\r", "").Replace("\n", "\\n"));
-                sb.Append("\n\n");
-            }
+            sb.Append("Themes: ");
+            sb.Append(string.Join(", ", themes));
+            sb.Append("\n\n");
 
+            sb.Append("Emotions: ");
+            sb.Append(string.Join(", ", emotions));
+            sb.Append("\n\n");
+
+            sb.Append("Topics: ");
+            sb.Append(string.Join(", ", topics));
+            sb.Append("\n\n");
+
+            // Add wellness summary (minimal)
+            sb.Append("Wellness Profile:\n");
+            sb.Append($"Mood: {wellness.MoodLevel ?? "not specified"}\n");
+            if (wellness.FocusAreas.Any())
+                sb.Append($"Focus Areas: {string.Join(", ", wellness.FocusAreas)}\n");
+            if (wellness.PreferredTimeBlocks.Any())
+                sb.Append($"Preferred Times: {string.Join(", ", wellness.PreferredTimeBlocks)}\n");
+            sb.Append("\n");
+
+            // Self-reported scores
             if (request.Mood.HasValue || request.Stress.HasValue || request.Purpose.HasValue)
             {
-                sb.Append("Self-Reported Scores (0-10): ");
+                sb.Append("Self-Reported Scores: ");
                 if (request.Mood.HasValue) sb.Append($"Mood={request.Mood.Value} ");
                 if (request.Stress.HasValue) sb.Append($"Stress={request.Stress.Value} ");
                 if (request.Purpose.HasValue) sb.Append($"Purpose={request.Purpose.Value} ");
                 sb.Append("\n\n");
             }
 
-            sb.Append("Return ONLY the JSON array. No description. No commentary. No text outside JSON.\n");
-            sb.Append("\nLINKING RULES:\n");
-            sb.Append("- Every keyTheme you output MUST have at least one matching task in suggestedActivities that addresses it.\n");
-            sb.Append("- If you list 9 themes or obligations, you must return at least 9 actionable tasks (one per theme, plus extra tasks if a theme implies multiple steps).\n");
-            sb.Append("- Do not output more themes than tasks. Tasks and themes must correspond 1:1 or 1:many (never fewer tasks than themes).\n");
-            sb.Append("\n[/INST]");
+            sb.Append("Return ONLY a JSON array of task objects:\n");
+            sb.Append("[\n");
+            sb.Append("  {\n");
+            sb.Append("    \"task\": \"short actionable step\",\n");
+            sb.Append("    \"frequency\": \"once | daily | weekly | bi-weekly | monthly | weekdays\",\n");
+            sb.Append("    \"duration\": \"10 minutes | 20 minutes | 30 minutes | 1 hour\",\n");
+            sb.Append("    \"notes\": \"short explanation tied to themes\",\n");
+            sb.Append("    \"priority\": \"High | Medium | Low\",\n");
+            sb.Append("    \"suggestedTime\": \"Morning | Afternoon | Evening | specific time\"\n");
+            sb.Append("  }\n");
+            sb.Append("]\n\n");
+
+            sb.Append("RULES:\n");
+            sb.Append("- Generate at least one task per theme.\n");
+            sb.Append("- Use ONLY information provided. No hallucinations.\n");
+            sb.Append("- Keep tasks practical and actionable.\n");
+            if (forceMinimumActivities)
+                sb.Append("- Return AT LEAST 12 tasks total.\n");
+            sb.Append("\nReturn ONLY the JSON array. No commentary. [/INST]");
 
             return sb.ToString();
         }
 
+        // Legacy method kept for backward compatibility (can be removed later)
+        public static string BuildTaskSuggestionsPrompt(
+    string summary,
+    List<string> emotions,
+    List<string> topics,
+    WellnessSummary wellness,
+    BrainDumpRequest request,
+    string? userName = null,
+    bool forceMinimumActivities = false)
+        {
+            // This is now a wrapper that calls the multi-prompt approach
+            // For backward compatibility, we'll extract themes first, then build the full response
+            // But ideally, callers should use the new multi-prompt methods directly
+            var themes = new List<string> { "General", "Wellness", "Personal" }; // Fallback themes
+            return BuildTaskSuggestionsPrompt(summary, emotions, topics, themes, wellness, request, forceMinimumActivities);
+        }
 
+
+
+        // Parser for Step 1: Extract Themes
+        public static List<string> ParseThemesResponse(string aiResponse, ILogger? logger = null)
+        {
+            try
+            {
+                var extractedText = ExtractTextFromRunPodResponse(aiResponse, logger);
+                var cleanText = CleanJsonText(extractedText, logger);
+                
+                var themes = JsonSerializer.Deserialize<List<string>>(cleanText, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+                
+                return themes ?? new List<string>();
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "Failed to parse themes response");
+                return new List<string> { "General", "Wellness", "Personal" };
+            }
+        }
+
+        // Parser for Step 2: User Profile
+        public static UserProfileSummary ParseUserProfileResponse(string aiResponse, ILogger? logger = null)
+        {
+            try
+            {
+                var extractedText = ExtractTextFromRunPodResponse(aiResponse, logger);
+                var cleanText = CleanJsonText(extractedText, logger);
+                
+                var profile = JsonSerializer.Deserialize<UserProfileSummary>(cleanText, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+                
+                return profile ?? new UserProfileSummary { Name = "User", CurrentState = "Processing", Emoji = "🤔" };
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "Failed to parse user profile response");
+                return new UserProfileSummary { Name = "User", CurrentState = "Processing", Emoji = "🤔" };
+            }
+        }
+
+        // Parser for Step 3: AI Summary
+        public static string ParseAiSummaryResponse(string aiResponse, ILogger? logger = null)
+        {
+            try
+            {
+                var extractedText = ExtractTextFromRunPodResponse(aiResponse, logger);
+                var cleanText = extractedText.Trim();
+                
+                // Remove any markdown or code blocks
+                if (cleanText.StartsWith("```"))
+                {
+                    var lines = cleanText.Split('\n');
+                    cleanText = string.Join("\n", lines.Skip(1).Take(lines.Length - 2));
+                }
+                
+                // Remove quotes if present
+                if (cleanText.StartsWith("\"") && cleanText.EndsWith("\""))
+                    cleanText = cleanText.Substring(1, cleanText.Length - 2);
+                
+                return cleanText.Trim();
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "Failed to parse AI summary response");
+                return "Your brain dump has been processed and personalized insights have been generated.";
+            }
+        }
+
+        // Parser for Step 4: Task Suggestions
+        public static List<TaskSuggestion> ParseTaskSuggestionsResponse(string aiResponse, ILogger? logger = null)
+        {
+            try
+            {
+                var extractedText = ExtractTextFromRunPodResponse(aiResponse, logger);
+                var cleanText = CleanJsonText(extractedText, logger);
+                
+                var tasks = JsonSerializer.Deserialize<List<TaskSuggestion>>(cleanText, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+                
+                return tasks ?? new List<TaskSuggestion>();
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "Failed to parse task suggestions response");
+                return new List<TaskSuggestion>();
+            }
+        }
+
+        // Helper method to extract text from RunPod response
+        private static string ExtractTextFromRunPodResponse(string aiResponse, ILogger? logger = null)
+        {
+            try
+            {
+                var runpod = JsonSerializer.Deserialize<RunpodResponse>(aiResponse, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+                
+                if (runpod?.Output?.Count > 0)
+                {
+                    var tokens = runpod.Output
+                        .SelectMany(o => o.Choices ?? new())
+                        .SelectMany(c => c.Tokens ?? new())
+                        .ToList();
+                    
+                    if (tokens.Count > 0)
+                        return string.Join(string.Empty, tokens);
+                }
+            }
+            catch
+            {
+                // If parsing fails, return original response
+            }
+            
+            return aiResponse;
+        }
+
+        // Helper method to clean JSON text
+        private static string CleanJsonText(string text, ILogger? logger = null)
+        {
+            var cleanText = text.Trim();
+            
+            // Remove markdown code blocks
+            if (cleanText.StartsWith("```json"))
+                cleanText = cleanText.Substring(7);
+            if (cleanText.StartsWith("```"))
+                cleanText = cleanText.Substring(3);
+            if (cleanText.EndsWith("```"))
+                cleanText = cleanText.Substring(0, cleanText.Length - 3);
+            
+            cleanText = cleanText.Trim();
+            
+            // Extract JSON object/array if wrapped in text
+            if (cleanText.Contains('[') && cleanText.Contains(']'))
+            {
+                var first = cleanText.IndexOf('[');
+                var last = cleanText.LastIndexOf(']');
+                if (first >= 0 && last > first)
+                    cleanText = cleanText.Substring(first, last - first + 1);
+            }
+            else if (cleanText.Contains('{') && cleanText.Contains('}'))
+            {
+                var first = cleanText.IndexOf('{');
+                var last = cleanText.LastIndexOf('}');
+                if (first >= 0 && last > first)
+                    cleanText = cleanText.Substring(first, last - first + 1);
+            }
+            
+            // Try to repair JSON
+            try
+            {
+                cleanText = RepairJson(cleanText);
+            }
+            catch
+            {
+                // If repair fails, use original
+            }
+            
+            return cleanText;
+        }
 
         public static BrainDumpResponse? ParseBrainDumpResponse(string aiResponse, ILogger? logger = null)
 		{

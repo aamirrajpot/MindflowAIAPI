@@ -50,12 +50,15 @@ namespace Mindflow_Web_API.Services
 			var userName = GetUserDisplayName(userProfile);
 			
 			// Extract tags using LLM
-			var extractedTags = await ExtractTagsFromTextAsync(request.Text ?? string.Empty);
-			
-			var prompt = BrainDumpPromptBuilder.BuildTaskSuggestionsPrompt(request, wellnessData, userName);
+            var emotions = await ExtractEmotionsAsync(request.Text);
+            var topics = await ExtractTopicsAsync(request.Text);
+            var summary = await SummarizeMindDumpAsync(request.Text);
 
-			// Create entry
-			var entry = new BrainDumpEntry
+            // ⚠️ WellnessData is huge — reduce it first
+            var wellnessSummary = WellnessReducer.Reduce(wellnessData);
+
+            // Create entry
+            var entry = new BrainDumpEntry
 			{
 				UserId = userId,
 				Text = request.Text ?? string.Empty,
@@ -68,42 +71,86 @@ namespace Mindflow_Web_API.Services
 				// Journal-specific fields
 				Title = GenerateDefaultTitle(request.Text ?? string.Empty),
 				WordCount = CalculateWordCount(request.Text ?? string.Empty),
-				Tags = extractedTags,
+				Tags = string.Join(", ", topics),
 				IsFavorite = false,
 				Source = BrainDumpSource.Web // Brain dump comes from web/mobile app
 			};
 			_db.BrainDumpEntries.Add(entry);
 			await _db.SaveChangesAsync();
 
+			// Multi-prompt approach: Execute steps sequentially
+			_logger.LogInformation("Starting multi-prompt approach for brain dump entry {EntryId}", entry.Id);
+			
+			// Step 1: Extract Key Themes
+			_logger.LogDebug("Step 1: Extracting key themes");
+			var themesPrompt = BrainDumpPromptBuilder.BuildExtractThemesPrompt(summary, emotions, topics);
+			var themesResponse = await _runPodService.SendPromptAsync(themesPrompt, 200, temperature);
+			var themes = BrainDumpPromptBuilder.ParseThemesResponse(themesResponse, _logger);
+			if (themes.Count == 0)
+			{
+				_logger.LogWarning("No themes extracted, using fallback themes");
+				themes = new List<string> { "General", "Wellness", "Personal" };
+			}
+			_logger.LogDebug("Extracted {Count} themes: {Themes}", themes.Count, string.Join(", ", themes));
+
+			// Step 2: Generate User Profile
+			_logger.LogDebug("Step 2: Generating user profile");
+			var profilePrompt = BrainDumpPromptBuilder.BuildUserProfilePrompt(summary, emotions, userName);
+			var profileResponse = await _runPodService.SendPromptAsync(profilePrompt, 150, temperature);
+			var userProfileSummary = BrainDumpPromptBuilder.ParseUserProfileResponse(profileResponse, _logger);
+			_logger.LogDebug("Generated user profile: {State}, {Emoji}", userProfileSummary.CurrentState, userProfileSummary.Emoji);
+
+			// Step 3: Generate AI Summary
+			_logger.LogDebug("Step 3: Generating AI summary");
+			var summaryPrompt = BrainDumpPromptBuilder.BuildAiSummaryPrompt(summary, emotions, themes);
+			var summaryResponse = await _runPodService.SendPromptAsync(summaryPrompt, 200, temperature);
+			var aiSummary = BrainDumpPromptBuilder.ParseAiSummaryResponse(summaryResponse, _logger);
+			_logger.LogDebug("Generated AI summary: {Summary}", aiSummary.Substring(0, Math.Min(100, aiSummary.Length)));
+
+			// Step 4: Generate Task Suggestions (with retry logic)
+			_logger.LogDebug("Step 4: Generating task suggestions");
 			BrainDumpResponse? brainDumpResponse = null;
-			string response = string.Empty;
 			int attempt = 0;
-			int maxAttempts = 3; // initial + 2 retries
+			int maxAttempts = 3;
 			double currentTemperature = temperature;
 			bool forceMinimumActivities = false;
+			List<TaskSuggestion> suggestedActivities = new();
+
 			while (attempt < maxAttempts)
 			{
-				response = await _runPodService.SendPromptAsync(prompt, maxTokens, currentTemperature);
-				brainDumpResponse = BrainDumpPromptBuilder.ParseBrainDumpResponse(response, _logger);
+				var tasksPrompt = BrainDumpPromptBuilder.BuildTaskSuggestionsPrompt(
+					summary,
+					emotions,
+					topics,
+					themes,
+					wellnessSummary,
+					request,
+					forceMinimumActivities
+				);
 				
-				var hasActivities = brainDumpResponse != null && brainDumpResponse.SuggestedActivities != null && brainDumpResponse.SuggestedActivities.Count > 0;
-				if (brainDumpResponse != null && hasActivities)
+				var tasksResponse = await _runPodService.SendPromptAsync(tasksPrompt, maxTokens, currentTemperature);
+				suggestedActivities = BrainDumpPromptBuilder.ParseTaskSuggestionsResponse(tasksResponse, _logger);
+				
+				if (suggestedActivities != null && suggestedActivities.Count > 0)
 				{
+					_logger.LogDebug("Successfully generated {Count} task suggestions", suggestedActivities.Count);
 					break; // success
 				}
 
 				attempt++;
-				_logger.LogWarning("BrainDump suggestions empty (attempt {Attempt}/{Max}). Retrying with stricter prompt.", attempt, maxAttempts);
-				// Tighten prompt and reduce temperature for determinism
+				_logger.LogWarning("Task suggestions empty (attempt {Attempt}/{Max}). Retrying with stricter settings.", attempt, maxAttempts);
 				forceMinimumActivities = true;
 				currentTemperature = Math.Max(0.2, currentTemperature - 0.2);
-				prompt = BrainDumpPromptBuilder.BuildTaskSuggestionsPrompt(request, wellnessData, userName, forceMinimumActivities);
 			}
 
-			if (brainDumpResponse == null)
+			// Build the response object
+			brainDumpResponse = new BrainDumpResponse
 			{
-				throw new InvalidOperationException("Failed to parse AI response");
-			}
+				UserProfile = userProfileSummary,
+				KeyThemes = themes,
+				AiSummary = aiSummary,
+				SuggestedActivities = suggestedActivities ?? new List<TaskSuggestion>()
+			};
 
 			// If still no activities after retries, synthesize a minimal fallback list
 			if (brainDumpResponse.SuggestedActivities == null || brainDumpResponse.SuggestedActivities.Count == 0)
@@ -157,7 +204,7 @@ namespace Mindflow_Web_API.Services
 			_logger.LogDebug("Gathering progress metrics and emotion trends for user {UserId}. Current entry text length: {TextLength}", 
 				userId, entry.Text?.Length ?? 0);
 			var progressMetrics = await CalculateProgressMetricsAsync(userId);
-			var emotionTrends = await AnalyzeEmotionTrendsAsync(userId, entry); // Pass current entry for fallback
+			var emotionTrends = await AnalyzeEmotionTrendsAsync(userId, entry, emotions); // Pass current entry and extracted emotions
 			var insights = GenerateInsights(progressMetrics, emotionTrends, entry); // Pass current entry for fallback
 			var patterns = GeneratePatterns(emotionTrends);
 			
@@ -1879,34 +1926,67 @@ namespace Mindflow_Web_API.Services
 			return words.Length;
 		}
 
-		private async Task<string> ExtractTagsFromTextAsync(string text)
-		{
-			if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+        private async Task<List<string>> ExtractEmotionsAsync(string text)
+        {
+			var prompt = $@"
+				[INST]
+				Extract the top 3 emotions from the user's text.
+				Return ONLY a JSON array of emotion words.
 
-			try
-			{
-				// Use LLM for intelligent tag extraction
-				var prompt = BrainDumpPromptBuilder.BuildTagExtractionPrompt(text);
-				var response = await _runPodService.SendPromptAsync(prompt, 200, 0.3); // Lower temperature for more consistent results
-				
-				var extractedTags = BrainDumpPromptBuilder.ParseTagExtractionResponse(response, _logger);
-				
-				// Fallback to simple keyword extraction if LLM fails
-				if (string.IsNullOrWhiteSpace(extractedTags))
-				{
-					return ExtractTagsFromTextFallback(text);
-				}
-				
-				return extractedTags;
-			}
-			catch (Exception ex)
-			{
-				_logger.LogWarning(ex, "Failed to extract tags using LLM, falling back to keyword extraction");
-				return ExtractTagsFromTextFallback(text);
-			}
-		}
+				Text:
+				{text}
+				[/INST]";
 
-		private static string ExtractTagsFromTextFallback(string text)
+            var response = await _runPodService.SendPromptAsync(prompt, 200, 0.2);
+
+            try
+            {
+                return JsonSerializer.Deserialize<List<string>>(response) ?? new List<string>();
+            }
+            catch
+            {
+                return new List<string>();
+            }
+        }
+        private async Task<string> SummarizeMindDumpAsync(string text)
+        {
+            var prompt = $@"
+			[INST]
+			Summarize the user's brain dump in 3–4 clear sentences.
+			Do not add advice. Preserve all actionable themes.
+
+			Text:
+			{text}
+			[/INST]";
+
+            return await _runPodService.SendPromptAsync(prompt, 300, 0.3);
+        }
+        private async Task<List<string>> ExtractTopicsAsync(string text)
+        {
+            var prompt = $@"
+				[INST]
+				Extract all major topics from the text.
+				Topics should be simple words like: moving, work, kids, health, chores, relationships, school.
+
+				Return ONLY a JSON array.
+
+				Text:
+				{text}
+				[/INST]";
+
+            var response = await _runPodService.SendPromptAsync(prompt, 200, 0.2);
+
+            try
+            {
+                return JsonSerializer.Deserialize<List<string>>(response) ?? new();
+            }
+            catch
+            {
+                return new();
+            }
+        }
+
+        private static string ExtractTagsFromTextFallback(string text)
 		{
 			if (string.IsNullOrWhiteSpace(text)) return string.Empty;
 
@@ -2045,140 +2125,133 @@ namespace Mindflow_Web_API.Services
 			}
 		}
 
-		private async Task<EmotionTrendsDto?> AnalyzeEmotionTrendsAsync(Guid userId, BrainDumpEntry? currentEntry = null)
-		{
-			try
-			{
-				_logger.LogDebug("Analyzing emotion trends for user {UserId}", userId);
-				
-				var now = DateTime.UtcNow;
-				// Calculate start of this week (Sunday = 0)
-				var daysSinceSunday = (int)now.DayOfWeek;
-				var thisWeekStart = now.Date.AddDays(-daysSinceSunday);
+        private async Task<EmotionTrendsDto?> AnalyzeEmotionTrendsAsync(
+        Guid userId,
+        BrainDumpEntry? currentEntry,
+        List<string> extractedEmotions)
+        {
+            try
+            {
+                _logger.LogDebug("Analyzing emotion trends for user {UserId}", userId);
 
-				// Get brain dump entries for this week
-				var entries = await _db.BrainDumpEntries
-					.Where(e => e.UserId == userId 
-						&& e.CreatedAtUtc >= thisWeekStart 
-						&& e.DeletedAtUtc == null)
-					.ToListAsync();
-				
-				_logger.LogDebug("Found {Count} brain dump entries this week for user {UserId}. ThisWeekStart: {ThisWeekStart}", 
-					entries.Count, userId, thisWeekStart);
-				
-				// Always include current entry if provided (it might not be saved yet or might be today's entry)
-				if (currentEntry != null)
-				{
-					// Check if current entry is already in the list
-					if (!entries.Any(e => e.Id == currentEntry.Id))
-					{
-						_logger.LogDebug("Adding current entry to analysis (not yet in database or created today)");
-						entries.Add(currentEntry);
-					}
-					else
-					{
-						_logger.LogDebug("Current entry already included in this week's entries");
-					}
-				}
-				
-				if (entries.Count == 0)
-				{
-					_logger.LogWarning("No brain dump entries found for user {UserId} - cannot analyze emotion trends", userId);
-					return new EmotionTrendsDto(
-						new Dictionary<string, int>(),
-						new List<string>(),
-						new List<string>()
-					);
-				}
+                var now = DateTime.UtcNow;
+                var daysSinceSunday = (int)now.DayOfWeek;
+                var thisWeekStart = now.Date.AddDays(-daysSinceSunday);
 
-				// Common emotion keywords to track
-				var emotionKeywords = new[] { 
-					"anxious", "anxiety", "worried", "worry", "stressed", "stress", "overwhelmed", "overwhelm",
-					"exhausted", "exhaustion", "tired", "fatigue", "burnout", "burned out",
-					"grateful", "gratitude", "thankful", "appreciate", "happy", "happiness", "joy", "joyful",
-					"sad", "sadness", "depressed", "depression", "down", "low",
-					"calm", "peaceful", "relaxed", "content", "satisfied",
-					"frustrated", "frustration", "angry", "anger", "irritated", "irritation"
-				};
+                var entries = await _db.BrainDumpEntries
+                    .Where(e => e.UserId == userId
+                        && e.CreatedAtUtc >= thisWeekStart
+                        && e.DeletedAtUtc == null)
+                    .ToListAsync();
 
-				var emotionFrequency = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-				
-				// Count emotion keywords in brain dump text
-				foreach (var entry in entries)
-				{
-					var text = $"{entry.Text} {entry.Context}".ToLower();
-					_logger.LogDebug("Analyzing entry {EntryId} with text length {TextLength}", entry.Id, text.Length);
-					
-					foreach (var keyword in emotionKeywords)
-					{
-						var count = CountOccurrences(text, keyword);
-						if (count > 0)
-						{
-							emotionFrequency[keyword] = emotionFrequency.GetValueOrDefault(keyword, 0) + count;
-							_logger.LogDebug("Found keyword '{Keyword}' {Count} times in entry {EntryId}", keyword, count, entry.Id);
-						}
-					}
-				}
-				
-				_logger.LogDebug("Total emotion frequency count: {Count} unique emotions found", emotionFrequency.Count);
+                if (currentEntry != null && !entries.Any(e => e.Id == currentEntry.Id))
+                {
+                    entries.Add(currentEntry);
+                }
 
-				// Get top 3 emotions
-				var topEmotions = emotionFrequency
-					.OrderByDescending(kvp => kvp.Value)
-					.Take(3)
-					.Select(kvp => kvp.Key)
-					.ToList();
+                if (entries.Count == 0)
+                {
+                    return new EmotionTrendsDto(
+                        new Dictionary<string, int>(),
+                        extractedEmotions,
+                        new List<string>()
+                    );
+                }
 
-				// Generate emotion insights (lower threshold for new users)
-				var emotionInsights = new List<string>();
-				if (topEmotions.Any())
-				{
-					foreach (var emotion in topEmotions)
-					{
-						var count = emotionFrequency[emotion];
-						_logger.LogDebug("Processing emotion '{Emotion}' with count {Count}", emotion, count);
-						
-						// Lower threshold: show if mentioned 2+ times (or 1+ if only one entry)
-						if (count >= 2 || (entries.Count == 1 && count >= 1))
-						{
-							if (entries.Count == 1)
-							{
-								emotionInsights.Add($"You mentioned '{emotion}' in your brain dump");
-							}
-							else
-							{
-								emotionInsights.Add($"You've mentioned '{emotion}' {count} times this week");
-							}
-						}
-					}
-				}
-				else
-				{
-					_logger.LogDebug("No top emotions found - emotionFrequency is empty or all counts are 0");
-				}
+                // ------------------------------------------------------
+                // ⭐ 1. Start with current extractedEmotions (highest confidence)
+                // ------------------------------------------------------
+                var emotionFrequency = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
-				_logger.LogDebug("Analyzed emotion trends for user {UserId}. TopEmotions: {TopEmotions}, TotalEmotions: {TotalEmotions}", 
-					userId, string.Join(", ", topEmotions), emotionFrequency.Count);
+                foreach (var emotion in extractedEmotions)
+                {
+                    emotionFrequency[emotion] = emotionFrequency.GetValueOrDefault(emotion, 0) + 1;
+                }
 
-				return new EmotionTrendsDto(
-					emotionFrequency,
-					topEmotions,
-					emotionInsights
-				);
-			}
-			catch (Exception ex)
-			{
-				_logger.LogWarning(ex, "Failed to analyze emotion trends for user {UserId}", userId);
-				// Return default emotion trends instead of null
-				return new EmotionTrendsDto(
-					new Dictionary<string, int>(),
-					new List<string>(),
-					new List<string>()
-				);
-			}
-		}
+                // ------------------------------------------------------
+                // ⭐ 2. Add historical extracted emotions from stored entries
+                // Note: Emotions are not stored directly in BrainDumpEntry.
+                // Historical emotion analysis would require re-extracting from text or storing separately.
+                // For now, we rely on the current extractedEmotions and keyword scanning below.
+                // ------------------------------------------------------
+                // TODO: If historical emotion storage is needed, consider adding an Emotions property to BrainDumpEntry
+                // or extracting emotions from Tags if they contain emotion keywords
 
-		private int CountOccurrences(string text, string keyword)
+                // ------------------------------------------------------
+                // ⭐ 3. Fallback: keyword scan only if no emotions found
+                // ------------------------------------------------------
+                if (emotionFrequency.Count == 0)
+                {
+                    _logger.LogDebug("No extracted emotions found, falling back to keyword scanning.");
+
+                    var keywords = new[]
+                    {
+                "anxious","anxiety","worried","worry","stressed","stress","overwhelmed","overwhelm",
+                "exhausted","exhaustion","tired","fatigue","burnout","burned out",
+                "grateful","gratitude","thankful","appreciate","happy","happiness","joy","joyful",
+                "sad","sadness","depressed","depression","down","low",
+                "calm","peaceful","relaxed","content","satisfied",
+                "frustrated","frustration","angry","anger","irritated","irritation"
+            };
+
+                    foreach (var entry in entries)
+                    {
+                        var text = $"{entry.Text} {entry.Context}".ToLower();
+
+                        foreach (var keyword in keywords)
+                        {
+                            var count = CountOccurrences(text, keyword);
+                            if (count > 0)
+                            {
+                                emotionFrequency[keyword] = emotionFrequency.GetValueOrDefault(keyword, 0) + count;
+                            }
+                        }
+                    }
+                }
+
+                // ------------------------------------------------------
+                // ⭐ 4. Determine top emotions
+                // ------------------------------------------------------
+                var topEmotions = emotionFrequency
+                    .OrderByDescending(kvp => kvp.Value)
+                    .Take(3)
+                    .Select(kvp => kvp.Key)
+                    .ToList();
+
+                // ------------------------------------------------------
+                // ⭐ 5. Build insights
+                // ------------------------------------------------------
+                var emotionInsights = new List<string>();
+
+                foreach (var emotion in topEmotions)
+                {
+                    var count = emotionFrequency[emotion];
+
+                    if (entries.Count == 1)
+                        emotionInsights.Add($"You mentioned feeling '{emotion}' today.");
+                    else
+                        emotionInsights.Add($"You've experienced '{emotion}' {count} times this week.");
+                }
+
+                return new EmotionTrendsDto(
+                    emotionFrequency,
+                    topEmotions,
+                    emotionInsights
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to analyze emotion trends for user {UserId}", userId);
+
+                return new EmotionTrendsDto(
+                    new Dictionary<string, int>(),
+                    new List<string>(),
+                    new List<string>()
+                );
+            }
+        }
+
+        private int CountOccurrences(string text, string keyword)
 		{
 			if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(keyword))
 				return 0;
@@ -2420,7 +2493,22 @@ namespace Mindflow_Web_API.Services
 					0.0, 0, 0, 0.0, 0.0, 0.0, 0.0, 
 					"Start tracking your wellness to see progress metrics here!"
 				);
-				var emotionTrends = await AnalyzeEmotionTrendsAsync(userId, currentEntry) ?? new EmotionTrendsDto(
+				
+				// Extract emotions from current entry if available, otherwise use empty list
+				List<string> extractedEmotions = new();
+				if (currentEntry != null && !string.IsNullOrWhiteSpace(currentEntry.Text))
+				{
+					try
+					{
+						extractedEmotions = await ExtractEmotionsAsync(currentEntry.Text);
+					}
+					catch (Exception ex)
+					{
+						_logger.LogWarning(ex, "Failed to extract emotions from current entry for analytics");
+					}
+				}
+				
+				var emotionTrends = await AnalyzeEmotionTrendsAsync(userId, currentEntry, extractedEmotions) ?? new EmotionTrendsDto(
 					new Dictionary<string, int>(),
 					new List<string>(),
 					new List<string>()

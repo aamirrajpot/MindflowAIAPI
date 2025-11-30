@@ -82,8 +82,14 @@ namespace Mindflow_Web_API.DTOs
 		[JsonPropertyName("brainDumpEntryId")]
 		public Guid BrainDumpEntryId { get; set; } // ID of the brain dump entry (for linking tasks back to this dump)
 	}
-
-	public class UserProfileSummary
+    public class WellnessSummary
+    {
+        public string? MoodLevel { get; set; }
+        public List<string> FocusAreas { get; set; } = new();
+        public List<string> PreferredTimeBlocks { get; set; } = new();  // morning, afternoon, evening
+        public Dictionary<string, object> KeyResponses { get; set; } = new(); // from Questions
+    }
+    public class UserProfileSummary
 	{
 		[JsonPropertyName("name")]
 		public string Name { get; set; } = string.Empty;
