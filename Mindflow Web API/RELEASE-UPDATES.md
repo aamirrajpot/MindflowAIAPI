@@ -13,6 +13,62 @@ This document tracks all updates, improvements, and new features for the Mindflo
 
 ---
 
+## [2024-01-15] - Task Extraction Improvements
+
+### ✨ Enhanced Task Extraction
+
+#### Specific Task Extraction
+- **Context-Aware Extraction**: System now extracts SPECIFIC tasks with full context from the original brain dump text
+- **Prioritized Extraction**: Explicitly mentioned tasks are prioritized over inferred generic suggestions
+- **Detailed Context Preservation**: Names, places, specific items, and deadlines are preserved in task descriptions
+
+### 🔧 Improvements
+
+#### Task Specificity
+- **Before**: Generic tasks like "organize belongings" or "Call doctor"
+- **After**: Specific tasks like "Pack kitchen items into labeled boxes" or "Call Dr. Smith about test results"
+
+#### Task Breakdown
+- **Complex Task Splitting**: Automatically breaks complex task mentions into separate, specific tasks
+- **Example**: "I need to clean the garage and organize my office" becomes:
+  - "Clean garage and sort items into keep/donate/trash"
+  - "Organize office desk and file important documents"
+
+#### Extraction Priority
+1. **First Priority**: Extract SPECIFIC tasks explicitly mentioned in original text with full context
+2. **Second Priority**: Break complex task mentions into separate, specific tasks
+3. **Third Priority**: Only if no explicit tasks found, infer actionable tasks from themes/emotions (still specific)
+
+### 📋 Example Improvements
+
+**Original Text:**
+> "I need to call Dr. Smith about my test results from last week, and also email Sarah about the project deadline on Friday. Plus I should pack my kitchen items into labeled boxes for the move."
+
+**Before (Generic):**
+- "Call doctor"
+- "Send email"
+- "Organize belongings"
+
+**After (Specific):**
+- "Call Dr. Smith about test results from last week"
+- "Email Sarah about the project deadline on Friday"
+- "Pack kitchen items into labeled boxes for the move"
+
+### 🎯 Impact
+
+**User Experience:**
+- ✅ Tasks are immediately actionable with full context
+- ✅ No need to remember or look up details (names, dates, specific items)
+- ✅ Tasks feel personalized and relevant to what the user actually wrote
+- ✅ Complex task mentions are automatically broken into manageable steps
+
+**Technical:**
+- ✅ Enhanced prompt includes original text for deep context analysis
+- ✅ Priority-based extraction rules ensure specificity
+- ✅ Backward compatible with existing task generation flow
+
+---
+
 ## [2024-01-15] - Emotional Intelligence Layer Implementation
 
 ### ✨ New Features
