@@ -151,6 +151,33 @@ namespace Mindflow_Web_API.Services
 				
 				var tasksResponse = await _runPodService.SendPromptAsync(tasksPrompt, maxTokens, currentTemperature);
 				suggestedActivities = BrainDumpPromptBuilder.ParseTaskSuggestionsResponse(tasksResponse, _logger);
+
+				// Post-process prioritization scores if missing or inconsistent
+				if (suggestedActivities != null && suggestedActivities.Count > 0)
+				{
+					foreach (var t in suggestedActivities)
+					{
+						// Normalize urgency/importance casing
+						if (!string.IsNullOrWhiteSpace(t.Urgency))
+							t.Urgency = NormalizePriorityLevel(t.Urgency);
+						if (!string.IsNullOrWhiteSpace(t.Importance))
+							t.Importance = NormalizePriorityLevel(t.Importance);
+
+						// Compute priority score if not provided or out of range
+						if (!t.PriorityScore.HasValue || t.PriorityScore < 1 || t.PriorityScore > 10)
+						{
+							var urgencyScore = MapLevelToScore(t.Urgency);
+							var importanceScore = MapLevelToScore(t.Importance);
+							// Heavier weight on importance
+							t.PriorityScore = Math.Clamp(importanceScore * 2 + urgencyScore, 1, 10);
+						}
+					}
+
+					// Sort tasks by priority score (highest first)
+					suggestedActivities = suggestedActivities
+						.OrderByDescending(t => t.PriorityScore ?? 0)
+						.ToList();
+				}
 				
 				if (suggestedActivities != null && suggestedActivities.Count > 0)
 				{
@@ -322,28 +349,94 @@ namespace Mindflow_Web_API.Services
 			// Basic heuristics to generate 4 concise tasks
 			if (text.Contains("anxiety") || text.Contains("stress") || text.Contains("overwhelm"))
 			{
-				list.Add(new TaskSuggestion { Task = "Do a 5-minute deep breathing session", Frequency = "Once today", Duration = "5 minutes", Notes = "Helps lower cortisol and reset focus", Priority = "High", SuggestedTime = "Afternoon" });
+				list.Add(new TaskSuggestion
+				{
+					Task = "Do a 5-minute deep breathing session",
+					Frequency = "Once today",
+					Duration = "5 minutes",
+					Notes = "Helps lower cortisol and reset focus",
+					Priority = "High",
+					SuggestedTime = "Afternoon",
+					Urgency = "High",
+					Importance = "High",
+					PriorityScore = 9
+				});
 			}
 			if (text.Contains("sleep"))
 			{
-				list.Add(new TaskSuggestion { Task = "Prepare a simple wind-down routine", Frequency = "Tonight", Duration = "10 minutes", Notes = "Light stretch, no screens for 30 minutes", Priority = "Medium", SuggestedTime = "Evening" });
+				list.Add(new TaskSuggestion
+				{
+					Task = "Prepare a simple wind-down routine",
+					Frequency = "Tonight",
+					Duration = "10 minutes",
+					Notes = "Light stretch, no screens for 30 minutes",
+					Priority = "Medium",
+					SuggestedTime = "Evening",
+					Urgency = "Medium",
+					Importance = "High",
+					PriorityScore = 7
+				});
 			}
 			if (text.Contains("email") || text.Contains("inbox") || text.Contains("admin"))
 			{
-				list.Add(new TaskSuggestion { Task = "Clear your top 5 emails", Frequency = "Once today", Duration = "15 minutes", Notes = "Reply or archive; schedule longer replies", Priority = "Medium", SuggestedTime = "Morning" });
+				list.Add(new TaskSuggestion
+				{
+					Task = "Clear your top 5 emails",
+					Frequency = "Once today",
+					Duration = "15 minutes",
+					Notes = "Reply or archive; schedule longer replies",
+					Priority = "Medium",
+					SuggestedTime = "Morning",
+					Urgency = "Medium",
+					Importance = "Medium",
+					PriorityScore = 5
+				});
 			}
 			if (text.Contains("call") || text.Contains("doctor") || text.Contains("appointment"))
 			{
-				list.Add(new TaskSuggestion { Task = "Schedule the pending appointment", Frequency = "Once today", Duration = "10 minutes", Notes = "Pick a date within 2 weeks", Priority = "High", SuggestedTime = "Morning" });
+				list.Add(new TaskSuggestion
+				{
+					Task = "Schedule the pending appointment",
+					Frequency = "Once today",
+					Duration = "10 minutes",
+					Notes = "Pick a date within 2 weeks",
+					Priority = "High",
+					SuggestedTime = "Morning",
+					Urgency = "High",
+					Importance = "High",
+					PriorityScore = 9
+				});
 			}
 			// Always include two general-purpose wellness tasks if list is short
 			if (list.Count < 4)
 			{
-				list.Add(new TaskSuggestion { Task = "Take a 10-minute walk", Frequency = "Once today", Duration = "10 minutes", Notes = "Gentle movement boosts mood and clarity", Priority = "Medium", SuggestedTime = "Afternoon" });
+				list.Add(new TaskSuggestion
+				{
+					Task = "Take a 10-minute walk",
+					Frequency = "Once today",
+					Duration = "10 minutes",
+					Notes = "Gentle movement boosts mood and clarity",
+					Priority = "Medium",
+					SuggestedTime = "Afternoon",
+					Urgency = "Low",
+					Importance = "Medium",
+					PriorityScore = 3
+				});
 			}
 			if (list.Count < 4)
 			{
-				list.Add(new TaskSuggestion { Task = "Write 3 lines of reflection", Frequency = "Once today", Duration = "5 minutes", Notes = "Capture one worry and one win", Priority = "Low", SuggestedTime = "Evening" });
+				list.Add(new TaskSuggestion
+				{
+					Task = "Write 3 lines of reflection",
+					Frequency = "Once today",
+					Duration = "5 minutes",
+					Notes = "Capture one worry and one win",
+					Priority = "Low",
+					SuggestedTime = "Evening",
+					Urgency = "Low",
+					Importance = "Low",
+					PriorityScore = 2
+				});
 			}
 			return list.Take(6).ToList();
 		}
@@ -634,7 +727,11 @@ namespace Mindflow_Web_API.Services
 				SourceBrainDumpEntryId = request.BrainDumpEntryId,
 				SourceTextExcerpt = sourceTextExcerpt,
 				LifeArea = lifeArea,
-				EmotionTag = emotionTag
+				EmotionTag = emotionTag,
+				// Prioritization (from AI suggestion, if provided)
+				Urgency = request.Urgency,
+				Importance = request.Importance,
+				PriorityScore = request.PriorityScore
 			};
 
 			_db.Tasks.Add(taskItem);
@@ -925,7 +1022,11 @@ namespace Mindflow_Web_API.Services
 					LifeArea = lifeArea,
 					EmotionTag = emotionTag,
 					// Micro-step breakdown
-					SubSteps = subStepsJson
+					SubSteps = subStepsJson,
+					// Prioritization (from AI suggestion)
+					Urgency = scheduledTask.Suggestion.Urgency,
+					Importance = scheduledTask.Suggestion.Importance,
+					PriorityScore = scheduledTask.Suggestion.PriorityScore
 				};
 
 				_db.Tasks.Add(taskItem);
@@ -2029,6 +2130,42 @@ namespace Mindflow_Web_API.Services
 			var words = text.Split(new char[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
 			return words.Length;
 		}
+
+        /// <summary>
+        /// Normalizes urgency/importance strings to \"Low\" | \"Medium\" | \"High\".
+        /// </summary>
+        private static string NormalizePriorityLevel(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return "Medium";
+
+            var v = value.Trim().ToLowerInvariant();
+            if (v.StartsWith("high")) return "High";
+            if (v.StartsWith("med")) return "Medium";
+            if (v.StartsWith("low")) return "Low";
+
+            // Fallback: map common variants
+            if (v.Contains("urgent")) return "High";
+            if (v.Contains("soon")) return "Medium";
+
+            return "Medium";
+        }
+
+        /// <summary>
+        /// Maps \"Low\" | \"Medium\" | \"High\" to numeric score 1, 3, 5.
+        /// </summary>
+        private static int MapLevelToScore(string? level)
+        {
+            switch (level)
+            {
+                case "High":
+                    return 5;
+                case "Low":
+                    return 1;
+                default:
+                    return 3;
+            }
+        }
 
         private async Task<List<string>> ExtractEmotionsAsync(string text)
         {

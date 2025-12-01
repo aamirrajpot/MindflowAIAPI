@@ -44,6 +44,11 @@ namespace Mindflow_Web_API.DTOs
 		
 		// Brain dump linking (Actionable Value feature)
 		public Guid? BrainDumpEntryId { get; set; } // Link to the brain dump entry that created this task
+
+		// Prioritization (optional) - passed through from AI suggestion
+		public string? Urgency { get; set; } // Low | Medium | High
+		public string? Importance { get; set; } // Low | Medium | High
+		public int? PriorityScore { get; set; } // 1-10 combined score
 	}
 
 	public class AddMultipleTasksRequest

@@ -45,7 +45,11 @@ namespace Mindflow_Web_API.Services
                 NextOccurrence = dto.NextOccurrence,
                 MaxOccurrences = dto.MaxOccurrences,
                 EndDate = dto.EndDate,
-                IsActive = dto.IsActive
+                IsActive = dto.IsActive,
+                // Prioritization (optional for manual tasks)
+                Urgency = dto.Urgency,
+                Importance = dto.Importance,
+                PriorityScore = dto.PriorityScore
             };
 
             await _dbContext.Tasks.AddAsync(task);
@@ -174,6 +178,10 @@ namespace Mindflow_Web_API.Services
             if (dto.MaxOccurrences.HasValue) task.MaxOccurrences = dto.MaxOccurrences.Value;
             if (dto.EndDate.HasValue) task.EndDate = dto.EndDate.Value;
             if (dto.IsActive.HasValue) task.IsActive = dto.IsActive.Value;
+            // Prioritization
+            if (dto.Urgency != null) task.Urgency = dto.Urgency;
+            if (dto.Importance != null) task.Importance = dto.Importance;
+            if (dto.PriorityScore.HasValue) task.PriorityScore = dto.PriorityScore.Value;
 
             await _dbContext.SaveChangesAsync();
             return ToDto(task);
@@ -237,7 +245,11 @@ namespace Mindflow_Web_API.Services
                 task.EndDate,
                 task.IsActive,
                 // Micro-step breakdown
-                subSteps
+                subSteps,
+                // Prioritization
+                task.Urgency,
+                task.Importance,
+                task.PriorityScore
             );
         }
 

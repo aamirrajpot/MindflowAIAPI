@@ -418,6 +418,16 @@ namespace Mindflow_Web_API.Utilities
         public string SuggestedTime { get; set; } = "";
         [JsonPropertyName("subSteps")]
         public List<string> SubSteps { get; set; } = new();
+
+        // New prioritization fields
+        [JsonPropertyName("urgency")]
+        public string? Urgency { get; set; } // Low | Medium | High
+
+        [JsonPropertyName("importance")]
+        public string? Importance { get; set; } // Low | Medium | High
+
+        [JsonPropertyName("priorityScore")]
+        public int? PriorityScore { get; set; } // 1-10 combined score
     }
 
     public class RunpodResponse

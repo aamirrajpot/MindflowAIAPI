@@ -19,7 +19,11 @@ namespace Mindflow_Web_API.DTOs
         DateTime? NextOccurrence = null,
         int? MaxOccurrences = null,
         DateTime? EndDate = null,
-        bool IsActive = true
+        bool IsActive = true,
+        // Prioritization (optional for manual tasks)
+        string? Urgency = null,
+        string? Importance = null,
+        int? PriorityScore = null
     );
 
     public record UpdateTaskItemDto(
@@ -40,7 +44,11 @@ namespace Mindflow_Web_API.DTOs
         DateTime? NextOccurrence = null,
         int? MaxOccurrences = null,
         DateTime? EndDate = null,
-        bool? IsActive = null
+        bool? IsActive = null,
+        // Prioritization (optional)
+        string? Urgency = null,
+        string? Importance = null,
+        int? PriorityScore = null
     );
 
     public record TaskItemDto(
@@ -66,7 +74,11 @@ namespace Mindflow_Web_API.DTOs
         DateTime? EndDate,
         bool IsActive,
         // Micro-step breakdown
-        List<string>? SubSteps = null // Sub-steps for complex tasks (parsed from JSON)
+        List<string>? SubSteps = null, // Sub-steps for complex tasks (parsed from JSON)
+        // Prioritization
+        string? Urgency = null,
+        string? Importance = null,
+        int? PriorityScore = null
     );
     public record StatusUpdateDto(Mindflow_Web_API.Models.TaskStatus Status);
 

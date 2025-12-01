@@ -387,13 +387,13 @@ namespace Mindflow_Web_API.Utilities
         // Multi-prompt approach: Step 4 - Generate Task Suggestions
         public static string BuildTaskSuggestionsPrompt(
             string originalText,
-    string summary,
-    List<string> emotions,
-    List<string> topics,
+            string summary,
+            List<string> emotions,
+            List<string> topics,
             List<string> themes,
-    WellnessSummary wellness,
-    BrainDumpRequest request,
-    bool forceMinimumActivities = false)
+            WellnessSummary wellness,
+            BrainDumpRequest request,
+            bool forceMinimumActivities = false)
         {
             var sb = new StringBuilder();
             sb.Append("[INST] ");
@@ -449,7 +449,10 @@ namespace Mindflow_Web_API.Utilities
             sb.Append("    \"duration\": \"10 minutes | 20 minutes | 30 minutes | 1 hour\",\n");
             sb.Append("    \"notes\": \"short explanation tied to themes\",\n");
             sb.Append("    \"priority\": \"High | Medium | Low\",\n");
-            sb.Append("    \"suggestedTime\": \"Morning | Afternoon | Evening | specific time\"\n");
+            sb.Append("    \"suggestedTime\": \"Morning | Afternoon | Evening | specific time\",\n");
+            sb.Append("    \"urgency\": \"Low | Medium | High\",\n");
+            sb.Append("    \"importance\": \"Low | Medium | High\",\n");
+            sb.Append("    \"priorityScore\": 1-10\n");
             sb.Append("  }\n");
             sb.Append("]\n\n");
 
@@ -468,6 +471,23 @@ namespace Mindflow_Web_API.Utilities
             sb.Append("4. ALWAYS: Include actionable details that make the task clear and executable.\n");
             sb.Append("   - Specify what, where, when, or who when mentioned in the text.\n");
             sb.Append("   - Make tasks concrete, not abstract.\n\n");
+
+            sb.Append("PRIORITIZATION RULES (URGENCY & IMPORTANCE):\n");
+            sb.Append("- Urgency = how time-sensitive the task is.\n");
+            sb.Append("  - HIGH: Has a deadline within a few days, is blocking something important, or user sounds very stressed about timing.\n");
+            sb.Append("  - MEDIUM: Should be done soon but not today; some time pressure.\n");
+            sb.Append("  - LOW: No clear deadline; can be done whenever.\n");
+            sb.Append("- Importance = how impactful the task is on the user's life, health, work, or relationships.\n");
+            sb.Append("  - HIGH: Affects health, job security, core relationships, or major life events (moving, finances, legal, medical).\n");
+            sb.Append("  - MEDIUM: Helpful for stability, progress, or well-being but not critical.\n");
+            sb.Append("  - LOW: Nice-to-have, optional, or minor convenience.\n");
+            sb.Append("- priorityScore: 1-10 where higher = more urgent AND more important.\n");
+            sb.Append("  - Example mapping:\n");
+            sb.Append("    - High urgency + High importance => 9-10\n");
+            sb.Append("    - High importance + Medium urgency => 7-8\n");
+            sb.Append("    - Medium importance + Medium urgency => 5-6\n");
+            sb.Append("    - Medium importance + Low urgency => 3-4\n");
+            sb.Append("    - Low importance + Low urgency => 1-2\n\n");
 
             sb.Append("GENERAL RULES:\n");
             sb.Append("- Generate at least one task per theme.\n");
