@@ -387,13 +387,13 @@ namespace Mindflow_Web_API.Utilities
         // Multi-prompt approach: Step 4 - Generate Task Suggestions
         public static string BuildTaskSuggestionsPrompt(
             string originalText,
-            string summary,
-            List<string> emotions,
-            List<string> topics,
+    string summary,
+    List<string> emotions,
+    List<string> topics,
             List<string> themes,
-            WellnessSummary wellness,
-            BrainDumpRequest request,
-            bool forceMinimumActivities = false)
+    WellnessSummary wellness,
+    BrainDumpRequest request,
+    bool forceMinimumActivities = false)
         {
             var sb = new StringBuilder();
             sb.Append("[INST] ");

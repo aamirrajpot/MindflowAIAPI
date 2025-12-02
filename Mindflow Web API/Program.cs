@@ -120,6 +120,7 @@ builder.Services.AddHttpClient<IOllamaService, OllamaService>(client =>
 
 // Register RunPodService
 builder.Services.AddHttpClient<IRunPodService, RunPodService>();
+builder.Services.AddHttpClient<ITinyLlamaService, TinyLlamaService>();
 // Caching for LLM responses
 builder.Services.AddMemoryCache();
 
@@ -227,7 +228,7 @@ app.MapBraindumpDashboardEndpoints();
 app.MapSubscriptionEndpoints();
 //app.MapPaymentEndpoints();
 //app.MapStripeEndpoints();
-//app.MapRunPodEndpoints();
+app.MapRunPodEndpoints();
 app.MapBrainDumpEndpoints();
 app.MapJournalEndpoints();
 

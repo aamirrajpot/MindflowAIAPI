@@ -11,6 +11,15 @@ This document tracks all updates, improvements, and new features for the Mindflo
 - Constraint and Deadline Detection
 - Enhanced Prioritization with Urgency/Importance Scores
 
+### ✨ New Integrations
+
+#### TinyLlama Text Prediction (RunPod)
+- **Lightweight Text Prediction**: Added a dedicated TinyLlama service and endpoint for fast, low-cost text completion
+- **New Endpoint**: `POST /api/runpod/tinyllama/predict` accepts a simple `prompt` and returns a short continuation as plain text
+- **RunPod Integration**: Uses a separate `RunPodTinyLlama` configuration block (endpoint + API key) while reusing existing RunPod patterns
+- **Caching & Retries**: Includes response caching and retry logic for stability and performance
+- **Use Cases**: Ideal for micro-copy suggestions, small autocompletes, and lightweight text predictions in the product
+
 ---
 
 ## [2024-01-15] - Task Extraction Improvements
