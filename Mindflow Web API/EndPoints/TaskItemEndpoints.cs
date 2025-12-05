@@ -32,6 +32,7 @@ namespace Mindflow_Web_API.EndPoints
                 ITaskItemService taskService, 
                 IWellnessCheckInService wellnessService,
                 IGoogleCalendarService? googleCalendarService,
+                ILoggerFactory loggerFactory,
                 HttpContext context) =>
             {
                 if (!context.User.Identity?.IsAuthenticated ?? true)
@@ -54,50 +55,61 @@ namespace Mindflow_Web_API.EndPoints
                 var allTasks = aiTasks.ToList();
                 
                 // Fetch Google Calendar events if user is connected
+                // Wrap in try-catch to ensure API still returns AI tasks if Google Calendar fails
+                var logger = loggerFactory.CreateLogger("TaskItemEndpoints");
                 if (googleCalendarService != null)
                 {
-                    var (isConnected, _, _) = await googleCalendarService.GetStatusAsync(userId);
-                    if (isConnected)
+                    try
                     {
-                        // Calculate date range for Google events (same as AI tasks filter)
-                        DateTime? startDate = date;
-                        DateTime? endDate = date?.AddDays(1) ?? DateTime.UtcNow.AddDays(30);
-                        
-                        var googleEvents = await googleCalendarService.GetEventsAsync(userId, startDate, endDate);
-                        
-                        // Convert Google events to TaskItemDto format
-                        foreach (var evt in googleEvents)
+                        var (isConnected, _, _) = await googleCalendarService.GetStatusAsync(userId);
+                        if (isConnected)
                         {
-                            var duration = (int)(evt.End - evt.Start).TotalMinutes;
-                            var googleTask = new TaskItemDto(
-                                Id: Guid.NewGuid(), // Generate a temporary ID for Google events
-                                UserId: userId,
-                                Title: evt.Title,
-                                Description: evt.Description ?? evt.Location,
-                                Category: TaskCategory.Other,
-                                OtherCategoryName: "Google Calendar",
-                                Date: evt.Start.Date,
-                                Time: evt.Start,
-                                DurationMinutes: duration > 0 ? duration : 60, // Default to 60 minutes if all-day
-                                ReminderEnabled: false,
-                                RepeatType: RepeatType.Never,
-                                CreatedBySuggestionEngine: false,
-                                IsApproved: true,
-                                Status: Models.TaskStatus.Pending,
-                                ParentTaskId: null,
-                                IsTemplate: false,
-                                NextOccurrence: null,
-                                MaxOccurrences: null,
-                                EndDate: null,
-                                IsActive: true,
-                                SubSteps: null,
-                                Urgency: null,
-                                Importance: null,
-                                PriorityScore: null,
-                                Source: "Google" // Mark as Google Calendar event
-                            );
-                            allTasks.Add(googleTask);
+                            // Calculate date range for Google events (same as AI tasks filter)
+                            DateTime? startDate = date;
+                            DateTime? endDate = date?.AddDays(1) ?? DateTime.UtcNow.AddDays(30);
+                            
+                            var googleEvents = await googleCalendarService.GetEventsAsync(userId, startDate, endDate);
+                            
+                            // Convert Google events to TaskItemDto format
+                            foreach (var evt in googleEvents)
+                            {
+                                var duration = (int)(evt.End - evt.Start).TotalMinutes;
+                                var googleTask = new TaskItemDto(
+                                    Id: Guid.NewGuid(), // Generate a temporary ID for Google events
+                                    UserId: userId,
+                                    Title: evt.Title,
+                                    Description: evt.Description ?? evt.Location,
+                                    Category: TaskCategory.Other,
+                                    OtherCategoryName: "Google Calendar",
+                                    Date: evt.Start.Date,
+                                    Time: evt.Start,
+                                    DurationMinutes: duration > 0 ? duration : 60, // Default to 60 minutes if all-day
+                                    ReminderEnabled: false,
+                                    RepeatType: RepeatType.Never,
+                                    CreatedBySuggestionEngine: false,
+                                    IsApproved: true,
+                                    Status: Models.TaskStatus.Pending,
+                                    ParentTaskId: null,
+                                    IsTemplate: false,
+                                    NextOccurrence: null,
+                                    MaxOccurrences: null,
+                                    EndDate: null,
+                                    IsActive: true,
+                                    SubSteps: null,
+                                    Urgency: null,
+                                    Importance: null,
+                                    PriorityScore: null,
+                                    Source: "Google" // Mark as Google Calendar event
+                                );
+                                allTasks.Add(googleTask);
+                            }
                         }
+                    }
+                    catch (Exception ex)
+                    {
+                        // Log error but don't fail the API - return AI tasks only
+                        logger.LogWarning(ex, "Failed to fetch Google Calendar events for user {UserId}. Returning AI tasks only.", userId);
+                        // Continue execution - allTasks already contains AI tasks
                     }
                 }
                 
