@@ -249,7 +249,9 @@ namespace Mindflow_Web_API.Services
                 // Prioritization
                 task.Urgency,
                 task.Importance,
-                task.PriorityScore
+                task.PriorityScore,
+                // Source indicator (AI-generated tasks)
+                Source: "AI"
             );
         }
 

@@ -78,7 +78,9 @@ namespace Mindflow_Web_API.DTOs
         // Prioritization
         string? Urgency = null,
         string? Importance = null,
-        int? PriorityScore = null
+        int? PriorityScore = null,
+        // Source indicator
+        string Source = "AI" // "AI" for AI-generated tasks, "Google" for Google Calendar events
     );
     public record StatusUpdateDto(Mindflow_Web_API.Models.TaskStatus Status);
 

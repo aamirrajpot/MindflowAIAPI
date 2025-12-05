@@ -1,6 +1,7 @@
 using Mindflow_Web_API.DTOs;
 using Mindflow_Web_API.Services;
 using Mindflow_Web_API.Exceptions;
+using Mindflow_Web_API.Models;
 
 namespace Mindflow_Web_API.EndPoints
 {
@@ -27,7 +28,11 @@ namespace Mindflow_Web_API.EndPoints
                 return op;
             });
 
-            tasksApi.MapGet("/", async (ITaskItemService taskService, IWellnessCheckInService wellnessService, HttpContext context) =>
+            tasksApi.MapGet("/", async (
+                ITaskItemService taskService, 
+                IWellnessCheckInService wellnessService,
+                IGoogleCalendarService? googleCalendarService,
+                HttpContext context) =>
             {
                 if (!context.User.Identity?.IsAuthenticated ?? true)
                     throw ApiExceptions.Unauthorized("User is not authenticated");
@@ -44,10 +49,63 @@ namespace Mindflow_Web_API.EndPoints
                 if (!string.IsNullOrEmpty(dateStr) && DateTime.TryParse(dateStr, out var parsedDate))
                     date = parsedDate.Date;
                 
-                var tasks = await taskService.GetAllAsync(userId, date, timezoneId);
+                // Get AI-generated tasks
+                var aiTasks = await taskService.GetAllAsync(userId, date, timezoneId);
+                var allTasks = aiTasks.ToList();
                 
-                // Return just the tasks array (original response format)
-                return Results.Ok(tasks);
+                // Fetch Google Calendar events if user is connected
+                if (googleCalendarService != null)
+                {
+                    var (isConnected, _, _) = await googleCalendarService.GetStatusAsync(userId);
+                    if (isConnected)
+                    {
+                        // Calculate date range for Google events (same as AI tasks filter)
+                        DateTime? startDate = date;
+                        DateTime? endDate = date?.AddDays(1) ?? DateTime.UtcNow.AddDays(30);
+                        
+                        var googleEvents = await googleCalendarService.GetEventsAsync(userId, startDate, endDate);
+                        
+                        // Convert Google events to TaskItemDto format
+                        foreach (var evt in googleEvents)
+                        {
+                            var duration = (int)(evt.End - evt.Start).TotalMinutes;
+                            var googleTask = new TaskItemDto(
+                                Id: Guid.NewGuid(), // Generate a temporary ID for Google events
+                                UserId: userId,
+                                Title: evt.Title,
+                                Description: evt.Description ?? evt.Location,
+                                Category: TaskCategory.Other,
+                                OtherCategoryName: "Google Calendar",
+                                Date: evt.Start.Date,
+                                Time: evt.Start,
+                                DurationMinutes: duration > 0 ? duration : 60, // Default to 60 minutes if all-day
+                                ReminderEnabled: false,
+                                RepeatType: RepeatType.Never,
+                                CreatedBySuggestionEngine: false,
+                                IsApproved: true,
+                                Status: Models.TaskStatus.Pending,
+                                ParentTaskId: null,
+                                IsTemplate: false,
+                                NextOccurrence: null,
+                                MaxOccurrences: null,
+                                EndDate: null,
+                                IsActive: true,
+                                SubSteps: null,
+                                Urgency: null,
+                                Importance: null,
+                                PriorityScore: null,
+                                Source: "Google" // Mark as Google Calendar event
+                            );
+                            allTasks.Add(googleTask);
+                        }
+                    }
+                }
+                
+                // Sort by date/time
+                allTasks = allTasks.OrderBy(t => t.Date).ThenBy(t => t.Time).ToList();
+                
+                // Return merged tasks array
+                return Results.Ok(allTasks);
             })
             .RequireAuthorization()
             .WithOpenApi(op => {

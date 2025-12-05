@@ -121,6 +121,8 @@ builder.Services.AddHttpClient<IOllamaService, OllamaService>(client =>
 // Register RunPodService
 builder.Services.AddHttpClient<IRunPodService, RunPodService>();
 builder.Services.AddHttpClient<ITinyLlamaService, TinyLlamaService>();
+builder.Services.AddScoped<ISimpleEncryptionService, SimpleEncryptionService>();
+builder.Services.AddScoped<IGoogleCalendarService, GoogleCalendarService>();
 // Caching for LLM responses
 builder.Services.AddMemoryCache();
 
@@ -229,6 +231,7 @@ app.MapSubscriptionEndpoints();
 //app.MapPaymentEndpoints();
 //app.MapStripeEndpoints();
 app.MapRunPodEndpoints();
+app.MapGoogleCalendarEndpoints();
 app.MapBrainDumpEndpoints();
 app.MapJournalEndpoints();
 

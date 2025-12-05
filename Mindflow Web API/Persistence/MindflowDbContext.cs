@@ -18,6 +18,7 @@ namespace Mindflow_Web_API.Persistence
         public DbSet<PaymentCard> PaymentCards => Set<PaymentCard>();
         public DbSet<PaymentHistory> PaymentHistory => Set<PaymentHistory>();
         public DbSet<BrainDumpEntry> BrainDumpEntries => Set<BrainDumpEntry>();
+        public DbSet<GoogleCalendarConnection> GoogleCalendarConnections => Set<GoogleCalendarConnection>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
