@@ -121,6 +121,11 @@ builder.Services.AddHttpClient<IOllamaService, OllamaService>(client =>
 // Register RunPodService
 builder.Services.AddHttpClient<IRunPodService, RunPodService>();
 builder.Services.AddHttpClient<ITinyLlamaService, TinyLlamaService>();
+// Register HttpClient for Google OAuth
+builder.Services.AddHttpClient("google-oauth", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
 builder.Services.AddScoped<ISimpleEncryptionService, SimpleEncryptionService>();
 builder.Services.AddScoped<IGoogleCalendarService, GoogleCalendarService>();
 // Caching for LLM responses

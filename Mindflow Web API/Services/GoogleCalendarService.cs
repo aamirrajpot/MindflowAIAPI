@@ -57,7 +57,9 @@ namespace Mindflow_Web_API.Services
                               ?? throw new InvalidOperationException("Google:RedirectUri not configured");
 
             var state = _encryption.Encrypt(userId.ToString());
-            var scope = Uri.EscapeDataString("https://www.googleapis.com/auth/calendar.events");
+            // Request both calendar.events and userinfo.email scopes
+            // userinfo.email is needed to get the user's email address
+            var scope = Uri.EscapeDataString("https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.email");
 
             var url =
                 $"https://accounts.google.com/o/oauth2/v2/auth?client_id={Uri.EscapeDataString(clientId)}" +
@@ -116,21 +118,46 @@ namespace Mindflow_Web_API.Services
                 return (false, "Failed to connect");
             }
 
-            using var tokenDoc = JsonDocument.Parse(await tokenResponse.Content.ReadAsStringAsync());
+            var tokenResponseContent = await tokenResponse.Content.ReadAsStringAsync();
+            _logger.LogDebug("Google token exchange response: {Response}", tokenResponseContent);
+            
+            using var tokenDoc = JsonDocument.Parse(tokenResponseContent);
             var root = tokenDoc.RootElement;
-            var accessToken = root.GetProperty("access_token").GetString() ?? string.Empty;
+            
+            // Validate access_token exists
+            if (!root.TryGetProperty("access_token", out var accessTokenElement))
+            {
+                _logger.LogError("Google token response missing access_token. Response: {Response}", tokenResponseContent);
+                return (false, "Invalid token response from Google");
+            }
+            
+            var accessToken = accessTokenElement.GetString();
+            if (string.IsNullOrWhiteSpace(accessToken))
+            {
+                _logger.LogError("Google access_token is empty. Response: {Response}", tokenResponseContent);
+                return (false, "Invalid access token from Google");
+            }
+            
             var refreshToken = root.TryGetProperty("refresh_token", out var rtElement) ? rtElement.GetString() ?? string.Empty : string.Empty;
-            var expiresIn = root.GetProperty("expires_in").GetInt32();
+            var expiresIn = root.TryGetProperty("expires_in", out var expiresElement) ? expiresElement.GetInt32() : 3600;
+
+            _logger.LogDebug("Successfully obtained access token (length: {Length}), expires in {ExpiresIn} seconds", accessToken.Length, expiresIn);
 
             // 3. Get user's Google email
+            // Create a new HttpClient for userinfo request to avoid header conflicts
+            var userInfoClient = _httpClientFactory.CreateClient("google-oauth");
             var userInfoRequest = new HttpRequestMessage(HttpMethod.Get, "https://www.googleapis.com/oauth2/v2/userinfo");
             userInfoRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
-            var userInfoResponse = await httpClient.SendAsync(userInfoRequest);
+            
+            _logger.LogDebug("Requesting user info from Google with access token (length: {TokenLength})", accessToken.Length);
+            
+            var userInfoResponse = await userInfoClient.SendAsync(userInfoRequest);
             if (!userInfoResponse.IsSuccessStatusCode)
             {
                 var error = await userInfoResponse.Content.ReadAsStringAsync();
-                _logger.LogError("Google userinfo failed: {Error}", error);
-                return (false, "Failed to fetch Google user info");
+                _logger.LogError("Google userinfo failed: StatusCode={StatusCode}, Error={Error}, AccessTokenLength={TokenLength}", 
+                    userInfoResponse.StatusCode, error, accessToken?.Length ?? 0);
+                return (false, $"Failed to fetch Google user info: {error}");
             }
 
             using var userDoc = JsonDocument.Parse(await userInfoResponse.Content.ReadAsStringAsync());
