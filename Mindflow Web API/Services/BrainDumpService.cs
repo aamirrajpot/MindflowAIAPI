@@ -399,6 +399,17 @@ namespace Mindflow_Web_API.Services
 			}
 
 			await _db.SaveChangesAsync();
+
+			// Attach generated record Ids back to suggestions so UI can reference them
+			var savedRecords = await _db.TaskSuggestionRecords
+				.Where(r => r.BrainDumpEntryId == brainDumpEntryId && r.UserId == userId)
+				.OrderBy(r => r.CreatedAtUtc)
+				.ToListAsync();
+
+			for (int i = 0; i < suggestions.Count && i < savedRecords.Count; i++)
+			{
+				suggestions[i].Id = savedRecords[i].Id;
+			}
 		}
 
 		private static List<TaskSuggestion> GenerateFallbackActivities(BrainDumpRequest request)

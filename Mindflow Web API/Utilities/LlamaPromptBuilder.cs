@@ -404,6 +404,9 @@ namespace Mindflow_Web_API.Utilities
 
     public class TaskSuggestion
     {
+        [JsonPropertyName("id")]
+        public Guid? Id { get; set; }
+
         [JsonPropertyName("task")]
         public string Task { get; set; } = "";
         [JsonPropertyName("frequency")]
