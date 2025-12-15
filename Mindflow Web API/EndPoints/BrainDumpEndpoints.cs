@@ -239,6 +239,103 @@ namespace Mindflow_Web_API.EndPoints
 				return op;
 			});
 
+			api.MapPost("/auto-schedule-all", async (
+				[FromBody] AutoScheduleAllRequest request,
+				IBrainDumpService service,
+				HttpContext ctx) =>
+			{
+				if (!ctx.User.Identity?.IsAuthenticated ?? true)
+					return Results.Unauthorized();
+
+				// Resolve user id
+				var userIdClaim = ctx.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
+				if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+					return Results.Unauthorized();
+
+				try
+				{
+					var taskItems = await service.AutoScheduleAllTasksAsync(userId, request.BrainDumpEntryId, request.SuggestionIds);
+
+					return Results.Ok(new
+					{
+						message = $"Successfully auto-scheduled {taskItems.Count} tasks",
+						taskCount = taskItems.Count,
+						tasks = taskItems.Select(t => new
+						{
+							Id = t.Id,
+							Title = t.Title,
+							Description = t.Description,
+							Category = t.Category,
+							Date = t.Date,
+							Time = t.Time,
+							DurationMinutes = t.DurationMinutes,
+							RepeatType = t.RepeatType,
+							SourceBrainDumpEntryId = t.SourceBrainDumpEntryId,
+							SourceTextExcerpt = t.SourceTextExcerpt,
+							LifeArea = t.LifeArea,
+							EmotionTag = t.EmotionTag,
+							Urgency = t.Urgency,
+							Importance = t.Importance,
+							PriorityScore = t.PriorityScore,
+							SubSteps = t.SubSteps != null ? System.Text.Json.JsonSerializer.Deserialize<List<string>>(t.SubSteps) : null
+						}).ToList()
+					});
+				}
+				catch (ArgumentException ex)
+				{
+					return Results.BadRequest(new { error = ex.Message });
+				}
+				catch (Exception ex)
+				{
+					return Results.BadRequest(new { error = ex.Message });
+				}
+			})
+			.WithOpenApi(op =>
+			{
+				op.Summary = "Auto-schedule all suggested tasks from a brain dump";
+				op.Description = "Automatically schedules all suggested tasks from a brain dump entry using smart scheduling across available time slots. Tasks are saved to the database and scheduled optimally based on user's wellness check-in data.";
+				return op;
+			});
+
+			api.MapPost("/skip-tasks", async (
+				[FromBody] SkipTasksRequest request,
+				IBrainDumpService service,
+				HttpContext ctx) =>
+			{
+				if (!ctx.User.Identity?.IsAuthenticated ?? true)
+					return Results.Unauthorized();
+
+				// Resolve user id
+				var userIdClaim = ctx.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
+				if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+					return Results.Unauthorized();
+
+				try
+				{
+					var success = await service.SkipTasksAsync(userId, request.BrainDumpEntryId, request.SuggestionIds);
+
+					return Results.Ok(new
+					{
+						message = "Tasks skipped successfully",
+						success = success
+					});
+				}
+				catch (ArgumentException ex)
+				{
+					return Results.BadRequest(new { error = ex.Message });
+				}
+				catch (Exception ex)
+				{
+					return Results.BadRequest(new { error = ex.Message });
+				}
+			})
+			.WithOpenApi(op =>
+			{
+				op.Summary = "Skip suggested tasks from a brain dump";
+				op.Description = "Marks task suggestions as skipped. If no suggestionIds are provided, all remaining suggested tasks for the brain dump entry are marked skipped.";
+				return op;
+			});
+
 			// Get analytics endpoint
 			api.MapGet("/analytics", async (
 				IBrainDumpService service,

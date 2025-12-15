@@ -125,6 +125,23 @@ namespace Mindflow_Web_API.DTOs
 		public int StressScore { get; set; }
 		public DateTime Date { get; set; }
 	}
+
+	public class AutoScheduleAllRequest
+	{
+		[Required]
+		public Guid BrainDumpEntryId { get; set; } // Link to the brain dump entry
+		// Optional: if provided, only schedule these suggestion records
+		public List<Guid>? SuggestionIds { get; set; }
+	}
+
+	public class SkipTasksRequest
+	{
+		[Required]
+		public Guid BrainDumpEntryId { get; set; } // Link to the brain dump entry
+
+		// Optional: if provided, only skip these suggestion records; otherwise skip all remaining suggested
+		public List<Guid>? SuggestionIds { get; set; }
+	}
 }
 
 

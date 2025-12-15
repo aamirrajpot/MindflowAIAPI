@@ -19,6 +19,8 @@ namespace Mindflow_Web_API.Services
 		Task<List<TaskItem>> AddMultipleTasksToCalendarAsync(Guid userId, List<TaskSuggestion> suggestions, DTOs.WellnessCheckInDto? wellnessData = null, Guid? brainDumpEntryId = null);
 		Task<string?> GenerateAiInsightAsync(Guid userId, Guid entryId);
 		Task<AnalyticsDto> GetAnalyticsAsync(Guid userId, Guid? brainDumpEntryId = null);
+		Task<List<TaskItem>> AutoScheduleAllTasksAsync(Guid userId, Guid brainDumpEntryId, List<Guid>? suggestionIds = null);
+		Task<bool> SkipTasksAsync(Guid userId, Guid brainDumpEntryId, List<Guid>? suggestionIds = null);
 	}
 
 	public class BrainDumpService : IBrainDumpService
@@ -339,7 +341,64 @@ namespace Mindflow_Web_API.Services
 			// Add brain dump entry ID for linking tasks
 			brainDumpResponse.BrainDumpEntryId = entry.Id;
 
+			// Persist suggestions for later scheduling/skip actions
+			await SaveTaskSuggestionRecordsAsync(userId, entry.Id, brainDumpResponse.SuggestedActivities ?? new List<TaskSuggestion>());
+
 			return brainDumpResponse;
+		}
+
+		private async Task SaveTaskSuggestionRecordsAsync(Guid userId, Guid brainDumpEntryId, List<TaskSuggestion> suggestions)
+		{
+			// Remove existing suggestions for this brain dump entry to avoid duplicates
+			var existing = await _db.TaskSuggestionRecords
+				.Where(r => r.BrainDumpEntryId == brainDumpEntryId && r.UserId == userId)
+				.ToListAsync();
+			if (existing.Count > 0)
+				_db.TaskSuggestionRecords.RemoveRange(existing);
+
+			if (suggestions == null || suggestions.Count == 0)
+			{
+				await _db.SaveChangesAsync();
+				return;
+			}
+
+			foreach (var s in suggestions)
+			{
+				string? subStepsJson = null;
+				if (s.SubSteps != null && s.SubSteps.Count > 0)
+				{
+					try
+					{
+						subStepsJson = System.Text.Json.JsonSerializer.Serialize(s.SubSteps);
+					}
+					catch (Exception ex)
+					{
+						_logger.LogWarning(ex, "Failed to serialize sub-steps for suggestion {Task}", s.Task);
+					}
+				}
+
+				var record = new TaskSuggestionRecord
+				{
+					UserId = userId,
+					BrainDumpEntryId = brainDumpEntryId,
+					Task = s.Task ?? string.Empty,
+					Notes = s.Notes,
+					Frequency = s.Frequency ?? string.Empty,
+					Duration = s.Duration ?? string.Empty,
+					Priority = s.Priority,
+					SuggestedTime = s.SuggestedTime,
+					Urgency = s.Urgency,
+					Importance = s.Importance,
+					PriorityScore = s.PriorityScore,
+					SubSteps = subStepsJson,
+					Status = TaskSuggestionStatus.Suggested,
+					CreatedAtUtc = DateTime.UtcNow
+				};
+
+				_db.TaskSuggestionRecords.Add(record);
+			}
+
+			await _db.SaveChangesAsync();
 		}
 
 		private static List<TaskSuggestion> GenerateFallbackActivities(BrainDumpRequest request)
@@ -1035,6 +1094,68 @@ namespace Mindflow_Web_API.Services
 
 			await _db.SaveChangesAsync();
 			return createdTasks;
+		}
+
+		public async Task<List<TaskItem>> AutoScheduleAllTasksAsync(Guid userId, Guid brainDumpEntryId, List<Guid>? suggestionIds = null)
+		{
+			// Fetch pending suggestions for this brain dump entry
+			var query = _db.TaskSuggestionRecords
+				.Where(r => r.UserId == userId && r.BrainDumpEntryId == brainDumpEntryId && r.Status == TaskSuggestionStatus.Suggested);
+
+			if (suggestionIds != null && suggestionIds.Count > 0)
+				query = query.Where(r => suggestionIds.Contains(r.Id));
+
+			var records = await query.ToListAsync();
+			if (records.Count == 0)
+			{
+				_logger.LogInformation("No pending suggestions to auto-schedule for BrainDumpEntry {BrainDumpEntryId}", brainDumpEntryId);
+				return new List<TaskItem>();
+			}
+
+			var created = new List<TaskItem>();
+
+			foreach (var record in records)
+			{
+				var request = new AddToCalendarRequest
+				{
+					Task = record.Task,
+					Notes = record.Notes,
+					Frequency = record.Frequency,
+					Duration = record.Duration,
+					BrainDumpEntryId = record.BrainDumpEntryId,
+					Urgency = record.Urgency,
+					Importance = record.Importance,
+					PriorityScore = record.PriorityScore,
+					ReminderEnabled = false
+				};
+
+				var taskItem = await AddTaskToCalendarAsync(userId, request);
+				record.Status = TaskSuggestionStatus.Scheduled;
+				record.TaskItemId = taskItem.Id;
+				created.Add(taskItem);
+			}
+
+			await _db.SaveChangesAsync();
+			return created;
+		}
+
+		public async Task<bool> SkipTasksAsync(Guid userId, Guid brainDumpEntryId, List<Guid>? suggestionIds = null)
+		{
+			var query = _db.TaskSuggestionRecords
+				.Where(r => r.UserId == userId && r.BrainDumpEntryId == brainDumpEntryId && r.Status == TaskSuggestionStatus.Suggested);
+
+			if (suggestionIds != null && suggestionIds.Count > 0)
+				query = query.Where(r => suggestionIds.Contains(r.Id));
+
+			var records = await query.ToListAsync();
+			if (records.Count == 0)
+				return false;
+
+			foreach (var record in records)
+				record.Status = TaskSuggestionStatus.Skipped;
+
+			await _db.SaveChangesAsync();
+			return true;
 		}
 
 	private List<ScheduledTask> ScheduleTasksAcrossTimeSlots(List<TaskSuggestion> suggestions, DTOs.WellnessCheckInDto? wellnessData)

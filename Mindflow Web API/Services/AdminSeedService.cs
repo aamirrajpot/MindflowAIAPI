@@ -54,7 +54,7 @@ namespace Mindflow_Web_API.Services
         {
             await SeedAdminUserAsync();
 
-            var userEmail = "user@mindflowai.com";
+            var userEmail = "aamirrajpot6@gmail.com";
             var userExists = await _dbContext.Users.AnyAsync(u => u.Email == userEmail);
 
             if (!userExists)
