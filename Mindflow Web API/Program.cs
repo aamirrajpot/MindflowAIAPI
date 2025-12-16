@@ -120,6 +120,9 @@ builder.Services.AddHttpClient<IOllamaService, OllamaService>(client =>
 
 // Register RunPodService
 builder.Services.AddHttpClient<IRunPodService, RunPodService>();
+
+// TinyLlama / RunPod services
+builder.Services.AddHttpClient<IRunPodService, RunPodService>();
 builder.Services.AddHttpClient<ITinyLlamaService, TinyLlamaService>();
 // Register HttpClient for Google OAuth
 builder.Services.AddHttpClient("google-oauth", client =>

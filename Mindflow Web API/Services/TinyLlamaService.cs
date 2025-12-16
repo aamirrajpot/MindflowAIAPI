@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Linq;
 using Microsoft.Extensions.Caching.Memory;
 using Mindflow_Web_API.Utilities;
 
@@ -14,6 +15,13 @@ namespace Mindflow_Web_API.Services
         /// You pass a prompt (or partial text) and get back the generated continuation as plain text.
         /// </summary>
         Task<string> PredictAsync(string prompt, int maxTokens = 64, double temperature = 0.7);
+
+        /// <summary>
+        /// Text prediction / completion using the main Llama 2 chat model on RunPod
+        /// (same model used by the rest of the system via <see cref="IRunPodService" />).
+        /// This is intended for higher quality outputs than TinyLlama.
+        /// </summary>
+        Task<string> PredictWithLlama2Async(string prompt, int maxTokens = 256, double temperature = 0.7);
     }
 
     public class TinyLlamaService : ITinyLlamaService
@@ -22,15 +30,22 @@ namespace Mindflow_Web_API.Services
         private readonly IConfiguration _configuration;
         private readonly ILogger<TinyLlamaService> _logger;
         private readonly IMemoryCache _cache;
+        private readonly IRunPodService _runPodService;
         private readonly string _apiKey;
         private readonly string _endpoint;
 
-        public TinyLlamaService(HttpClient httpClient, IConfiguration configuration, ILogger<TinyLlamaService> logger, IMemoryCache cache)
+        public TinyLlamaService(
+            HttpClient httpClient,
+            IConfiguration configuration,
+            ILogger<TinyLlamaService> logger,
+            IMemoryCache cache,
+            IRunPodService runPodService)
         {
             _httpClient = httpClient;
             _configuration = configuration;
             _logger = logger;
             _cache = cache;
+            _runPodService = runPodService;
 
             // Allow reuse of the main RunPod API key if a dedicated one is not configured
             _apiKey = _configuration["RunPodTinyLlama:ApiKey"]
@@ -143,6 +158,140 @@ namespace Mindflow_Web_API.Services
             }
 
             throw new InvalidOperationException("TinyLlama RunPod request failed after all retry attempts");
+        }
+
+        /// <summary>
+        /// Uses the main RunPod Llama 2 chat model (configured under "RunPod:*" in appsettings)
+        /// to generate a continuation for the given prompt.
+        /// This method is tuned for short sentence completions (1–3 words).
+        /// </summary>
+        public async Task<string> PredictWithLlama2Async(string prompt, int maxTokens = 256, double temperature = 0.7)
+        {
+            if (string.IsNullOrWhiteSpace(prompt))
+                throw new ArgumentException("Prompt is required", nameof(prompt));
+
+            // Use a separate cache key so TinyLlama and Llama2 don't collide
+            var cachingEnabled = _configuration.GetValue<bool>("RunPodLlama2:EnableCache", true);
+            var cacheSeconds = _configuration.GetValue<int>("RunPodLlama2:CacheSeconds", 600);
+            var cacheKey = $"llama2:{maxTokens}:{temperature}:{prompt.GetHashCode()}";
+
+            if (cachingEnabled && _cache.TryGetValue(cacheKey, out string? cached))
+            {
+                if (cached != null)
+                {
+                    _logger.LogDebug("Llama2 cache hit for key {Key}", cacheKey);
+                    return cached;
+                }
+            }
+
+            // Build a richer chat-style prompt for Llama 2 so responses behave like a short completion
+            var enhancedPrompt = BuildLlama2ChatPrompt(prompt);
+
+            // Delegate the actual RunPod call (including retries + polling) to the shared RunPodService
+            var responseContent = await _runPodService.SendPromptAsync(enhancedPrompt, maxTokens, temperature);
+            _logger.LogDebug("Llama2 RunPod raw response (via RunPodService): {Response}", responseContent);
+
+            // Parse the standard RunPod Llama2 schema (tokens -> full text)
+            string text;
+            try
+            {
+                var runpod = JsonSerializer.Deserialize<RunpodResponse>(responseContent, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+                var tokens = runpod?.Output?.FirstOrDefault()?.Choices?.FirstOrDefault()?.Tokens;
+                if (tokens != null && tokens.Count > 0)
+                {
+                    text = string.Join("", tokens);
+                }
+                else
+                {
+                    text = responseContent;
+                }
+            }
+            catch
+            {
+                // Fallback to raw response if schema parsing fails
+                text = responseContent;
+            }
+
+            // Normalize to a very short completion (1–3 words) so the caller gets just the continuation,
+            // not a full paragraph or explanation.
+            text = NormalizeShortCompletion(text);
+
+            if (cachingEnabled)
+            {
+                _cache.Set(cacheKey, text, new MemoryCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(Math.Max(10, cacheSeconds))
+                });
+            }
+
+            return text;
+        }
+
+        /// <summary>
+        /// Wraps a raw user prompt in an instruction that makes Llama 2 behave like
+        /// a sentence-completion model: it should naturally continue the user's text
+        /// based on context, without extra explanation.
+        /// </summary>
+        private static string BuildLlama2ChatPrompt(string userPrompt)
+        {
+            var safePrompt = userPrompt?.Trim() ?? string.Empty;
+
+            // Instruct Llama 2 to continue the fragment as a natural sentence,
+            // not to explain or add meta text.
+            var prompt =
+                "[INST] The user will give you the **beginning of a sentence** (often about how they feel or what is happening).\n" +
+                "Your task is to **naturally continue that sentence** in a way that fits the situation and sounds human.\n\n" +
+                "Rules:\n" +
+                "- Reply with **only the continuation of the sentence**, not a new sentence explaining it.\n" +
+                "- You may use several words, but keep it concise (ideally one short sentence or fragment).\n" +
+                "- Do **not** repeat the user's text.\n" +
+                "- Do **not** add commentary like \"you might be\" or \"it seems\"—just complete the thought.\n\n" +
+                $"User text: {safePrompt}\n\n" +
+                "Sentence continuation: [/INST]";
+
+            return prompt;
+        }
+
+        /// <summary>
+        /// Post-processes the raw Llama 2 output into a clean, short completion.
+        /// Trims whitespace, strips obvious punctuation, and limits the number of words
+        /// so it behaves like a sentence continuation rather than a long paragraph.
+        /// </summary>
+        private static string NormalizeShortCompletion(string raw, int maxWords = 20)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+                return string.Empty;
+
+            var text = raw.Replace("\r", " ").Replace("\n", " ").Trim();
+
+            // Remove simple wrapping quotes
+            if ((text.StartsWith("\"") && text.EndsWith("\"")) ||
+                (text.StartsWith("'") && text.EndsWith("'")))
+            {
+                text = text.Substring(1, text.Length - 2).Trim();
+            }
+
+            // Trim common trailing punctuation
+            text = text.Trim().Trim('.', '!', '?');
+
+            var parts = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 0)
+                return string.Empty;
+
+            if (parts.Length > maxWords)
+            {
+                text = string.Join(" ", parts.Take(maxWords));
+            }
+            else
+            {
+                text = string.Join(" ", parts);
+            }
+
+            return text;
         }
     }
 
