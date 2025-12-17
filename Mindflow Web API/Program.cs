@@ -124,6 +124,19 @@ builder.Services.AddHttpClient<IRunPodService, RunPodService>();
 // TinyLlama / RunPod services
 builder.Services.AddHttpClient<IRunPodService, RunPodService>();
 builder.Services.AddHttpClient<ITinyLlamaService, TinyLlamaService>();
+
+// Register OpenAI Service
+builder.Services.AddHttpClient<IOpenAIService, OpenAIService>((serviceProvider, client) =>
+{
+    var configuration = serviceProvider.GetRequiredService<IConfiguration>();
+    var baseUrl = configuration["OpenAI:BaseUrl"] ?? "https://api.openai.com/v1";
+    if (!baseUrl.EndsWith("/"))
+    {
+        baseUrl += "/";
+    }
+    client.BaseAddress = new Uri(baseUrl);
+});
+
 // Register HttpClient for Google OAuth
 builder.Services.AddHttpClient("google-oauth", client =>
 {
@@ -242,6 +255,7 @@ app.MapRunPodEndpoints();
 app.MapGoogleCalendarEndpoints();
 app.MapBrainDumpEndpoints();
 app.MapJournalEndpoints();
+app.MapOpenAIEndpoints();
 
 app.Run();
 
