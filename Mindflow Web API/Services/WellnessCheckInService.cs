@@ -593,6 +593,9 @@ namespace Mindflow_Web_API.Services
                 // Extract primary focus from focus areas
                 var primaryFocus = wellnessData.FocusAreas?.FirstOrDefault() ?? "general wellness";
                 
+
+
+
                 // Get top support needs
                 var topSupportNeeds = analysis.SupportNeeds.Take(2).ToList();
                 
