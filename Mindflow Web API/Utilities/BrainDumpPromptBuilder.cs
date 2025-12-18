@@ -1303,25 +1303,13 @@ namespace Mindflow_Web_API.Utilities
 					cleanResponse = cleanResponse.Substring(3, cleanResponse.Length - 6).Trim();
 				}
 				
-				// Extract text from RunPod response envelope if present
+				// Extract text from RunPod response envelope if present (handles both new and old structures)
 				try
 				{
-					var runpod = JsonSerializer.Deserialize<RunpodResponse>(cleanResponse, new JsonSerializerOptions
+					var extracted = RunpodResponseHelper.ExtractTextFromRunpodResponse(cleanResponse);
+					if (!string.IsNullOrWhiteSpace(extracted) && extracted != cleanResponse)
 					{
-						PropertyNameCaseInsensitive = true
-					});
-					
-					if (runpod?.Output?.Count > 0)
-					{
-						var tokens = runpod.Output
-							.SelectMany(o => o.Choices ?? new())
-							.SelectMany(c => c.Tokens ?? new())
-							.ToList();
-						
-						if (tokens.Count > 0)
-						{
-							cleanResponse = string.Join(string.Empty, tokens);
-						}
+						cleanResponse = extracted;
 					}
 				}
 				catch

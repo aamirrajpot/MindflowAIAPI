@@ -65,12 +65,12 @@ namespace Mindflow_Web_API.Services
             {
                 try
                 {
-                    // Add instructions to complete the sentence naturally without conversational response
+                    // Add instructions to complete the sentence naturally in English without conversational response
                     var requestObj = new
                     {
                         model = model,
                         input = prompt,
-                        instructions = "You are a sentence completion model. Complete the given sentence fragment naturally. Return ONLY the completion text that continues the sentence. Do not add explanations, questions, or conversational responses. Just complete the sentence.",
+                        instructions = "You are a sentence completion model. Complete the given sentence fragment naturally in ENGLISH only. If the fragment is misspelled or not a real English word, infer the most likely intended English word or phrase and use that as the completion. Return ONLY the continuation text (no quotes, no translation notes, no language commentary). Do not ask questions, do not explain, do not respond in any language other than English.",
                         max_output_tokens = maxTokens,
                         temperature = temperature
                     };
@@ -181,12 +181,12 @@ namespace Mindflow_Web_API.Services
             {
                 try
                 {
-                    // Add instructions to complete the sentence naturally without conversational response
+                    // Add instructions to complete the sentence naturally in English without conversational response
                     var requestObj = new
                     {
                         model = model,
                         input = combinedPrompt,
-                        instructions = "You are a sentence completion model. Complete the given sentence fragment naturally. Return ONLY the completion text that continues the sentence. Do not add explanations, questions, or conversational responses. Just complete the sentence.",
+                        instructions = "You are a sentence completion model. Complete the given sentence fragment naturally in ENGLISH only. If the fragment is misspelled or not a real English word, infer the most likely intended English word or phrase and use that as the completion. Return ONLY the continuation text (no quotes, no translation notes, no language commentary). Do not ask questions, do not explain, do not respond in any language other than English.",
                         max_output_tokens = maxTokens,
                         temperature = temperature
                     };
