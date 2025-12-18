@@ -191,21 +191,14 @@ namespace Mindflow_Web_API.Services
             var responseContent = await _runPodService.SendPromptAsync(enhancedPrompt, maxTokens, temperature);
             _logger.LogDebug("Llama2 RunPod raw response (via RunPodService): {Response}", responseContent);
 
-            // Parse the standard RunPod Llama2 schema (tokens -> full text)
+            // Parse the standard RunPod Llama2 schema (handles both new and old structures)
             string text;
             try
             {
-                var runpod = JsonSerializer.Deserialize<RunpodResponse>(responseContent, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
-
-                var tokens = runpod?.Output?.FirstOrDefault()?.Choices?.FirstOrDefault()?.Tokens;
-                if (tokens != null && tokens.Count > 0)
-                {
-                    text = string.Join("", tokens);
-                }
-                else
+                text = RunpodResponseHelper.ExtractTextFromRunpodResponse(responseContent);
+                
+                // If extraction failed, fallback to raw response
+                if (string.IsNullOrWhiteSpace(text) || text == responseContent)
                 {
                     text = responseContent;
                 }

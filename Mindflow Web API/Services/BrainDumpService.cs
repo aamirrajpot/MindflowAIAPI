@@ -2303,18 +2303,40 @@ namespace Mindflow_Web_API.Services
         {
 			var prompt = $@"
 				[INST]
-				Extract the top 3 emotions from the user's text.
-				Return ONLY a JSON array of emotion words.
-
+				You are a JSON extraction tool. Extract the top 3 emotions from the user's text.
+				
+				CRITICAL: Return ONLY a valid JSON array. Do NOT include any explanations, descriptions, or additional text.
+				Do NOT use phrases like ""Sure, here are..."", ""The emotions are:"", or any other introductory text.
+				Do NOT provide explanations for why each emotion was chosen.
+				
+				Format: [""emotion1"", ""emotion2"", ""emotion3""]
+				Example: [""happy"", ""anxious"", ""frustrated""]
+				
 				Text:
 				{text}
+				
+				Response (JSON array only, no other text):
 				[/INST]";
 
             var response = await _runPodService.SendPromptAsync(prompt, 200, 0.2);
 
             try
             {
-                return JsonSerializer.Deserialize<List<string>>(response) ?? new List<string>();
+                // Extract text from RunPod response envelope (handles both new and old structures)
+                var extractedText = RunpodResponseHelper.ExtractTextFromRunpodResponse(response);
+                
+                // Try to extract JSON array from the response text (may contain explanatory text)
+                var jsonStart = extractedText.IndexOf('[');
+                var jsonEnd = extractedText.LastIndexOf(']');
+                
+                if (jsonStart >= 0 && jsonEnd > jsonStart)
+                {
+                    var jsonArray = extractedText.Substring(jsonStart, jsonEnd - jsonStart + 1);
+                    return JsonSerializer.Deserialize<List<string>>(jsonArray) ?? new List<string>();
+                }
+                
+                // Fallback: try to deserialize the entire extracted text
+                return JsonSerializer.Deserialize<List<string>>(extractedText) ?? new List<string>();
             }
             catch
             {
@@ -2332,26 +2354,50 @@ namespace Mindflow_Web_API.Services
 			{text}
 			[/INST]";
 
-            return await _runPodService.SendPromptAsync(prompt, 300, 0.3);
+            var response = await _runPodService.SendPromptAsync(prompt, 300, 0.3);
+            
+            // Extract text from RunPod response envelope (handles both new and old structures)
+            return RunpodResponseHelper.ExtractTextFromRunpodResponse(response);
         }
         private async Task<List<string>> ExtractTopicsAsync(string text)
         {
             var prompt = $@"
 				[INST]
-				Extract all major topics from the text.
+				You are a JSON extraction tool. Extract all major topics from the text.
 				Topics should be simple words like: moving, work, kids, health, chores, relationships, school.
-
-				Return ONLY a JSON array.
-
+				
+				CRITICAL: Return ONLY a valid JSON array. Do NOT include any explanations, descriptions, or additional text.
+				Do NOT use phrases like ""Sure, here are..."", ""The topics are:"", or any other introductory text.
+				Do NOT provide explanations for why each topic was chosen.
+				
+				Format: [""topic1"", ""topic2"", ""topic3""]
+				Example: [""work"", ""family"", ""health""]
+				
 				Text:
 				{text}
+				
+				Response (JSON array only, no other text):
 				[/INST]";
 
             var response = await _runPodService.SendPromptAsync(prompt, 200, 0.2);
 
             try
             {
-                return JsonSerializer.Deserialize<List<string>>(response) ?? new();
+                // Extract text from RunPod response envelope (handles both new and old structures)
+                var extractedText = RunpodResponseHelper.ExtractTextFromRunpodResponse(response);
+                
+                // Try to extract JSON array from the response text (may contain explanatory text)
+                var jsonStart = extractedText.IndexOf('[');
+                var jsonEnd = extractedText.LastIndexOf(']');
+                
+                if (jsonStart >= 0 && jsonEnd > jsonStart)
+                {
+                    var jsonArray = extractedText.Substring(jsonStart, jsonEnd - jsonStart + 1);
+                    return JsonSerializer.Deserialize<List<string>>(jsonArray) ?? new();
+                }
+                
+                // Fallback: try to deserialize the entire extracted text
+                return JsonSerializer.Deserialize<List<string>>(extractedText) ?? new();
             }
             catch
             {

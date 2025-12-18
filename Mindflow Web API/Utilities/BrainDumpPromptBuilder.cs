@@ -496,7 +496,28 @@ namespace Mindflow_Web_API.Utilities
             sb.Append("- Preserve all specific details (names, places, items, dates) from the original text.\n");
             if (forceMinimumActivities)
                 sb.Append("- Return AT LEAST 12 tasks total.\n");
-            sb.Append("\nReturn ONLY the JSON array. No commentary. [/INST]");
+            
+            sb.Append("\n");
+            sb.Append("CRITICAL OUTPUT FORMAT:\n");
+            sb.Append("You MUST return ONLY a valid JSON array. Do NOT include:\n");
+            sb.Append("- Any introductory text like \"Here are...\" or \"The tasks are...\"\n");
+            sb.Append("- Numbered lists or bullet points\n");
+            sb.Append("- Explanations, summaries, or commentary\n");
+            sb.Append("- Priority score lists or additional formatting\n");
+            sb.Append("- Any text before or after the JSON array\n\n");
+            
+            sb.Append("CORRECT FORMAT EXAMPLE:\n");
+            sb.Append("[\n");
+            sb.Append("  {\"task\": \"Call Dr. Smith about test results\", \"frequency\": \"once\", \"duration\": \"10 minutes\", \"notes\": \"Schedule call to discuss results\", \"priority\": \"High\", \"suggestedTime\": \"Morning\", \"urgency\": \"High\", \"importance\": \"Medium\", \"priorityScore\": 9},\n");
+            sb.Append("  {\"task\": \"Pack kitchen items into labeled boxes\", \"frequency\": \"weekly\", \"duration\": \"30 minutes\", \"notes\": \"Organize for moving\", \"priority\": \"Medium\", \"suggestedTime\": \"Afternoon\", \"urgency\": \"Low\", \"importance\": \"Medium\", \"priorityScore\": 7}\n");
+            sb.Append("]\n\n");
+            
+            sb.Append("INCORRECT FORMAT (DO NOT DO THIS):\n");
+            sb.Append("Here are ten specific tasks...\n");
+            sb.Append("1. Task: ...\n");
+            sb.Append("Priority score for each task: ...\n\n");
+            
+            sb.Append("Your response must start with [ and end with ]. Nothing else. [/INST]");
 
             return sb.ToString();
         }
@@ -526,19 +547,40 @@ namespace Mindflow_Web_API.Utilities
         {
             try
             {
-                var extractedText = ExtractTextFromRunPodResponse(aiResponse, logger);
+                // Extract text from RunPod response envelope (handles both new and old structures)
+                var extractedText = RunpodResponseHelper.ExtractTextFromRunpodResponse(aiResponse);
                 var cleanText = CleanJsonText(extractedText, logger);
                 
-                var themes = JsonSerializer.Deserialize<List<string>>(cleanText, new JsonSerializerOptions
+                var options = new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true
-                });
+                };
+                
+                // Try to deserialize as nested array first (handles cases where AI returns array of arrays)
+                try
+                {
+                    var nestedThemes = JsonSerializer.Deserialize<List<List<string>>>(cleanText, options);
+                    if (nestedThemes != null && nestedThemes.Count > 0)
+                    {
+                        // Flatten the nested array into a single list
+                        var flattened = nestedThemes.SelectMany(x => x).Distinct().ToList();
+                        logger?.LogDebug("Parsed nested themes array, flattened to {Count} themes", flattened.Count);
+                        return flattened;
+                    }
+                }
+                catch
+                {
+                    // Not a nested array, try flat array
+                }
+                
+                // Try to deserialize as flat array
+                var themes = JsonSerializer.Deserialize<List<string>>(cleanText, options);
                 
                 return themes ?? new List<string>();
             }
             catch (Exception ex)
             {
-                logger?.LogWarning(ex, "Failed to parse themes response");
+                logger?.LogWarning(ex, "Failed to parse themes response: {Error}", ex.Message);
                 return new List<string> { "General", "Wellness", "Personal" };
             }
         }
@@ -556,7 +598,8 @@ namespace Mindflow_Web_API.Utilities
                 
                 logger?.LogDebug("Parsing user profile response. Raw response length: {Length}", aiResponse.Length);
                 
-                var extractedText = ExtractTextFromRunPodResponse(aiResponse, logger);
+                // Extract text from RunPod response envelope (handles both new and old structures)
+                var extractedText = RunpodResponseHelper.ExtractTextFromRunpodResponse(aiResponse);
                 if (string.IsNullOrWhiteSpace(extractedText))
                 {
                     logger?.LogWarning("Extracted text is null or empty");
@@ -626,7 +669,8 @@ namespace Mindflow_Web_API.Utilities
         {
             try
             {
-                var extractedText = ExtractTextFromRunPodResponse(aiResponse, logger);
+                // Extract text from RunPod response envelope (handles both new and old structures)
+                var extractedText = RunpodResponseHelper.ExtractTextFromRunpodResponse(aiResponse);
                 var cleanText = extractedText.Trim();
                 
                 // Remove any markdown or code blocks
@@ -851,7 +895,8 @@ namespace Mindflow_Web_API.Utilities
                     return (null, null, null);
                 }
                 
-                var extractedText = ExtractTextFromRunPodResponse(aiResponse, logger);
+                // Extract text from RunPod response envelope (handles both new and old structures)
+                var extractedText = RunpodResponseHelper.ExtractTextFromRunpodResponse(aiResponse);
                 logger?.LogDebug("Extracted emotional intelligence text: {Text}", extractedText?.Substring(0, Math.Min(300, extractedText?.Length ?? 0)));
                 
                 var cleanText = extractedText?.Trim() ?? string.Empty;
@@ -943,7 +988,8 @@ namespace Mindflow_Web_API.Utilities
                     return new Dictionary<int, List<string>>();
                 }
                 
-                var extractedText = ExtractTextFromRunPodResponse(aiResponse, logger);
+                // Extract text from RunPod response envelope (handles both new and old structures)
+                var extractedText = RunpodResponseHelper.ExtractTextFromRunpodResponse(aiResponse);
                 logger?.LogDebug("Extracted text before cleaning: {Text}", extractedText?.Substring(0, Math.Min(300, extractedText?.Length ?? 0)));
                 
                 var cleanText = extractedText?.Trim() ?? string.Empty;
@@ -1021,51 +1067,42 @@ namespace Mindflow_Web_API.Utilities
         {
             try
             {
-                var extractedText = ExtractTextFromRunPodResponse(aiResponse, logger);
+                // Extract text from RunPod response envelope (handles both new and old structures)
+                var extractedText = RunpodResponseHelper.ExtractTextFromRunpodResponse(aiResponse);
                 var cleanText = CleanJsonText(extractedText, logger);
                 
-                var tasks = JsonSerializer.Deserialize<List<TaskSuggestion>>(cleanText, new JsonSerializerOptions
+                // Ensure we extract only the JSON array part (handles cases where AI adds explanatory text)
+                var jsonStart = cleanText.IndexOf('[');
+                var jsonEnd = cleanText.LastIndexOf(']');
+                
+                if (jsonStart >= 0 && jsonEnd > jsonStart)
                 {
-                    PropertyNameCaseInsensitive = true
-                });
+                    cleanText = cleanText.Substring(jsonStart, jsonEnd - jsonStart + 1);
+                    logger?.LogDebug("Extracted JSON array from response (length: {Length})", cleanText.Length);
+                }
+                else
+                {
+                    logger?.LogWarning("No JSON array found in response. Text: {Text}", cleanText.Substring(0, Math.Min(200, cleanText.Length)));
+                    return new List<TaskSuggestion>();
+                }
+                
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    AllowTrailingCommas = true
+                };
+                
+                var tasks = JsonSerializer.Deserialize<List<TaskSuggestion>>(cleanText, options);
                 
                 return tasks ?? new List<TaskSuggestion>();
             }
             catch (Exception ex)
             {
-                logger?.LogWarning(ex, "Failed to parse task suggestions response");
+                logger?.LogWarning(ex, "Failed to parse task suggestions response: {Error}", ex.Message);
                 return new List<TaskSuggestion>();
             }
         }
 
-        // Helper method to extract text from RunPod response
-        private static string ExtractTextFromRunPodResponse(string aiResponse, ILogger? logger = null)
-        {
-            try
-            {
-                var runpod = JsonSerializer.Deserialize<RunpodResponse>(aiResponse, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
-                
-                if (runpod?.Output?.Count > 0)
-                {
-                    var tokens = runpod.Output
-                        .SelectMany(o => o.Choices ?? new())
-                        .SelectMany(c => c.Tokens ?? new())
-                        .ToList();
-                    
-                    if (tokens.Count > 0)
-                        return string.Join(string.Empty, tokens);
-                }
-            }
-            catch
-            {
-                // If parsing fails, return original response
-            }
-            
-            return aiResponse;
-        }
 
         // Helper method to clean JSON text
         private static string CleanJsonText(string text, ILogger? logger = null)
@@ -1117,22 +1154,17 @@ namespace Mindflow_Web_API.Utilities
 			{
 				logger?.LogInformation("Step 0 - Raw AI Response: {RawResponse}", aiResponse);
 
-				// Step 1: Parse the RunPod envelope and extract text from output -> choices -> tokens
+				// Step 1: Parse the RunPod envelope and extract text (handles both new and old structures)
 				// The incoming aiResponse is the raw JSON returned by RunPod.
 				string extractedText = aiResponse;
 				try
 				{
-					var runpod = JsonSerializer.Deserialize<RunpodResponse>(aiResponse, new JsonSerializerOptions
+					extractedText = RunpodResponseHelper.ExtractTextFromRunpodResponse(aiResponse);
+					
+					// If extraction failed, fallback to raw response
+					if (string.IsNullOrWhiteSpace(extractedText) || extractedText == aiResponse)
 					{
-						PropertyNameCaseInsensitive = true
-					});
-					if (runpod != null && runpod.Output != null && runpod.Output.Count > 0)
-					{
-						var tokens = runpod.Output
-							.SelectMany(o => o.Choices ?? new())
-							.SelectMany(c => c.Tokens ?? new())
-							.ToList();
-						extractedText = tokens.Count > 0 ? string.Join(string.Empty, tokens) : extractedText;
+						extractedText = aiResponse;
 					}
 				}
 				catch
@@ -1397,25 +1429,13 @@ Example format: anxious,work,planning,morning [/INST]";
 					cleanResponse = cleanResponse.Substring(3, cleanResponse.Length - 6).Trim();
 				}
 				
-				// Extract text from RunPod response envelope if present
+				// Extract text from RunPod response envelope if present (handles both new and old structures)
 				try
 				{
-					var runpod = JsonSerializer.Deserialize<RunpodResponse>(cleanResponse, new JsonSerializerOptions
+					var extracted = RunpodResponseHelper.ExtractTextFromRunpodResponse(cleanResponse);
+					if (!string.IsNullOrWhiteSpace(extracted) && extracted != cleanResponse)
 					{
-						PropertyNameCaseInsensitive = true
-					});
-					
-					if (runpod?.Output?.Count > 0)
-					{
-						var tokens = runpod.Output
-							.SelectMany(o => o.Choices ?? new())
-							.SelectMany(c => c.Tokens ?? new())
-							.ToList();
-						
-						if (tokens.Count > 0)
-						{
-							cleanResponse = string.Join(string.Empty, tokens);
-						}
+						cleanResponse = extracted;
 					}
 				}
 				catch

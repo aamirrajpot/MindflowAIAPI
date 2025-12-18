@@ -165,7 +165,7 @@ namespace Mindflow_Web_API.Services
                     _logger.LogDebug("RunPod response (attempt {Attempt}): {Response}", attempt, responseContent);
                     
                     // Check if the response indicates the task is in progress
-                    if (responseContent.Contains("\"status\":\"IN_PROGRESS\""))
+                    if (responseContent.Contains("\"status\":\"IN_PROGRESS\"") || responseContent.Contains("\"status\":\"IN_QUEUE\""))
                     {
                         _logger.LogInformation("Task is in progress, starting polling for completion...");
                         return await PollForCompletionAsync(responseContent, cts.Token);
@@ -231,16 +231,14 @@ namespace Mindflow_Web_API.Services
         {
             try
             {
-                // Parse the RunPod response structure
-                var runpodResponse = JsonSerializer.Deserialize<RunpodResponse>(response);
-                if (runpodResponse?.Output?.FirstOrDefault()?.Choices?.FirstOrDefault()?.Tokens == null)
+                // Extract text from RunPod response (handles both new and old structures)
+                var fullText = RunpodResponseHelper.ExtractTextFromRunpodResponse(response);
+                
+                if (string.IsNullOrWhiteSpace(fullText) || fullText == response)
                 {
                     _logger.LogWarning("No valid response structure found in RunPod response");
                     return new RunPodResponse();
                 }
-
-                var tokens = runpodResponse.Output.First().Choices.First().Tokens;
-                var fullText = string.Join("", tokens);
 
                 // Extract the JSON content from the response
                 var jsonStart = fullText.IndexOf('{');
@@ -274,16 +272,14 @@ namespace Mindflow_Web_API.Services
         {
             try
             {
-                // Parse the RunPod response structure
-                var runpodResponse = JsonSerializer.Deserialize<RunpodResponse>(response);
-                if (runpodResponse?.Output?.FirstOrDefault()?.Choices?.FirstOrDefault()?.Tokens == null)
+                // Extract text from RunPod response (handles both new and old structures)
+                var fullText = RunpodResponseHelper.ExtractTextFromRunpodResponse(response);
+                
+                if (string.IsNullOrWhiteSpace(fullText) || fullText == response)
                 {
                     _logger.LogWarning("No valid response structure found in RunPod response");
                     return new UrgencyAssessment();
                 }
-
-                var tokens = runpodResponse.Output.First().Choices.First().Tokens;
-                var fullText = string.Join("", tokens);
 
                 // Extract the JSON content from the response
                 var jsonStart = fullText.IndexOf('{');

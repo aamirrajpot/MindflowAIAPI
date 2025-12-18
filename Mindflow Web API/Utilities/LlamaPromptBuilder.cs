@@ -1,5 +1,6 @@
 using Mindflow_Web_API.Models;
 using Mindflow_Web_API.Utilities;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
@@ -441,13 +442,69 @@ namespace Mindflow_Web_API.Utilities
 
     public class RunpodOutput
     {
+        [JsonPropertyName("response")]
+        public string? Response { get; set; }
+        
+        // Keep Choices for backward compatibility (deprecated)
         [JsonPropertyName("choices")]
-        public List<RunpodChoice> Choices { get; set; } = new();
+        public List<RunpodChoice>? Choices { get; set; }
     }
 
     public class RunpodChoice
     {
         [JsonPropertyName("tokens")]
-        public List<string> Tokens { get; set; } = new();
+        public List<string>? Tokens { get; set; }
+    }
+
+    /// <summary>
+    /// Helper method to extract text from RunPod response.
+    /// Supports both new structure (output -> response) and old structure (output -> choices -> tokens).
+    /// </summary>
+    public static class RunpodResponseHelper
+    {
+        public static string ExtractTextFromRunpodResponse(string jsonResponse)
+        {
+            try
+            {
+                var runpod = JsonSerializer.Deserialize<RunpodResponse>(jsonResponse, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+                if (runpod?.Output == null || runpod.Output.Count == 0)
+                    return jsonResponse; // Fallback to raw response
+
+                var firstOutput = runpod.Output.FirstOrDefault();
+                if (firstOutput == null)
+                    return jsonResponse;
+
+                // Try new structure first: output -> response
+                if (!string.IsNullOrWhiteSpace(firstOutput.Response))
+                {
+                    return firstOutput.Response;
+                }
+
+                // Fallback to old structure: output -> choices -> tokens
+                if (firstOutput.Choices != null && firstOutput.Choices.Count > 0)
+                {
+                    var tokens = firstOutput.Choices
+                        .SelectMany(c => c.Tokens ?? new List<string>())
+                        .ToList();
+                    
+                    if (tokens.Count > 0)
+                    {
+                        return string.Join("", tokens);
+                    }
+                }
+
+                // No valid structure found, return raw response
+                return jsonResponse;
+            }
+            catch
+            {
+                // If parsing fails, return raw response
+                return jsonResponse;
+            }
+        }
     }
 }
