@@ -90,7 +90,7 @@ namespace Mindflow_Web_API.Services
                     checkIn.ReminderEnabled,
                     checkIn.ReminderTime,
                     checkIn.AgeRange,
-                    null,
+                    checkIn.FocusAreas,
                     checkIn.WeekdayStartTime,
                     checkIn.WeekdayStartShift,
                     checkIn.WeekdayEndTime,
