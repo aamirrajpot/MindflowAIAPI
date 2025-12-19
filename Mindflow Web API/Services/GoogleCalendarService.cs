@@ -57,9 +57,9 @@ namespace Mindflow_Web_API.Services
                               ?? throw new InvalidOperationException("Google:RedirectUri not configured");
 
             var state = _encryption.Encrypt(userId.ToString());
-            // Request both calendar.events and userinfo.email scopes
+            // Request calendar.events, tasks, and userinfo.email scopes
             // userinfo.email is needed to get the user's email address
-            var scope = Uri.EscapeDataString("https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.email");
+            var scope = Uri.EscapeDataString("https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/userinfo.email");
 
             var url =
                 $"https://accounts.google.com/o/oauth2/v2/auth?client_id={Uri.EscapeDataString(clientId)}" +
@@ -312,82 +312,181 @@ namespace Mindflow_Web_API.Services
             var timeMax = endDate ?? timeMin.AddDays(30);
 
             var httpClient = _httpClientFactory.CreateClient("google-oauth");
-            var url = $"https://www.googleapis.com/calendar/v3/calendars/primary/events" +
-                      $"?timeMin={timeMin:yyyy-MM-ddTHH:mm:ssZ}" +
-                      $"&timeMax={timeMax:yyyy-MM-ddTHH:mm:ssZ}" +
-                      $"&singleEvents=true" +
-                      $"&orderBy=startTime" +
-                      $"&maxResults=250";
+            var allItems = new List<GoogleCalendarEventDto>();
 
-            var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
-
+            // Fetch Google Calendar Events
             try
             {
-                var response = await httpClient.SendAsync(request);
-                if (!response.IsSuccessStatusCode)
+                var eventsUrl = $"https://www.googleapis.com/calendar/v3/calendars/primary/events" +
+                              $"?timeMin={timeMin:yyyy-MM-ddTHH:mm:ssZ}" +
+                              $"&timeMax={timeMax:yyyy-MM-ddTHH:mm:ssZ}" +
+                              $"&singleEvents=true" +
+                              $"&orderBy=startTime" +
+                              $"&maxResults=250";
+
+                var eventsRequest = new HttpRequestMessage(HttpMethod.Get, eventsUrl);
+                eventsRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+
+                var eventsResponse = await httpClient.SendAsync(eventsRequest);
+                if (eventsResponse.IsSuccessStatusCode)
                 {
-                    var error = await response.Content.ReadAsStringAsync();
+                    using var eventsDoc = JsonDocument.Parse(await eventsResponse.Content.ReadAsStringAsync());
+                    var eventsRoot = eventsDoc.RootElement;
+
+                    if (eventsRoot.TryGetProperty("items", out var itemsElement))
+                    {
+                        foreach (var item in itemsElement.EnumerateArray())
+                        {
+                            // Skip cancelled events
+                            if (item.TryGetProperty("status", out var status) && status.GetString() == "cancelled")
+                                continue;
+
+                            var eventDto = new GoogleCalendarEventDto
+                            {
+                                Id = item.TryGetProperty("id", out var id) ? id.GetString() ?? string.Empty : string.Empty,
+                                Title = item.TryGetProperty("summary", out var summary) ? summary.GetString() ?? "No Title" : "No Title",
+                                Description = item.TryGetProperty("description", out var desc) ? desc.GetString() : null,
+                                Location = item.TryGetProperty("location", out var loc) ? loc.GetString() : null,
+                                Source = "Google Calendar"
+                            };
+
+                            // Parse start/end times
+                            if (item.TryGetProperty("start", out var start))
+                            {
+                                if (start.TryGetProperty("dateTime", out var dt))
+                                {
+                                    eventDto.Start = DateTime.Parse(dt.GetString() ?? DateTime.UtcNow.ToString("O")).ToUniversalTime();
+                                }
+                                else if (start.TryGetProperty("date", out var date))
+                                {
+                                    eventDto.Start = DateTime.Parse(date.GetString() ?? DateTime.UtcNow.ToString("yyyy-MM-dd")).ToUniversalTime();
+                                }
+                            }
+
+                            if (item.TryGetProperty("end", out var end))
+                            {
+                                if (end.TryGetProperty("dateTime", out var dt))
+                                {
+                                    eventDto.End = DateTime.Parse(dt.GetString() ?? DateTime.UtcNow.ToString("O")).ToUniversalTime();
+                                }
+                                else if (end.TryGetProperty("date", out var date))
+                                {
+                                    eventDto.End = DateTime.Parse(date.GetString() ?? DateTime.UtcNow.ToString("yyyy-MM-dd")).ToUniversalTime();
+                                }
+                            }
+
+                            allItems.Add(eventDto);
+                        }
+                    }
+                }
+                else
+                {
+                    var error = await eventsResponse.Content.ReadAsStringAsync();
                     _logger.LogWarning("Failed to fetch Google Calendar events for user {UserId}: {Error}", userId, error);
-                    return new List<GoogleCalendarEventDto>();
                 }
-
-                using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-                var root = doc.RootElement;
-
-                if (!root.TryGetProperty("items", out var itemsElement))
-                    return new List<GoogleCalendarEventDto>();
-
-                var events = new List<GoogleCalendarEventDto>();
-                foreach (var item in itemsElement.EnumerateArray())
-                {
-                    // Skip cancelled events
-                    if (item.TryGetProperty("status", out var status) && status.GetString() == "cancelled")
-                        continue;
-
-                    var eventDto = new GoogleCalendarEventDto
-                    {
-                        Id = item.TryGetProperty("id", out var id) ? id.GetString() ?? string.Empty : string.Empty,
-                        Title = item.TryGetProperty("summary", out var summary) ? summary.GetString() ?? "No Title" : "No Title",
-                        Description = item.TryGetProperty("description", out var desc) ? desc.GetString() : null,
-                        Location = item.TryGetProperty("location", out var loc) ? loc.GetString() : null
-                    };
-
-                    // Parse start/end times
-                    if (item.TryGetProperty("start", out var start))
-                    {
-                        if (start.TryGetProperty("dateTime", out var dt))
-                        {
-                            eventDto.Start = DateTime.Parse(dt.GetString() ?? DateTime.UtcNow.ToString("O")).ToUniversalTime();
-                        }
-                        else if (start.TryGetProperty("date", out var date))
-                        {
-                            eventDto.Start = DateTime.Parse(date.GetString() ?? DateTime.UtcNow.ToString("yyyy-MM-dd")).ToUniversalTime();
-                        }
-                    }
-
-                    if (item.TryGetProperty("end", out var end))
-                    {
-                        if (end.TryGetProperty("dateTime", out var dt))
-                        {
-                            eventDto.End = DateTime.Parse(dt.GetString() ?? DateTime.UtcNow.ToString("O")).ToUniversalTime();
-                        }
-                        else if (end.TryGetProperty("date", out var date))
-                        {
-                            eventDto.End = DateTime.Parse(date.GetString() ?? DateTime.UtcNow.ToString("yyyy-MM-dd")).ToUniversalTime();
-                        }
-                    }
-
-                    events.Add(eventDto);
-                }
-
-                return events;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error fetching Google Calendar events for user {UserId}", userId);
-                return new List<GoogleCalendarEventDto>();
             }
+
+            //// Fetch Google Tasks
+            //try
+            //{
+            //    var tasksUrl = $"https://tasks.googleapis.com/tasks/v1/lists/@default/tasks" +
+            //                  $"?showCompleted=false" +
+            //                  $"&maxResults=100";
+
+            //    var tasksRequest = new HttpRequestMessage(HttpMethod.Get, tasksUrl);
+            //    tasksRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+
+            //    var tasksResponse = await httpClient.SendAsync(tasksRequest);
+            //    if (tasksResponse.IsSuccessStatusCode)
+            //    {
+            //        using var tasksDoc = JsonDocument.Parse(await tasksResponse.Content.ReadAsStringAsync());
+            //        var tasksRoot = tasksDoc.RootElement;
+
+            //        if (tasksRoot.TryGetProperty("items", out var tasksItemsElement))
+            //        {
+            //            foreach (var taskItem in tasksItemsElement.EnumerateArray())
+            //            {
+            //                // Skip completed tasks
+            //                if (taskItem.TryGetProperty("status", out var taskStatus) && taskStatus.GetString() == "completed")
+            //                    continue;
+
+            //                // Parse due date if available
+            //                DateTime? taskDueDate = null;
+            //                if (taskItem.TryGetProperty("due", out var due))
+            //                {
+            //                    var dueStr = due.GetString();
+            //                    if (!string.IsNullOrEmpty(dueStr))
+            //                    {
+            //                        if (DateTime.TryParse(dueStr, out var parsedDue))
+            //                        {
+            //                            taskDueDate = parsedDue.ToUniversalTime();
+            //                        }
+            //                    }
+            //                }
+
+            //                // Only include tasks that fall within the date range (or have no due date)
+            //                if (taskDueDate.HasValue)
+            //                {
+            //                    if (taskDueDate.Value < timeMin || taskDueDate.Value > timeMax)
+            //                        continue;
+            //                }
+            //                else
+            //                {
+            //                    // Tasks without due dates: include if they're not too old (within last 7 days or future)
+            //                    var taskUpdated = DateTime.UtcNow;
+            //                    if (taskItem.TryGetProperty("updated", out var updated))
+            //                    {
+            //                        var updatedStr = updated.GetString();
+            //                        if (!string.IsNullOrEmpty(updatedStr) && DateTime.TryParse(updatedStr, out var parsedUpdated))
+            //                        {
+            //                            taskUpdated = parsedUpdated.ToUniversalTime();
+            //                        }
+            //                    }
+                                
+            //                    // Only include recent tasks (updated within last 7 days) or tasks without dates
+            //                    if (taskUpdated < timeMin.AddDays(-7))
+            //                        continue;
+            //                }
+
+            //                var taskTitle = taskItem.TryGetProperty("title", out var title) ? title.GetString() ?? "No Title" : "No Title";
+            //                var taskNotes = taskItem.TryGetProperty("notes", out var notes) ? notes.GetString() : null;
+
+            //                // For tasks without due dates, use current date/time or updated date
+            //                var taskStart = taskDueDate ?? DateTime.UtcNow;
+            //                var taskEnd = taskStart.AddMinutes(30); // Default 30-minute duration for tasks
+
+            //                var taskDto = new GoogleCalendarEventDto
+            //                {
+            //                    Id = taskItem.TryGetProperty("id", out var taskId) ? taskId.GetString() ?? string.Empty : string.Empty,
+            //                    Title = taskTitle,
+            //                    Description = taskNotes,
+            //                    Location = null,
+            //                    Start = taskStart,
+            //                    End = taskEnd,
+            //                    Source = "Google Tasks"
+            //                };
+
+            //                allItems.Add(taskDto);
+            //            }
+            //        }
+            //    }
+            //    else
+            //    {
+            //        var error = await tasksResponse.Content.ReadAsStringAsync();
+            //        _logger.LogWarning("Failed to fetch Google Tasks for user {UserId}: {Error}", userId, error);
+            //    }
+            //}
+            //catch (Exception ex)
+            //{
+            //    _logger.LogError(ex, "Error fetching Google Tasks for user {UserId}", userId);
+            //}
+
+            // Sort all items by start time
+            return allItems.OrderBy(x => x.Start).ToList();
         }
     }
 }

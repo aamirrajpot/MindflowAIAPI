@@ -68,8 +68,11 @@ namespace Mindflow_Web_API.Services
 
         public async Task<SignInResponseDto?> SignInAsync(SignInUserDto command)
         {
+            // Normalize email to lowercase for case-insensitive comparison
+            var normalizedInput = command.UserNameOrEmail?.ToLowerInvariant() ?? string.Empty;
             var user = await _dbContext.Users.FirstOrDefaultAsync(u =>
-                u.UserName == command.UserNameOrEmail || u.Email == command.UserNameOrEmail);
+                (u.UserName != null && u.UserName.ToLower() == normalizedInput) || 
+                (u.Email != null && u.Email.ToLower() == normalizedInput));
             if (user == null || !PasswordHelper.VerifyPassword(command.Password, user.PasswordHash))
             {
                 _logger.LogWarning($"Failed sign-in attempt for: {command.UserNameOrEmail}");
@@ -91,7 +94,9 @@ namespace Mindflow_Web_API.Services
 
         public async Task<SendOtpResponseDto> SendOtpAsync(string email)
         {
-            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == email);
+            // Normalize email to lowercase for case-insensitive comparison
+            var normalizedEmail = email?.ToLowerInvariant() ?? string.Empty;
+            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == normalizedEmail);
             if (user == null)
                 return new SendOtpResponseDto(email, false);
 
@@ -198,7 +203,9 @@ namespace Mindflow_Web_API.Services
 
         public async Task<SendOtpResponseDto> ForgotPasswordAsync(ForgotPasswordDto command)
         {
-            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == command.Email);
+            // Normalize email to lowercase for case-insensitive comparison
+            var normalizedEmail = command.Email?.ToLowerInvariant() ?? string.Empty;
+            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == normalizedEmail);
             if (user == null)
                 return new SendOtpResponseDto(command.Email, false);
 
@@ -240,7 +247,9 @@ namespace Mindflow_Web_API.Services
 
         public async Task<bool> ResetPasswordAsync(ResetPasswordDto command)
         {
-            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == command.Email);
+            // Normalize email to lowercase for case-insensitive comparison
+            var normalizedEmail = command.Email?.ToLowerInvariant() ?? string.Empty;
+            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == normalizedEmail);
             if (user == null)
                 return false;
 
