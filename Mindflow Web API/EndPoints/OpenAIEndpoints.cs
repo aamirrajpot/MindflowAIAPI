@@ -40,12 +40,13 @@ namespace Mindflow_Web_API.EndPoints
                 [FromBody] TextPredictionRequest request,
                 [FromQuery] string model = "gpt-4.1-mini",
                 [FromQuery] int maxTokens = 64,
-                [FromQuery] double temperature = 0.7) =>
+                [FromQuery] double temperature = 0.7,
+                [FromQuery] string? context = null) =>
             {
                 if (string.IsNullOrWhiteSpace(request.Prompt))
                     throw ApiExceptions.BadRequest("Prompt is required");
 
-                var result = await openAIService.CompleteAsync(request.Prompt, model, maxTokens, temperature);
+                var result = await openAIService.CompleteAsync(request.Prompt, model, maxTokens, temperature, context);
                 return Results.Ok(new { completion = result });
             })
             .RequireAuthorization()
@@ -62,7 +63,8 @@ namespace Mindflow_Web_API.EndPoints
                 [FromBody] OpenAICompletionRequest request,
                 [FromQuery] string model = "gpt-4.1-mini",
                 [FromQuery] int maxTokens = 64,
-                [FromQuery] double temperature = 0.7) =>
+                [FromQuery] double temperature = 0.7,
+                [FromQuery] string? context = null) =>
             {
                 if (string.IsNullOrWhiteSpace(request.SystemMessage))
                     throw ApiExceptions.BadRequest("System message is required");
@@ -75,7 +77,8 @@ namespace Mindflow_Web_API.EndPoints
                     request.UserPrompt, 
                     model, 
                     maxTokens, 
-                    temperature);
+                    temperature,
+                    context);
                 
                 return Results.Ok(new { completion = result });
             })
