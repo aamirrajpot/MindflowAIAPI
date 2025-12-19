@@ -624,10 +624,13 @@ namespace Mindflow_Web_API.Services
 				}
 			}
 			
-			// Prevent stacking: if chosen time is occupied, move forward in 30-minute increments
+			// Prevent stacking: if chosen time is occupied, calculate next available time
+			// based on conflicting task end + buffer, rounded to 30-minute increments
 			// BUT ensure we stay within slot boundaries
 			var maxAttempts = 100; // Prevent infinite loops
 			var attempts = 0;
+			const int bufferMinutes = 15; // Buffer between tasks
+			const int incrementMinutes = 30; // Time slot increment
 			
 			_logger.LogDebug("Starting conflict check loop for task. Initial time: {Time}, Slot bounds: {Start} to {End}", 
 				adjustedTime, slotBounds.slotStart, slotBounds.slotEnd);
@@ -640,10 +643,22 @@ namespace Mindflow_Web_API.Services
 				)
 			)
 			{
-				_logger.LogDebug("Time {Time} is not available or not within slot. Attempt {Attempt}. Moving forward by 30 minutes.", 
-					adjustedTime, attempts + 1);
+				// Find the next available time by checking for conflicting tasks
+				var nextAvailableTime = await CalculateNextAvailableTimeAsync(adjustedDate, adjustedTime, durationMinutes, userId, bufferMinutes, incrementMinutes);
 				
-				adjustedTime = adjustedTime.Add(TimeSpan.FromMinutes(30));
+				if (nextAvailableTime.HasValue)
+				{
+					_logger.LogDebug("Time {Time} is not available. Attempt {Attempt}. Calculated next available time: {NextTime}", 
+						adjustedTime, attempts + 1, nextAvailableTime.Value);
+					adjustedTime = nextAvailableTime.Value;
+				}
+				else
+				{
+					// Fallback: move forward by 30 minutes if we can't calculate next available time
+					_logger.LogDebug("Time {Time} is not available. Attempt {Attempt}. Moving forward by 30 minutes (fallback).", 
+						adjustedTime, attempts + 1);
+					adjustedTime = adjustedTime.Add(TimeSpan.FromMinutes(incrementMinutes));
+				}
 				
 				// Check if we've exceeded the slot end time (handle midnight crossing)
 				bool exceededSlot = false;
@@ -1406,6 +1421,101 @@ namespace Mindflow_Web_API.Services
 			{
 				_logger.LogError(ex, "Error checking time slot availability for {Date} at {Time}", date, time);
 				return false; // Conservative approach - assume slot is not available if we can't check
+			}
+		}
+
+		/// <summary>
+		/// Calculates the next available time after a conflict, ensuring consistent gaps between tasks.
+		/// Finds the latest end time of conflicting tasks, adds buffer, and rounds up to the next increment.
+		/// </summary>
+		private async Task<TimeSpan?> CalculateNextAvailableTimeAsync(DateTime date, TimeSpan candidateTime, int durationMinutes, Guid userId, int bufferMinutes, int incrementMinutes)
+		{
+			try
+			{
+				// Treat input as UTC for comparisons
+				var candidateStart = DateTime.SpecifyKind(date.Date.Add(candidateTime), DateTimeKind.Utc);
+				var candidateEnd = candidateStart.AddMinutes(durationMinutes);
+
+				// Get all tasks on the same date
+				var tasksOnDate = await _db.Tasks
+					.Where(t => t.UserId == userId 
+						&& t.IsActive 
+						&& (t.Date.Date == candidateStart.Date || t.Time.Date == candidateStart.Date))
+					.ToListAsync();
+
+				if (tasksOnDate.Count == 0)
+				{
+					// No tasks on this date, return null to use fallback
+					return null;
+				}
+
+				// Find the latest end time of tasks that conflict with the candidate time
+				DateTime? latestConflictEnd = null;
+				var bufferMinutesLocal = bufferMinutes;
+
+				foreach (var existingTask in tasksOnDate)
+				{
+					var existingTaskStart = existingTask.Time;
+					if (existingTaskStart.Kind != DateTimeKind.Utc)
+					{
+						existingTaskStart = DateTime.SpecifyKind(existingTaskStart, DateTimeKind.Utc);
+					}
+					var existingTaskEnd = existingTaskStart.AddMinutes(existingTask.DurationMinutes);
+
+					// Check if this task conflicts with the candidate (with buffer)
+					var candidateStartWithBuffer = candidateStart.AddMinutes(-bufferMinutesLocal);
+					var candidateEndWithBuffer = candidateEnd.AddMinutes(bufferMinutesLocal);
+					var existingTaskStartWithBuffer = existingTaskStart.AddMinutes(-bufferMinutesLocal);
+					var existingTaskEndWithBuffer = existingTaskEnd.AddMinutes(bufferMinutesLocal);
+
+					bool hasOverlap = (candidateStartWithBuffer < existingTaskEndWithBuffer) && (candidateEndWithBuffer > existingTaskStartWithBuffer);
+
+					if (hasOverlap)
+					{
+						// This task conflicts - track its end time (with buffer)
+						var conflictEnd = existingTaskEndWithBuffer;
+						if (!latestConflictEnd.HasValue || conflictEnd > latestConflictEnd.Value)
+						{
+							latestConflictEnd = conflictEnd;
+						}
+					}
+				}
+
+				if (!latestConflictEnd.HasValue)
+				{
+					// No conflicts found (shouldn't happen if this method is called), return null
+					return null;
+				}
+
+				// Calculate next available time: latest conflict end, rounded up to next increment
+				var nextAvailableDateTime = latestConflictEnd.Value;
+				var nextAvailableTimeOfDay = nextAvailableDateTime.TimeOfDay;
+
+				// Round up to the next increment (30-minute mark)
+				var totalMinutes = (int)nextAvailableTimeOfDay.TotalMinutes;
+				var remainder = totalMinutes % incrementMinutes;
+				if (remainder > 0)
+				{
+					totalMinutes = totalMinutes + (incrementMinutes - remainder);
+				}
+
+				// Ensure we don't exceed 24 hours
+				if (totalMinutes >= 24 * 60)
+				{
+					return null; // Will trigger day rollover in calling code
+				}
+
+				var nextAvailableTime = TimeSpan.FromMinutes(totalMinutes);
+
+				_logger.LogDebug("Calculated next available time: {NextTime} (after conflict ending at {ConflictEnd})", 
+					nextAvailableTime, latestConflictEnd.Value);
+
+				return nextAvailableTime;
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Error calculating next available time for {Date} at {Time}", date, candidateTime);
+				return null; // Fallback to simple increment
 			}
 		}
 
