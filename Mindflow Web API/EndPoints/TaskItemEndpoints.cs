@@ -269,7 +269,7 @@ namespace Mindflow_Web_API.EndPoints
                             if (isConnected)
                             {
                                 // Pass UTC dates to GetEventsAsync
-                                var googleEvents = await googleCalendarService.GetEventsAsync(userId, monthStartUtc, monthEndUtc.AddDays(1));
+                                var googleEvents = await googleCalendarService.GetEventsAsync(userId, monthStartUtc, monthEndUtc);
                                 
                                 // Filter Google events to ensure they fall within the month range and add to the list
                                 foreach (var evt in googleEvents.Where(e => e.Start >= monthStartUtc && e.Start <= monthEndUtc))
