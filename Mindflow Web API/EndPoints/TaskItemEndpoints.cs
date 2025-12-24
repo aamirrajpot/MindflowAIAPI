@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc;
 using Mindflow_Web_API.DTOs;
 using Mindflow_Web_API.Services;
 using Mindflow_Web_API.Exceptions;
@@ -199,6 +200,144 @@ namespace Mindflow_Web_API.EndPoints
             .WithOpenApi(op => {
                 op.Summary = "Update task status";
                 op.Description = "Updates the status of a specific task for the authenticated user.";
+                return op;
+            });
+
+            tasksApi.MapGet("/dates", async (
+                [FromQuery] string timeZoneId,
+                [FromQuery] DateTime date,
+                ITaskItemService taskService,
+                IGoogleCalendarService? googleCalendarService,
+                ILoggerFactory loggerFactory,
+                HttpContext context) =>
+            {
+                if (!context.User.Identity?.IsAuthenticated ?? true)
+                    throw ApiExceptions.Unauthorized("User is not authenticated");
+                var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
+                if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+                    throw ApiExceptions.Unauthorized("Invalid user token");
+
+                if (string.IsNullOrWhiteSpace(timeZoneId))
+                    throw ApiExceptions.BadRequest("timeZoneId is required");
+
+                try
+                {
+                    // Get timezone info
+                    TimeZoneInfo timeZone;
+                    try
+                    {
+                        timeZone = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+                    }
+                    catch (TimeZoneNotFoundException)
+                    {
+                        // Map IANA to Windows timezone IDs
+                        var windowsId = timeZoneId switch
+                        {
+                            "America/Chicago" => "Central Standard Time",
+                            "America/New_York" => "Eastern Standard Time",
+                            "America/Denver" => "Mountain Standard Time",
+                            "America/Los_Angeles" => "Pacific Standard Time",
+                            "America/Phoenix" => "US Mountain Standard Time",
+                            _ => timeZoneId
+                        };
+                        timeZone = TimeZoneInfo.FindSystemTimeZoneById(windowsId);
+                    }
+
+                    // Calculate month start and end dates in the user's timezone
+                    var monthStart = new DateTime(date.Year, date.Month, 1);
+                    var monthEnd = monthStart.AddMonths(1).AddDays(-1);
+
+                    // Convert month boundaries to UTC for querying
+                    var monthStartUtc = TimeZoneInfo.ConvertTimeToUtc(
+                        DateTime.SpecifyKind(monthStart.Date, DateTimeKind.Unspecified), timeZone);
+                    var monthEndUtc = TimeZoneInfo.ConvertTimeToUtc(
+                        DateTime.SpecifyKind(monthEnd.Date.AddDays(1).AddTicks(-1), DateTimeKind.Unspecified), timeZone);
+
+                    // Get all tasks for the user within the month range
+                    var allTasks = await taskService.GetAllAsync(userId, null, null);
+                    var tasksInMonth = allTasks
+                        .Where(t => t.Time >= monthStartUtc && t.Time <= monthEndUtc)
+                        .ToList();
+
+                    // Also fetch Google Calendar events if user is connected
+                    var logger = loggerFactory.CreateLogger("TaskItemEndpoints");
+                    if (googleCalendarService != null)
+                    {
+                        try
+                        {
+                            var (isConnected, _, _) = await googleCalendarService.GetStatusAsync(userId);
+                            if (isConnected)
+                            {
+                                // Pass UTC dates to GetEventsAsync
+                                var googleEvents = await googleCalendarService.GetEventsAsync(userId, monthStartUtc, monthEndUtc.AddDays(1));
+                                
+                                // Filter Google events to ensure they fall within the month range and add to the list
+                                foreach (var evt in googleEvents.Where(e => e.Start >= monthStartUtc && e.Start <= monthEndUtc))
+                                {
+                                    tasksInMonth.Add(new TaskItemDto(
+                                        Id: Guid.NewGuid(),
+                                        UserId: userId,
+                                        Title: evt.Title,
+                                        Description: evt.Description ?? evt.Location,
+                                        Category: TaskCategory.Other,
+                                        OtherCategoryName: "Google Calendar",
+                                        Date: evt.Start.Date,
+                                        Time: evt.Start,
+                                        DurationMinutes: (int)(evt.End - evt.Start).TotalMinutes,
+                                        ReminderEnabled: false,
+                                        RepeatType: RepeatType.Never,
+                                        CreatedBySuggestionEngine: false,
+                                        IsApproved: true,
+                                        Status: Models.TaskStatus.Pending,
+                                        ParentTaskId: null,
+                                        IsTemplate: false,
+                                        NextOccurrence: null,
+                                        MaxOccurrences: null,
+                                        EndDate: null,
+                                        IsActive: true,
+                                        SubSteps: null,
+                                        Urgency: null,
+                                        Importance: null,
+                                        PriorityScore: null,
+                                        Source: "Google"
+                                    ));
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.LogWarning(ex, "Failed to fetch Google Calendar events for user {UserId}", userId);
+                        }
+                    }
+
+                    // Convert task times from UTC to user's timezone and extract unique dates
+                    var uniqueDates = tasksInMonth
+                        .Select(t =>
+                        {
+                            // Convert UTC time to user's local timezone
+                            var localTime = TimeZoneInfo.ConvertTimeFromUtc(
+                                DateTime.SpecifyKind(t.Time, DateTimeKind.Utc), timeZone);
+                            return localTime.Date;
+                        })
+                        .Where(d => d >= monthStart && d <= monthEnd) // Ensure date is within the month
+                        .Distinct()
+                        .OrderBy(d => d)
+                        .Select(d => d.ToString("yyyy-MM-dd"))
+                        .ToList();
+
+                    return Results.Ok(uniqueDates);
+                }
+                catch (Exception ex)
+                {
+                    var logger = loggerFactory.CreateLogger("TaskItemEndpoints");
+                    logger.LogError(ex, "Error getting unique task dates for user {UserId}", userId);
+                    throw ApiExceptions.InternalServerError("Failed to retrieve task dates");
+                }
+            })
+            .RequireAuthorization()
+            .WithOpenApi(op => {
+                op.Summary = "Get unique dates with tasks for a month";
+                op.Description = "Returns unique dates (in yyyy-MM-dd format) that have tasks for the month of the specified date, considering the provided timezone.";
                 return op;
             });
         }
