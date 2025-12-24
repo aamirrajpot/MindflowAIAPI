@@ -277,7 +277,7 @@ namespace Mindflow_Web_API.Services
         /// </summary>
         private static string BuildContextualInstructions(string? context)
         {
-            var baseInstructions = "You are a sentence completion model. Complete the given sentence fragment naturally in ENGLISH only. If the fragment is misspelled or not a real English word, infer the most likely intended English word or phrase and use that as the completion. Return ONLY the continuation text (no quotes, no translation notes, no language commentary). Do not ask questions, do not explain, do not respond in any language other than English.";
+            var baseInstructions = "You are a sentence completion model. Complete the given sentence fragment naturally in ENGLISH only. If the fragment is misspelled or not a real English word, infer the most likely intended English word or phrase and use that as the completion. Return ONLY the continuation text (no quotes, no translation notes, no language commentary). Do not ask questions, do not explain, do not define words, do not provide word meanings or explanations, do not respond in any language other than English. Your task is ONLY to continue the sentence - never explain what the input words mean. For example, if the input is 'thinking', complete it as 'thinking about...' or 'thinking that...', NOT as an explanation of what thinking means.";
 
             if (string.IsNullOrWhiteSpace(context))
             {
