@@ -318,12 +318,56 @@ namespace Mindflow_Web_API.Utilities
             return sb.ToString();
         }
 
-        // Multi-prompt approach: Step 3 - Generate AI Summary (Enhanced)
+        // Multi-prompt approach: Step 3 - Generate AI Summary (Enhanced - Therapist-Style with CBT/DBT/Trauma-Informed)
         public static string BuildAiSummaryPrompt(string originalText, string summary, List<string> emotions, List<string> themes, BrainDumpRequest? request = null)
         {
             var sb = new StringBuilder();
             sb.Append("[INST] ");
-            sb.Append("You are a warm, therapy-informed wellness coach. Write a personalized, insightful summary that deeply reflects the user's emotional and practical state.\n\n");
+            sb.Append("You are an experienced therapist providing a guided, conversational response to a client's brain dump. ");
+            sb.Append("Your response should feel like a real therapist conversation - warm, reflective, validating, and gently guiding. ");
+            sb.Append("This is NOT a simple summary. This is a back-and-forth therapeutic conversation starter.\n\n");
+            
+            // Determine which therapeutic approach to use
+            var approach = DetermineTherapeuticApproach(originalText, emotions, themes, null);
+            sb.Append($"THERAPEUTIC APPROACH: {approach}\n\n");
+            
+            if (approach == "CBT")
+            {
+                sb.Append("CBT (Cognitive Behavioral Therapy) STYLE:\n");
+                sb.Append("- Focus on the connection between thoughts, feelings, and behaviors\n");
+                sb.Append("- Help identify negative or unhelpful thoughts\n");
+                sb.Append("- Gently guide toward examining evidence for and against thoughts\n");
+                sb.Append("- Use structured, logical, thought-focused language\n");
+                sb.Append("- Example: 'It sounds like you're having the thought that you're failing at everything. ");
+                sb.Append("Let's pause and examine that—what evidence supports this thought, and what evidence might challenge it?'\n\n");
+            }
+            else if (approach == "DBT")
+            {
+                sb.Append("DBT (Dialectical Behavior Therapy) STYLE:\n");
+                sb.Append("- Emotion-first approach - validate feelings FIRST\n");
+                sb.Append("- Focus on emotional regulation and distress tolerance\n");
+                sb.Append("- Use mindfulness language\n");
+                sb.Append("- Validate without judging or dismissing\n");
+                sb.Append("- Example: 'That sounds really overwhelming. Anyone in your situation would feel drained. ");
+                sb.Append("Let's slow down for a moment—can you name what emotion feels strongest right now?'\n\n");
+            }
+            else if (approach == "TraumaInformed")
+            {
+                sb.Append("TRAUMA-INFORMED APPROACH STYLE:\n");
+                sb.Append("- Prioritize emotional and psychological safety\n");
+                sb.Append("- Avoid judgment or triggering language\n");
+                sb.Append("- Empower the user (no 'you should' language)\n");
+                sb.Append("- Give control back to the user\n");
+                sb.Append("- Example: 'Thank you for sharing this. You're not required to fix anything right now. ");
+                sb.Append("We can move at whatever pace feels safe for you.'\n\n");
+            }
+            else
+            {
+                sb.Append("ADAPTIVE THERAPEUTIC STYLE:\n");
+                sb.Append("- Blend validation, reflection, and gentle guidance\n");
+                sb.Append("- Use warm, empathetic language\n");
+                sb.Append("- Include reflective questions that invite deeper exploration\n\n");
+            }
             
             sb.Append("CRITICAL RULES:\n");
             sb.Append("- DO NOT repeat words unnecessarily (avoid saying 'overwhelmed' multiple times)\n");
@@ -331,9 +375,13 @@ namespace Mindflow_Web_API.Utilities
             sb.Append("- Include SPECIFIC examples from their text (reference actual details they mentioned)\n");
             sb.Append("- Use therapy-informed language: validate their feelings, acknowledge their experience\n");
             sb.Append("- Be warm and supportive, not clinical or robotic\n");
-            sb.Append("- Write 2-3 sentences that feel personal and meaningful\n");
+            sb.Append("- Write 3-5 sentences that feel personal and meaningful\n");
+            sb.Append("- Include 1-2 gentle, reflective questions that invite deeper exploration\n");
             sb.Append("- Avoid generic phrases like 'it seems like' or 'you appear to'\n");
-            sb.Append("- Connect their emotions to their practical concerns when relevant\n\n");
+            sb.Append("- Connect their emotions to their practical concerns when relevant\n");
+            sb.Append("- This is a CONVERSATION STARTER, not just a summary - engage with their experience therapeutically\n");
+            sb.Append("- Do NOT provide generic encouragement - be specific to their situation\n");
+            sb.Append("- Do NOT list tasks - this is about emotional processing, not task management\n\n");
             
             sb.Append("Original Text (for context and specific details):\n");
             sb.Append(originalText);
@@ -361,11 +409,22 @@ namespace Mindflow_Web_API.Utilities
                 sb.Append("\n");
             }
             
-            sb.Append("EXAMPLE OF GOOD SUMMARY:\n");
-            sb.Append("You're navigating a lot right now - work deadlines are piling up, and you're feeling the weight of trying to balance everything. The fact that you're thinking about talking to your manager shows self-awareness, and it's understandable that you're feeling behind when juggling multiple priorities.\n\n");
+            sb.Append("GOOD EXAMPLE (CBT-style):\n");
+            sb.Append("It sounds like you're having the thought that you're failing at everything and can't focus. ");
+            sb.Append("Let's pause and examine that—what evidence supports this thought, and what evidence might challenge it? ");
+            sb.Append("I notice you mentioned feeling behind on work deadlines. When you think about 'failing at everything,' ");
+            sb.Append("are there areas where you're actually making progress, even if small? ");
+            sb.Append("What would it feel like to acknowledge both the struggle and any steps you've taken, however small?\n\n");
             
-            sb.Append("EXAMPLE OF BAD SUMMARY (avoid this):\n");
-            sb.Append("You seem overwhelmed and stressed about work. You have deadlines and feel overwhelmed. It seems like you need to manage your time better.\n\n");
+            sb.Append("GOOD EXAMPLE (DBT-style):\n");
+            sb.Append("That sounds really overwhelming. Anyone in your situation would feel drained trying to balance ");
+            sb.Append("everything you've described. Let's slow down for a moment—can you name what emotion feels strongest ");
+            sb.Append("right now? Is it the anxiety about deadlines, or maybe something deeper like fear of disappointing others? ");
+            sb.Append("Sometimes naming the emotion helps us understand what we actually need in this moment.\n\n");
+            
+            sb.Append("BAD EXAMPLE (avoid this - too generic):\n");
+            sb.Append("You seem overwhelmed and stressed about work. You have deadlines and feel overwhelmed. ");
+            sb.Append("It seems like you need to manage your time better. Here are some tasks to help you.\n\n");
             
             sb.Append("CRITICAL OUTPUT RULES:\n");
             sb.Append("- Return ONLY the summary text itself\n");
@@ -810,7 +869,7 @@ namespace Mindflow_Web_API.Utilities
             return sb.ToString();
         }
 
-        // Multi-prompt approach: Step 6 - Generate Emotional Intelligence Layer
+        // Multi-prompt approach: Step 6 - Generate Emotional Intelligence Layer (Enhanced with CBT/DBT/Trauma-Informed)
         public static string BuildEmotionalIntelligencePrompt(
             string originalText,
             string summary,
@@ -820,13 +879,49 @@ namespace Mindflow_Web_API.Utilities
         {
             var sb = new StringBuilder();
             sb.Append("[INST] ");
-            sb.Append("You are a warm, therapy-informed wellness coach. Provide emotional intelligence insights that validate, acknowledge, and support the user.\n\n");
+            sb.Append("You are an experienced therapist providing emotional intelligence insights using evidence-based therapeutic approaches. ");
+            sb.Append("Your responses should validate, acknowledge, and support the user using appropriate therapeutic techniques.\n\n");
             
-            sb.Append("CRITICAL: Use therapy-informed language - warm, supportive, validating, non-clinical.\n\n");
+            // Determine which therapeutic approach to use
+            var approach = DetermineTherapeuticApproach(originalText, emotions, themes, null);
+            sb.Append($"THERAPEUTIC APPROACH: {approach}\n\n");
+            
+            if (approach == "CBT")
+            {
+                sb.Append("CBT (Cognitive Behavioral Therapy) FOCUS:\n");
+                sb.Append("- emotionalValidation: Focus on identifying the thought-feeling-behavior connection. ");
+                sb.Append("Validate their experience while gently pointing to the thought patterns.\n");
+                sb.Append("- patternInsight: Name cognitive patterns (e.g., 'all-or-nothing thinking', 'catastrophizing'). ");
+                sb.Append("Be specific about how thoughts influence feelings.\n");
+                sb.Append("- copingTools: Provide cognitive restructuring techniques, thought challenging exercises.\n\n");
+            }
+            else if (approach == "DBT")
+            {
+                sb.Append("DBT (Dialectical Behavior Therapy) FOCUS:\n");
+                sb.Append("- emotionalValidation: Validate emotions FIRST. Use phrases like 'It makes sense that...', ");
+                sb.Append("'Anyone would feel...', 'Your feelings are valid.'\n");
+                sb.Append("- patternInsight: Focus on emotional patterns, distress tolerance, emotional regulation challenges.\n");
+                sb.Append("- copingTools: Provide distress tolerance skills, mindfulness exercises, emotion regulation techniques.\n\n");
+            }
+            else if (approach == "TraumaInformed")
+            {
+                sb.Append("TRAUMA-INFORMED APPROACH FOCUS:\n");
+                sb.Append("- emotionalValidation: Prioritize safety and control. Use gentle, non-directive language. ");
+                sb.Append("Avoid 'you should' statements. Empower the user.\n");
+                sb.Append("- patternInsight: Be careful with pattern identification - focus on strengths and resilience, ");
+                sb.Append("not just challenges. Avoid retraumatizing language.\n");
+                sb.Append("- copingTools: Provide grounding techniques, safety-building strategies, self-compassion exercises.\n\n");
+            }
+            else
+            {
+            sb.Append("ADAPTIVE THERAPEUTIC APPROACH:\n");
+            sb.Append("- Blend validation, reflection, and gentle guidance\n");
+            sb.Append("- Use warm, empathetic language appropriate to the situation\n\n");
+            }
             
             sb.Append("Original Text (for context):\n");
             sb.Append(originalText.Length > 600 ? originalText.Substring(0, 600) + "..." : originalText);
-                sb.Append("\n\n");
+            sb.Append("\n\n");
             
             sb.Append("Summary: ");
             sb.Append(summary);
@@ -852,25 +947,47 @@ namespace Mindflow_Web_API.Utilities
             
             sb.Append("Return ONLY a JSON object with these three fields:\n");
             sb.Append("{\n");
-            sb.Append("  \"emotionalValidation\": \"2-3 sentences that validate and acknowledge their feelings. Use phrases like 'It makes sense that...', 'I hear that...', 'It's understandable that...'\",\n");
-            sb.Append("  \"patternInsight\": \"1-2 sentences naming a pattern or theme you notice. Be specific and insightful, not generic.\",\n");
-            sb.Append("  \"copingTools\": [\"One quick coping strategy (1-2 sentences)\", \"Another coping strategy (1-2 sentences)\"]\n");
+            sb.Append("  \"emotionalValidation\": \"2-3 sentences that validate and acknowledge their feelings using the therapeutic approach specified above\",\n");
+            sb.Append("  \"patternInsight\": \"1-2 sentences naming a pattern or theme you notice, using the therapeutic approach specified above\",\n");
+            sb.Append("  \"copingTools\": [\"One quick coping strategy aligned with the therapeutic approach (1-2 sentences)\", \"Another coping strategy (1-2 sentences)\"]\n");
             sb.Append("}\n\n");
 
-            sb.Append("EXAMPLES:\n\n");
-            sb.Append("Example 1 (Stressed about work):\n");
-            sb.Append("{\n");
-            sb.Append("  \"emotionalValidation\": \"It makes sense that you're feeling overwhelmed with multiple deadlines. The pressure of trying to balance everything can be really taxing, and it's understandable that you're feeling behind.\",\n");
-            sb.Append("  \"patternInsight\": \"I notice you're juggling several priorities at once, which often leads to feeling stretched thin. This pattern suggests you might benefit from clearer boundaries around your workload.\",\n");
-            sb.Append("  \"copingTools\": [\"Take a 5-minute breathing break: Inhale for 4 counts, hold for 4, exhale for 6. This activates your body's relaxation response.\", \"Try the '2-minute rule': If something takes less than 2 minutes, do it now. This can help clear small tasks that add to mental clutter.\"]\n");
-            sb.Append("}\n\n");
-            
-            sb.Append("Example 2 (Relationship concerns):\n");
-            sb.Append("{\n");
-            sb.Append("  \"emotionalValidation\": \"I hear that you're feeling uncertain about your relationship, and that's a vulnerable place to be. It's understandable that communication challenges can feel isolating.\",\n");
-            sb.Append("  \"patternInsight\": \"I notice you're recognizing the need for better communication, which shows self-awareness. This pattern often emerges when both people are trying but missing each other's signals.\",\n");
-            sb.Append("  \"copingTools\": [\"Before your next conversation, write down what you want to say and what you need. This helps clarify your thoughts and reduces reactive responses.\", \"Practice active listening: When your partner speaks, try to reflect back what you heard before responding. This creates space for understanding.\"]\n");
-            sb.Append("}\n\n");
+            if (approach == "CBT")
+            {
+                sb.Append("CBT EXAMPLE (Stressed about work):\n");
+                sb.Append("{\n");
+                sb.Append("  \"emotionalValidation\": \"It sounds like you're having the thought that you're failing at everything, and that thought is creating a lot of distress. Let's examine what's really happening here - you mentioned specific deadlines and feeling behind, which suggests this isn't just a vague worry but something concrete you're navigating.\",\n");
+                sb.Append("  \"patternInsight\": \"I notice a pattern of 'all-or-nothing thinking' here - when you say 'failing at everything,' it suggests you might be viewing your situation in black-and-white terms. This cognitive pattern often amplifies feelings of overwhelm.\",\n");
+                sb.Append("  \"copingTools\": [\"Thought record exercise: Write down the thought 'I'm failing at everything.' Then list evidence FOR this thought and evidence AGAINST it. This helps challenge cognitive distortions.\", \"Behavioral experiment: Identify one small task you can complete today. Notice what happens to your 'failing' thought when you complete it.\"]\n");
+                sb.Append("}\n\n");
+            }
+            else if (approach == "DBT")
+            {
+                sb.Append("DBT EXAMPLE (Overwhelmed with emotions):\n");
+                sb.Append("{\n");
+                sb.Append("  \"emotionalValidation\": \"That sounds really overwhelming, and anyone in your situation would feel drained. Your feelings are completely valid - it makes sense that trying to balance everything you've described would leave you feeling this way. Let's slow down for a moment and honor what you're experiencing.\",\n");
+                sb.Append("  \"patternInsight\": \"I notice you're experiencing intense emotions that feel hard to manage right now. This pattern of emotional overwhelm often happens when we're trying to process multiple stressors at once without emotional regulation tools.\",\n");
+                sb.Append("  \"copingTools\": [\"TIPP technique: Try cold water on your face or hold an ice cube. This activates the dive reflex and can help regulate intense emotions quickly.\", \"Mindfulness of current emotion: Name the emotion you're feeling right now (anxiety, sadness, anger?). Just observe it without judgment for 2 minutes.\"]\n");
+                sb.Append("}\n\n");
+            }
+            else if (approach == "TraumaInformed")
+            {
+                sb.Append("TRAUMA-INFORMED EXAMPLE:\n");
+                sb.Append("{\n");
+                sb.Append("  \"emotionalValidation\": \"Thank you for sharing this with me. You're not required to fix anything right now, and it's okay that things feel overwhelming. What you're experiencing makes sense given what you've shared, and you have full control over how we proceed.\",\n");
+                sb.Append("  \"patternInsight\": \"I notice you're showing resilience in even being able to name what's difficult. That takes strength. There's no pressure to identify patterns right now - we can move at whatever pace feels safe.\",\n");
+                sb.Append("  \"copingTools\": [\"Grounding technique: Name 5 things you can see, 4 things you can touch, 3 things you can hear, 2 things you can smell, 1 thing you can taste. This helps anchor you in the present moment.\", \"Self-compassion break: Place a hand on your heart and say 'This is a moment of difficulty. It's okay to feel this way. I'm here with myself.'\"]\n");
+                sb.Append("}\n\n");
+            }
+            else
+            {
+                sb.Append("ADAPTIVE EXAMPLE (Stressed about work):\n");
+                sb.Append("{\n");
+                sb.Append("  \"emotionalValidation\": \"It makes sense that you're feeling overwhelmed with multiple deadlines. The pressure of trying to balance everything can be really taxing, and it's understandable that you're feeling behind.\",\n");
+                sb.Append("  \"patternInsight\": \"I notice you're juggling several priorities at once, which often leads to feeling stretched thin. This pattern suggests you might benefit from clearer boundaries around your workload.\",\n");
+                sb.Append("  \"copingTools\": [\"Take a 5-minute breathing break: Inhale for 4 counts, hold for 4, exhale for 6. This activates your body's relaxation response.\", \"Try the '2-minute rule': If something takes less than 2 minutes, do it now. This can help clear small tasks that add to mental clutter.\"]\n");
+                sb.Append("}\n\n");
+            }
             
             sb.Append("RULES:\n");
             sb.Append("- emotionalValidation: Validate their experience, acknowledge their feelings, use warm language\n");
@@ -882,6 +999,256 @@ namespace Mindflow_Web_API.Utilities
             
             sb.Append("Return ONLY the JSON object. No markdown. No explanations. Start with { and end with }. [/INST]");
             return sb.ToString();
+        }
+
+        // Step 7: Generate Therapist-Style Response (CBT/DBT/Trauma-Informed)
+        public static string BuildTherapeuticResponsePrompt(
+            string originalText,
+            string summary,
+            List<string> emotions,
+            List<string> themes,
+            BrainDumpRequest? request = null,
+            string? preferredApproach = null)
+        {
+            var sb = new StringBuilder();
+            sb.Append("[INST] ");
+            sb.Append("You are an experienced therapist providing a guided, conversational response to a client's brain dump. ");
+            sb.Append("Your response should feel like a real therapist conversation - warm, reflective, validating, and gently guiding. ");
+            sb.Append("This is NOT a summary. This is a back-and-forth therapeutic conversation starter.\n\n");
+            
+            // Determine which therapeutic approach to use
+            var approach = DetermineTherapeuticApproach(originalText, emotions, themes, preferredApproach);
+            sb.Append($"THERAPEUTIC APPROACH: {approach}\n\n");
+            
+            if (approach == "CBT")
+            {
+                sb.Append("CBT (Cognitive Behavioral Therapy) FOCUS:\n");
+                sb.Append("- Focus on the connection between thoughts, feelings, and behaviors\n");
+                sb.Append("- Help identify negative or unhelpful thoughts\n");
+                sb.Append("- Gently guide toward examining evidence for and against thoughts\n");
+                sb.Append("- Use structured, logical, thought-focused language\n");
+                sb.Append("- Ask reflective questions that help them examine their thinking\n");
+                sb.Append("- Example style: 'It sounds like you're having the thought that you're failing at everything. ");
+                sb.Append("Let's pause and examine that—what evidence supports this thought, and what evidence might challenge it?'\n\n");
+            }
+            else if (approach == "DBT")
+            {
+                sb.Append("DBT (Dialectical Behavior Therapy) FOCUS:\n");
+                sb.Append("- Emotion-first approach - validate feelings FIRST\n");
+                sb.Append("- Focus on emotional regulation and distress tolerance\n");
+                sb.Append("- Use mindfulness language\n");
+                sb.Append("- Validate without judging or dismissing\n");
+                sb.Append("- Be calming and emotion-focused\n");
+                sb.Append("- Example style: 'That sounds really overwhelming. Anyone in your situation would feel drained. ");
+                sb.Append("Let's slow down for a moment—can you name what emotion feels strongest right now?'\n\n");
+            }
+            else // Trauma-Informed
+            {
+                sb.Append("TRAUMA-INFORMED APPROACH FOCUS:\n");
+                sb.Append("- Prioritize emotional and psychological safety\n");
+                sb.Append("- Avoid judgment or triggering language\n");
+                sb.Append("- Empower the user (no 'you should' language)\n");
+                sb.Append("- Give control back to the user\n");
+                sb.Append("- Be very gentle, respectful, and non-directive\n");
+                sb.Append("- Example style: 'Thank you for sharing this. You're not required to fix anything right now. ");
+                sb.Append("We can move at whatever pace feels safe for you.'\n\n");
+            }
+            
+            sb.Append("Original Text (read carefully for specific details):\n");
+            sb.Append(originalText);
+            sb.Append("\n\n");
+            
+            sb.Append("Summary: ");
+            sb.Append(summary);
+            sb.Append("\n\n");
+            
+            sb.Append("Detected Emotions: ");
+            sb.Append(string.Join(", ", emotions));
+            sb.Append("\n\n");
+            
+            sb.Append("Key Themes: ");
+            sb.Append(string.Join(", ", themes));
+            sb.Append("\n\n");
+            
+            if (request != null && (request.Mood.HasValue || request.Stress.HasValue || request.Purpose.HasValue))
+            {
+                sb.Append("Self-Reported Scores:\n");
+                if (request.Mood.HasValue) sb.Append($"- Mood: {request.Mood.Value}/10\n");
+                if (request.Stress.HasValue) sb.Append($"- Stress: {request.Stress.Value}/10\n");
+                if (request.Purpose.HasValue) sb.Append($"- Purpose: {request.Purpose.Value}/10\n");
+                sb.Append("\n");
+            }
+            
+            sb.Append("CRITICAL RESPONSE REQUIREMENTS:\n");
+            sb.Append("1. This is a CONVERSATION, not a summary. Write as if you're a therapist responding to them.\n");
+            sb.Append("2. Include 1-2 reflective questions that invite them to explore deeper\n");
+            sb.Append("3. Reference SPECIFIC details they mentioned (names, situations, feelings)\n");
+            sb.Append("4. Validate their experience authentically\n");
+            sb.Append("5. Use warm, empathetic language - similar to ChatGPT's empathetic responses\n");
+            sb.Append("6. Length: 3-5 sentences + 1-2 questions (aim for 150-250 words)\n");
+            sb.Append("7. Do NOT just summarize what they said - engage with it therapeutically\n");
+            sb.Append("8. Do NOT provide generic encouragement - be specific to their situation\n");
+            sb.Append("9. Do NOT list tasks - this is about emotional processing, not task management\n\n");
+            
+            sb.Append("GOOD EXAMPLE (CBT-style):\n");
+            sb.Append("It sounds like you're having the thought that you're failing at everything and can't focus. ");
+            sb.Append("Let's pause and examine that—what evidence supports this thought, and what evidence might challenge it? ");
+            sb.Append("I notice you mentioned feeling behind on work deadlines. When you think about 'failing at everything,' ");
+            sb.Append("are there areas where you're actually making progress, even if small? ");
+            sb.Append("What would it feel like to acknowledge both the struggle and any steps you've taken, however small?\n\n");
+            
+            sb.Append("GOOD EXAMPLE (DBT-style):\n");
+            sb.Append("That sounds really overwhelming. Anyone in your situation would feel drained trying to balance ");
+            sb.Append("everything you've described. Let's slow down for a moment—can you name what emotion feels strongest ");
+            sb.Append("right now? Is it the anxiety about deadlines, or maybe something deeper like fear of disappointing others? ");
+            sb.Append("Sometimes naming the emotion helps us understand what we actually need in this moment.\n\n");
+            
+            sb.Append("GOOD EXAMPLE (Trauma-Informed):\n");
+            sb.Append("Thank you for sharing this with me. You're not required to fix anything right now, and it's okay ");
+            sb.Append("that things feel overwhelming. We can move at whatever pace feels safe for you. ");
+            sb.Append("I'm curious—when you think about what you shared, what feels most important to you right now? ");
+            sb.Append("There's no right answer, and you have full control over how we proceed.\n\n");
+            
+            sb.Append("BAD EXAMPLE (avoid this - too generic):\n");
+            sb.Append("You seem stressed about work. Here are some tasks to help you manage your time better. ");
+            sb.Append("Remember to stay positive and take breaks.\n\n");
+            
+            sb.Append("OUTPUT FORMAT:\n");
+            sb.Append("Return ONLY a JSON object with two fields:\n");
+            sb.Append("{\n");
+            sb.Append("  \"therapeuticResponse\": \"Your full therapist-style response (3-5 sentences + 1-2 questions)\",\n");
+            sb.Append("  \"therapeuticApproach\": \"").Append(approach).Append("\"\n");
+            sb.Append("}\n\n");
+            
+            sb.Append("CRITICAL: Return ONLY the JSON object. No markdown. No explanations. Start with { and end with }. ");
+            sb.Append("The therapeuticResponse field should start directly with your therapist-style response text. [/INST]");
+            return sb.ToString();
+        }
+
+        // Helper method to determine which therapeutic approach to use
+        private static string DetermineTherapeuticApproach(
+            string originalText, 
+            List<string> emotions, 
+            List<string> themes, 
+            string? preferredApproach)
+        {
+            // If user specified a preference, use it
+            if (!string.IsNullOrWhiteSpace(preferredApproach))
+            {
+                var approach = preferredApproach.Trim().ToLowerInvariant();
+                if (approach == "cbt" || approach == "dbt" || approach == "traumainformed" || approach == "trauma-informed")
+                    return approach == "traumainformed" || approach == "trauma-informed" ? "TraumaInformed" : approach.ToUpperInvariant();
+            }
+            
+            var textLower = originalText.ToLowerInvariant();
+            var emotionsLower = emotions.Select(e => e.ToLowerInvariant()).ToList();
+            var themesLower = themes.Select(t => t.ToLowerInvariant()).ToList();
+            
+            // Trauma indicators: mentions of trauma, abuse, safety concerns, feeling unsafe
+            var traumaKeywords = new[] { "trauma", "abuse", "unsafe", "triggered", "triggering", "violence", "assault", "victim", "survivor", "ptsd", "panic", "flashback" };
+            if (traumaKeywords.Any(k => textLower.Contains(k)) || 
+                emotionsLower.Any(e => traumaKeywords.Any(k => e.Contains(k))))
+            {
+                return "TraumaInformed";
+            }
+            
+            // DBT indicators: strong emotions, emotional dysregulation, relationship issues, self-harm thoughts
+            var dbtKeywords = new[] { "overwhelmed", "dysregulated", "can't control", "emotion", "feeling", "relationship", "conflict", "borderline", "self-harm", "suicidal" };
+            var strongEmotions = new[] { "angry", "rage", "furious", "desperate", "hopeless", "empty", "numb" };
+            if (dbtKeywords.Any(k => textLower.Contains(k)) || 
+                strongEmotions.Any(e => emotionsLower.Any(em => em.Contains(e))) ||
+                themesLower.Any(t => t.Contains("relationship") || t.Contains("emotion")))
+            {
+                return "DBT";
+            }
+            
+            // CBT indicators: negative thoughts, cognitive distortions, anxiety, depression, work stress
+            var cbtKeywords = new[] { "thinking", "thought", "believe", "worry", "anxious", "depressed", "failure", "worthless", "should", "must", "always", "never" };
+            if (cbtKeywords.Any(k => textLower.Contains(k)) ||
+                themesLower.Any(t => t.Contains("work") || t.Contains("stress") || t.Contains("anxiety")))
+            {
+                return "CBT";
+            }
+            
+            // Default to adaptive (mix of approaches)
+            return "Adaptive";
+        }
+
+        // Parser for Step 7: Therapeutic Response
+        public static (string? TherapeuticResponse, string? TherapeuticApproach) ParseTherapeuticResponse(string aiResponse, ILogger? logger = null)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(aiResponse))
+                {
+                    logger?.LogWarning("Therapeutic response is null or empty");
+                    return (null, null);
+                }
+                
+                // Extract text from RunPod response envelope
+                var extractedText = RunpodResponseHelper.ExtractTextFromRunpodResponse(aiResponse);
+                logger?.LogDebug("Extracted therapeutic response text: {Text}", extractedText?.Substring(0, Math.Min(300, extractedText?.Length ?? 0)));
+                
+                var cleanText = extractedText?.Trim() ?? string.Empty;
+                
+                // Remove markdown code blocks
+                if (cleanText.StartsWith("```json"))
+                    cleanText = cleanText.Substring(7);
+                if (cleanText.StartsWith("```"))
+                    cleanText = cleanText.Substring(3);
+                if (cleanText.EndsWith("```"))
+                    cleanText = cleanText.Substring(0, cleanText.Length - 3);
+                cleanText = cleanText.Trim();
+                
+                // Extract JSON object
+                if (cleanText.Contains('{') && cleanText.Contains('}'))
+                {
+                    var firstBrace = cleanText.IndexOf('{');
+                    var lastBrace = cleanText.LastIndexOf('}');
+                    if (firstBrace >= 0 && lastBrace > firstBrace)
+                    {
+                        cleanText = cleanText.Substring(firstBrace, lastBrace - firstBrace + 1);
+                    }
+                }
+                else
+                {
+                    logger?.LogWarning("No JSON object found in therapeutic response");
+                    return (null, null);
+                }
+                
+                // Try to repair JSON
+                try
+                {
+                    cleanText = RepairJson(cleanText);
+                }
+                catch
+                {
+                    // If repair fails, continue with original
+                }
+                
+                // Parse JSON
+                using var doc = JsonDocument.Parse(cleanText);
+                var root = doc.RootElement;
+                
+                var therapeuticResponse = root.TryGetProperty("therapeuticResponse", out var responseEl) 
+                    ? responseEl.GetString() 
+                    : null;
+                
+                var therapeuticApproach = root.TryGetProperty("therapeuticApproach", out var approachEl) 
+                    ? approachEl.GetString() 
+                    : null;
+                
+                logger?.LogDebug("Parsed therapeutic response: Approach={Approach}, HasResponse={HasResponse}", 
+                    therapeuticApproach, 
+                    !string.IsNullOrWhiteSpace(therapeuticResponse));
+                
+                return (therapeuticResponse, therapeuticApproach);
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "Failed to parse therapeutic response");
+                return (null, null);
+            }
         }
 
         // Parser for Step 6: Emotional Intelligence
