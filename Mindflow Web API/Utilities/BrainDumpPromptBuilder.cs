@@ -518,9 +518,9 @@ namespace Mindflow_Web_API.Utilities
             sb.Append("EXTRACTION RULES (PRIORITY ORDER):\n");
             sb.Append("1. FIRST: Extract SPECIFIC tasks explicitly mentioned in the original text.\n");
             sb.Append("   - Include ALL context: names, places, specific items, deadlines.\n");
-            sb.Append("   - Example: \"Call Dr. Smith about test results\" NOT \"Call doctor\"\n");
-            sb.Append("   - Example: \"Pack kitchen items into labeled boxes\" NOT \"organize belongings\"\n");
-            sb.Append("   - Example: \"Email Sarah about the project deadline on Friday\" NOT \"Send email\"\n\n");
+            sb.Append("   - Example (DO NOT COPY THIS LITERALLY): \"Call [doctor name] about test results\" NOT \"Call doctor\"\n");
+            sb.Append("   - Example (DO NOT COPY THIS LITERALLY): \"Pack kitchen items into labeled boxes\" NOT \"organize belongings\"\n");
+            sb.Append("   - Example (DO NOT COPY THIS LITERALLY): \"Email [person] about the project deadline on Friday\" NOT \"Send email\"\n\n");
             sb.Append("2. SECOND: Break complex task mentions into separate, specific tasks.\n");
             sb.Append("   - If text says \"I need to clean the garage and organize my office\", create TWO tasks.\n");
             sb.Append("   - Each task should be specific: \"Clean garage and sort items into keep/donate/trash\" and \"Organize office desk and file important documents\"\n\n");
@@ -565,10 +565,10 @@ namespace Mindflow_Web_API.Utilities
             sb.Append("- Priority score lists or additional formatting\n");
             sb.Append("- Any text before or after the JSON array\n\n");
             
-            sb.Append("CORRECT FORMAT EXAMPLE:\n");
+            sb.Append("CORRECT FORMAT EXAMPLE (USE THIS STRUCTURE, NOT THE SAMPLE CONTENT):\n");
             sb.Append("[\n");
-            sb.Append("  {\"task\": \"Call Dr. Smith about test results\", \"frequency\": \"once\", \"duration\": \"10 minutes\", \"notes\": \"Schedule call to discuss results\", \"priority\": \"High\", \"suggestedTime\": \"Morning\", \"urgency\": \"High\", \"importance\": \"Medium\", \"priorityScore\": 9},\n");
-            sb.Append("  {\"task\": \"Pack kitchen items into labeled boxes\", \"frequency\": \"weekly\", \"duration\": \"30 minutes\", \"notes\": \"Organize for moving\", \"priority\": \"Medium\", \"suggestedTime\": \"Afternoon\", \"urgency\": \"Low\", \"importance\": \"Medium\", \"priorityScore\": 7}\n");
+            sb.Append("  {\"task\": \"<task 1 from the user's text>\", \"frequency\": \"once\", \"duration\": \"10 minutes\", \"notes\": \"Short reason based on the brain dump\", \"priority\": \"High\", \"suggestedTime\": \"Morning\", \"urgency\": \"High\", \"importance\": \"Medium\", \"priorityScore\": 9},\n");
+            sb.Append("  {\"task\": \"<task 2 from the user's text>\", \"frequency\": \"weekly\", \"duration\": \"30 minutes\", \"notes\": \"Short reason based on the brain dump\", \"priority\": \"Medium\", \"suggestedTime\": \"Afternoon\", \"urgency\": \"Low\", \"importance\": \"Medium\", \"priorityScore\": 7}\n");
             sb.Append("]\n\n");
             
             sb.Append("INCORRECT FORMAT (DO NOT DO THIS):\n");
