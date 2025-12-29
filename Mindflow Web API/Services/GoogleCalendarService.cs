@@ -49,7 +49,7 @@ namespace Mindflow_Web_API.Services
             _logger = logger;
         }
 
-        public Task<string> BuildConnectUrlAsync(Guid userId)
+        public async Task<string> BuildConnectUrlAsync(Guid userId)
         {
             var clientId = _configuration["Google:ClientId"]
                            ?? throw new InvalidOperationException("Google:ClientId not configured");
@@ -61,6 +61,11 @@ namespace Mindflow_Web_API.Services
             // userinfo.email is needed to get the user's email address
             var scope = Uri.EscapeDataString("https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/userinfo.email");
 
+            // Check if user already has a connection - if so, use prompt=select_account instead of prompt=consent
+            // This allows re-authentication without forcing consent screen every time
+            var existingConnection = await _db.GoogleCalendarConnections.FirstOrDefaultAsync(x => x.UserId == userId && x.IsConnected);
+            var prompt = existingConnection != null ? "select_account" : "consent";
+
             var url =
                 $"https://accounts.google.com/o/oauth2/v2/auth?client_id={Uri.EscapeDataString(clientId)}" +
                 $"&redirect_uri={Uri.EscapeDataString(redirectUri)}" +
@@ -68,9 +73,10 @@ namespace Mindflow_Web_API.Services
                 $"&scope={scope}" +
                 $"&state={Uri.EscapeDataString(state)}" +
                 $"&access_type=offline" +
-                $"&prompt=consent";
+                $"&prompt={prompt}";
 
-            return Task.FromResult(url);
+            _logger.LogDebug("Generated Google OAuth URL for user {UserId} with prompt={Prompt}", userId, prompt);
+            return url;
         }
 
         public async Task<(bool success, string message)> HandleCallbackAsync(string code, string state, HttpContext httpContext)
@@ -114,8 +120,39 @@ namespace Mindflow_Web_API.Services
             if (!tokenResponse.IsSuccessStatusCode)
             {
                 var error = await tokenResponse.Content.ReadAsStringAsync();
-                _logger.LogError("Google token exchange failed: {Error}", error);
-                return (false, "Failed to connect");
+                _logger.LogError("Google token exchange failed for user {UserId}: StatusCode={StatusCode}, Error={Error}", userId, tokenResponse.StatusCode, error);
+                
+                // Try to parse error details for better user feedback
+                try
+                {
+                    using var errorDoc = JsonDocument.Parse(error);
+                    if (errorDoc.RootElement.TryGetProperty("error", out var errorElement))
+                    {
+                        var errorCode = errorElement.GetString();
+                        var errorDescription = errorDoc.RootElement.TryGetProperty("error_description", out var descElement) 
+                            ? descElement.GetString() 
+                            : null;
+                        
+                        if (errorCode == "invalid_grant")
+                        {
+                            return (false, "The authorization code has expired or been used. Please try connecting again.");
+                        }
+                        else if (errorCode == "invalid_client")
+                        {
+                            return (false, "Google Calendar connection is not properly configured. Please contact support.");
+                        }
+                        else if (!string.IsNullOrWhiteSpace(errorDescription))
+                        {
+                            return (false, $"Google connection error: {errorDescription}");
+                        }
+                    }
+                }
+                catch
+                {
+                    // If parsing fails, use generic message
+                }
+                
+                return (false, $"Failed to connect to Google Calendar. Please try again. (Error: {tokenResponse.StatusCode})");
             }
 
             var tokenResponseContent = await tokenResponse.Content.ReadAsStringAsync();
@@ -141,7 +178,14 @@ namespace Mindflow_Web_API.Services
             var refreshToken = root.TryGetProperty("refresh_token", out var rtElement) ? rtElement.GetString() ?? string.Empty : string.Empty;
             var expiresIn = root.TryGetProperty("expires_in", out var expiresElement) ? expiresElement.GetInt32() : 3600;
 
-            _logger.LogDebug("Successfully obtained access token (length: {Length}), expires in {ExpiresIn} seconds", accessToken.Length, expiresIn);
+            _logger.LogDebug("Successfully obtained access token (length: {Length}), expires in {ExpiresIn} seconds, has refresh token: {HasRefreshToken}", 
+                accessToken.Length, expiresIn, !string.IsNullOrEmpty(refreshToken));
+            
+            // Warn if refresh token is missing (can happen if user already granted consent)
+            if (string.IsNullOrEmpty(refreshToken))
+            {
+                _logger.LogWarning("Google did not return a refresh token for user {UserId}. This may happen if consent was already granted. Connection will work but may require re-authentication when token expires.", userId);
+            }
 
             // 3. Get user's Google email
             // Create a new HttpClient for userinfo request to avoid header conflicts
@@ -160,43 +204,73 @@ namespace Mindflow_Web_API.Services
                 return (false, $"Failed to fetch Google user info: {error}");
             }
 
-            using var userDoc = JsonDocument.Parse(await userInfoResponse.Content.ReadAsStringAsync());
-            var email = userDoc.RootElement.GetProperty("email").GetString() ?? string.Empty;
+            var userInfoContent = await userInfoResponse.Content.ReadAsStringAsync();
+            using var userDoc = JsonDocument.Parse(userInfoContent);
+            
+            if (!userDoc.RootElement.TryGetProperty("email", out var emailElement))
+            {
+                _logger.LogError("Google userinfo response missing email field. Response: {Response}", userInfoContent);
+                return (false, "Failed to retrieve Google account email. Please try again.");
+            }
+            
+            var email = emailElement.GetString() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                _logger.LogError("Google userinfo email is empty. Response: {Response}", userInfoContent);
+                return (false, "Failed to retrieve Google account email. Please try again.");
+            }
+            
+            _logger.LogInformation("Successfully retrieved Google account email for user {UserId}: {Email}", userId, email);
 
             // 4. Store tokens in database (encrypted)
-            var encryptedAccess = _encryption.Encrypt(accessToken);
-            var encryptedRefresh = string.IsNullOrEmpty(refreshToken) ? string.Empty : _encryption.Encrypt(refreshToken);
-
-            var existing = await _db.GoogleCalendarConnections.FirstOrDefaultAsync(x => x.UserId == userId);
-            var nowUtc = DateTime.UtcNow;
-            if (existing == null)
+            try
             {
-                existing = new GoogleCalendarConnection
+                var encryptedAccess = _encryption.Encrypt(accessToken);
+                var encryptedRefresh = string.IsNullOrEmpty(refreshToken) ? string.Empty : _encryption.Encrypt(refreshToken);
+
+                var existing = await _db.GoogleCalendarConnections.FirstOrDefaultAsync(x => x.UserId == userId);
+                var nowUtc = DateTime.UtcNow;
+                if (existing == null)
                 {
-                    UserId = userId,
-                    Email = email,
-                    EncryptedAccessToken = encryptedAccess,
-                    EncryptedRefreshToken = encryptedRefresh,
-                    ExpiresAtUtc = nowUtc.AddSeconds(expiresIn),
-                    ConnectedAtUtc = nowUtc,
-                    LastSyncAtUtc = null,
-                    IsConnected = true
-                };
-                _db.GoogleCalendarConnections.Add(existing);
+                    existing = new GoogleCalendarConnection
+                    {
+                        UserId = userId,
+                        Email = email,
+                        EncryptedAccessToken = encryptedAccess,
+                        EncryptedRefreshToken = encryptedRefresh,
+                        ExpiresAtUtc = nowUtc.AddSeconds(expiresIn),
+                        ConnectedAtUtc = nowUtc,
+                        LastSyncAtUtc = null,
+                        IsConnected = true
+                    };
+                    _db.GoogleCalendarConnections.Add(existing);
+                    _logger.LogInformation("Created new Google Calendar connection for user {UserId} with email {Email}", userId, email);
+                }
+                else
+                {
+                    existing.Email = email;
+                    existing.EncryptedAccessToken = encryptedAccess;
+                    // Only update refresh token if we got a new one (preserve existing if Google didn't return one)
+                    if (!string.IsNullOrEmpty(refreshToken))
+                    {
+                        existing.EncryptedRefreshToken = encryptedRefresh;
+                    }
+                    existing.ExpiresAtUtc = nowUtc.AddSeconds(expiresIn);
+                    existing.ConnectedAtUtc = nowUtc;
+                    existing.IsConnected = true;
+                    _logger.LogInformation("Updated Google Calendar connection for user {UserId} with email {Email}", userId, email);
+                }
+
+                await _db.SaveChangesAsync();
+                _logger.LogInformation("Successfully saved Google Calendar connection for user {UserId}", userId);
+
+                return (true, "Connected successfully");
             }
-            else
+            catch (Exception ex)
             {
-                existing.Email = email;
-                existing.EncryptedAccessToken = encryptedAccess;
-                existing.EncryptedRefreshToken = encryptedRefresh;
-                existing.ExpiresAtUtc = nowUtc.AddSeconds(expiresIn);
-                existing.ConnectedAtUtc = nowUtc;
-                existing.IsConnected = true;
+                _logger.LogError(ex, "Failed to save Google Calendar connection to database for user {UserId}", userId);
+                return (false, "Failed to save connection. Please try again.");
             }
-
-            await _db.SaveChangesAsync();
-
-            return (true, "Connected successfully");
         }
 
         public async Task<(bool isConnected, string? email, DateTime? lastSyncAt)> GetStatusAsync(Guid userId)
