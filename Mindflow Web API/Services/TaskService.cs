@@ -196,6 +196,23 @@ namespace Mindflow_Web_API.Services
             return true;
         }
 
+        public async Task<int> DeleteAllAsync(Guid userId)
+        {
+            var tasks = await _dbContext.Tasks
+                .Where(t => t.UserId == userId)
+                .ToListAsync();
+            
+            if (!tasks.Any())
+                return 0;
+            
+            var count = tasks.Count;
+            _dbContext.Tasks.RemoveRange(tasks);
+            await _dbContext.SaveChangesAsync();
+            
+            _logger.LogInformation("Deleted {Count} tasks for user {UserId}", count, userId);
+            return count;
+        }
+
         public async Task<TaskItemDto?> UpdateStatusAsync(Guid userId, Guid taskId, Mindflow_Web_API.Models.TaskStatus status)
         {
             var task = await _dbContext.Tasks.FirstOrDefaultAsync(t => t.Id == taskId && t.UserId == userId);

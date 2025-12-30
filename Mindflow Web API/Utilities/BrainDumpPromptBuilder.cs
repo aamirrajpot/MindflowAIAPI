@@ -504,11 +504,11 @@ namespace Mindflow_Web_API.Utilities
             sb.Append("[\n");
             sb.Append("  {\n");
             sb.Append("    \"task\": \"SPECIFIC actionable task with full context\",\n");
-            sb.Append("    \"frequency\": \"once | daily | weekly | bi-weekly | monthly | weekdays\",\n");
-            sb.Append("    \"duration\": \"10 minutes | 20 minutes | 30 minutes | 1 hour\",\n");
+            sb.Append("    \"frequency\": \"MUST be exactly: once | daily | weekly | bi-weekly | monthly | weekdays | never\",\n");
+            sb.Append("    \"duration\": \"MUST be parseable: 10 minutes | 30 minutes | 1 hour | 2 hours | 1-2 hours | 30-60 minutes\",\n");
             sb.Append("    \"notes\": \"short explanation tied to themes\",\n");
             sb.Append("    \"priority\": \"High | Medium | Low\",\n");
-            sb.Append("    \"suggestedTime\": \"Morning | Afternoon | Evening | specific time\",\n");
+            sb.Append("    \"suggestedTime\": \"MUST be exactly: Morning | Afternoon | Evening\",\n");
             sb.Append("    \"urgency\": \"Low | Medium | High\",\n");
             sb.Append("    \"importance\": \"Low | Medium | High\",\n");
             sb.Append("    \"priorityScore\": 1-10\n");
@@ -568,7 +568,7 @@ namespace Mindflow_Web_API.Utilities
             sb.Append("CORRECT FORMAT EXAMPLE (USE THIS STRUCTURE, NOT THE SAMPLE CONTENT):\n");
             sb.Append("[\n");
             sb.Append("  {\"task\": \"<task 1 from the user's text>\", \"frequency\": \"once\", \"duration\": \"10 minutes\", \"notes\": \"Short reason based on the brain dump\", \"priority\": \"High\", \"suggestedTime\": \"Morning\", \"urgency\": \"High\", \"importance\": \"Medium\", \"priorityScore\": 9},\n");
-            sb.Append("  {\"task\": \"<task 2 from the user's text>\", \"frequency\": \"weekly\", \"duration\": \"30 minutes\", \"notes\": \"Short reason based on the brain dump\", \"priority\": \"Medium\", \"suggestedTime\": \"Afternoon\", \"urgency\": \"Low\", \"importance\": \"Medium\", \"priorityScore\": 7}\n");
+            sb.Append("  {\"task\": \"<task 2 from the user's text>\", \"frequency\": \"weekly\", \"duration\": \"1-2 hours\", \"notes\": \"Short reason based on the brain dump\", \"priority\": \"Medium\", \"suggestedTime\": \"Afternoon\", \"urgency\": \"Low\", \"importance\": \"Medium\", \"priorityScore\": 7}\n");
             sb.Append("]\n\n");
             
             sb.Append("INCORRECT FORMAT (DO NOT DO THIS):\n");

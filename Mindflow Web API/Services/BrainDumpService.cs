@@ -851,7 +851,7 @@ namespace Mindflow_Web_API.Services
 			}).ToList();
 
 			// Schedule tasks across available time slots
-			var scheduledTasks = ScheduleTasksAcrossTimeSlots(sortedSuggestions, wellnessData);
+			var scheduledTasks = await ScheduleTasksAcrossTimeSlotsAsync(sortedSuggestions, wellnessData, userId);
 
 			foreach (var scheduledTask in scheduledTasks)
 			{
@@ -976,15 +976,15 @@ namespace Mindflow_Web_API.Services
 					}
 				}
 				
-				// Move forward until there is no conflict with already created tasks and DB tasks
-				// AND the task fits within the slot boundaries
+				// TimeSlotManager already scheduled this task avoiding conflicts with existing DB tasks
+				// We only need to check for conflicts with tasks created in this batch and ensure it's within slot boundaries
+				// Skip the database check since TimeSlotManager already handled that
 				var maxAttempts = 100; // Prevent infinite loops
 				var attempts = 0;
 				while (
 					attempts < maxAttempts &&
 					(
 						ConflictsWithCreatedTasks(candidateDate, candidateTime, durationMinutes)
-						|| !(await IsTimeSlotAvailableAsync(candidateDate, candidateTime, durationMinutes, userId))
 						|| !IsTimeWithinSlot(candidateTime, TimeSpan.FromMinutes(durationMinutes), slotBounds.slotStart, slotBounds.slotEnd)
 					)
 				)
@@ -1184,7 +1184,7 @@ namespace Mindflow_Web_API.Services
 			return true;
 		}
 
-	private List<ScheduledTask> ScheduleTasksAcrossTimeSlots(List<TaskSuggestion> suggestions, DTOs.WellnessCheckInDto? wellnessData)
+	private async Task<List<ScheduledTask>> ScheduleTasksAcrossTimeSlotsAsync(List<TaskSuggestion> suggestions, DTOs.WellnessCheckInDto? wellnessData, Guid userId)
 	{
 		var scheduledTasks = new List<ScheduledTask>();
 		
@@ -1240,8 +1240,39 @@ namespace Mindflow_Web_API.Services
 		_logger.LogInformation("Weekday slots (UTC): {WeekdayStart} to {WeekdayEnd}", weekdaySlots.start, weekdaySlots.end);
 		_logger.LogInformation("Weekend slots (UTC): {WeekendStart} to {WeekendEnd}", weekendSlots.start, weekendSlots.end);
 
+		// Load existing tasks from database to avoid conflicts
+		var today = DateTime.UtcNow.Date;
+		var lookAheadDays = 14; // Look ahead 2 weeks
+		var existingTasks = await _db.Tasks
+			.Where(t => t.UserId == userId 
+				&& t.IsActive 
+				&& t.Time >= today 
+				&& t.Time < today.AddDays(lookAheadDays))
+			.ToListAsync();
+		
+		_logger.LogInformation("Loaded {Count} existing tasks from database to avoid conflicts", existingTasks.Count);
+
 		// Create a time slot manager to track available slots
-		var slotManager = new TimeSlotManager(weekdaySlots, weekendSlots);
+		var slotManager = new TimeSlotManager(weekdaySlots, weekendSlots, _logger);
+		
+		// Pre-populate TimeSlotManager with existing tasks
+		_logger.LogInformation("Pre-populating TimeSlotManager with {Count} existing tasks", existingTasks.Count);
+		foreach (var existingTask in existingTasks)
+		{
+			var taskStart = existingTask.Time;
+			if (taskStart.Kind != DateTimeKind.Utc)
+			{
+				taskStart = DateTime.SpecifyKind(taskStart, DateTimeKind.Utc);
+			}
+			var taskDate = taskStart.Date;
+			var taskTime = taskStart.TimeOfDay;
+			var duration = existingTask.DurationMinutes;
+			
+			_logger.LogInformation("Pre-reserving existing task - Date: {Date}, Time: {Time}, Duration: {Duration}min, TaskId: {TaskId}", 
+				taskDate.ToString("yyyy-MM-dd"), taskTime, duration, existingTask.Id);
+			slotManager.ReserveSlot(taskDate, taskTime, duration);
+		}
+		_logger.LogInformation("Finished pre-populating TimeSlotManager with existing tasks");
 		
 		// Sort tasks by priority and duration for optimal scheduling
 		var sortedSuggestions = suggestions.OrderBy(s => s.Priority switch
@@ -3204,23 +3235,388 @@ public class TimeSlotManager
 	private readonly (TimeSpan start, TimeSpan end) _weekendSlots;
 	private readonly Dictionary<DateTime, List<(TimeSpan start, TimeSpan end)>> _reservedSlots;
 	private readonly int _bufferMinutes = 15;
+	private DateTime _lastScheduledDate;
+	private TimeSpan _lastScheduledTime;
+	private readonly ILogger? _logger;
 
-	public TimeSlotManager((TimeSpan start, TimeSpan end) weekdaySlots, (TimeSpan start, TimeSpan end) weekendSlots)
+	public TimeSlotManager((TimeSpan start, TimeSpan end) weekdaySlots, (TimeSpan start, TimeSpan end) weekendSlots, ILogger? logger = null)
 	{
 		_weekdaySlots = weekdaySlots;
 		_weekendSlots = weekendSlots;
 		_reservedSlots = new Dictionary<DateTime, List<(TimeSpan start, TimeSpan end)>>();
+		_logger = logger;
+		
+		_logger?.LogInformation("[TIMESLOT_MANAGER] Initializing with weekday slots: {Start}-{End}, weekend slots: {WeekendStart}-{WeekendEnd}", 
+			weekdaySlots.start, weekdaySlots.end, weekendSlots.start, weekendSlots.end);
+		
+		// Initialize to today's current time (if within slots) or start of today's slots
+		var today = DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc);
+		var now = DateTime.UtcNow;
+		var isWeekend = today.DayOfWeek == DayOfWeek.Saturday || today.DayOfWeek == DayOfWeek.Sunday;
+		var slots = isWeekend ? weekendSlots : weekdaySlots;
+		var currentTime = now.TimeOfDay;
+		
+		_logger?.LogInformation("[TIMESLOT_MANAGER] Today: {Today}, Current UTC time: {CurrentTime}, IsWeekend: {IsWeekend}, Using slots: {Start}-{End}", 
+			today.ToString("yyyy-MM-dd"), currentTime, isWeekend, slots.start, slots.end);
+		
+		// If current time is within today's available slots, start from current time
+		// Otherwise, start from the beginning of today's slots (if slots haven't started yet)
+		// Or tomorrow if today's slots have already ended
+		// Handle midnight-crossing slots (end < start)
+		bool isInSlot = false;
+		if (slots.end > slots.start)
+		{
+			// Normal slot: start < end
+			isInSlot = currentTime >= slots.start && currentTime < slots.end;
+		}
+		else
+		{
+			// Slot crosses midnight: start > end (e.g., 18:00 to 03:00)
+			// Time is in slot if it's >= start OR < end
+			isInSlot = currentTime >= slots.start || currentTime < slots.end;
+		}
+		
+		if (isInSlot)
+		{
+			// Current time is within today's slots - start from now
+			_lastScheduledDate = today;
+			_lastScheduledTime = currentTime;
+			_logger?.LogInformation("[TIMESLOT_MANAGER] Current time is within slots, starting from: {Date} {Time}", 
+				_lastScheduledDate.ToString("yyyy-MM-dd"), _lastScheduledTime);
+		}
+		else if (slots.end > slots.start && currentTime < slots.start)
+		{
+			// Normal slot: current time is before slot start - start from slot start today
+			_lastScheduledDate = today;
+			_lastScheduledTime = slots.start;
+			_logger?.LogInformation("[TIMESLOT_MANAGER] Current time is before slot start, starting from slot start: {Date} {Time}", 
+				_lastScheduledDate.ToString("yyyy-MM-dd"), _lastScheduledTime);
+		}
+		else if (slots.end < slots.start && currentTime < slots.end)
+		{
+			// Slot crosses midnight: current time is in early morning part (before end) - start from now
+			_lastScheduledDate = today;
+			_lastScheduledTime = currentTime;
+			_logger?.LogInformation("[TIMESLOT_MANAGER] Current time is in early morning part of midnight-crossing slot, starting from: {Date} {Time}", 
+				_lastScheduledDate.ToString("yyyy-MM-dd"), _lastScheduledTime);
+		}
+		else if (slots.end < slots.start && currentTime >= slots.end && currentTime < slots.start)
+		{
+			// Slot crosses midnight: current time is between end and start (invalid zone) - start from slot start
+			_lastScheduledDate = today;
+			_lastScheduledTime = slots.start;
+			_logger?.LogInformation("[TIMESLOT_MANAGER] Current time is in invalid zone, starting from slot start: {Date} {Time}", 
+				_lastScheduledDate.ToString("yyyy-MM-dd"), _lastScheduledTime);
+		}
+		else
+		{
+			// Current time is after today's slots end - start from tomorrow
+			_lastScheduledDate = DateTime.SpecifyKind(DateTime.UtcNow.Date.AddDays(1), DateTimeKind.Utc);
+			var tomorrowIsWeekend = _lastScheduledDate.DayOfWeek == DayOfWeek.Saturday || _lastScheduledDate.DayOfWeek == DayOfWeek.Sunday;
+			_lastScheduledTime = tomorrowIsWeekend ? weekendSlots.start : weekdaySlots.start;
+			_logger?.LogInformation("[TIMESLOT_MANAGER] Current time is after slots end, starting from tomorrow: {Date} {Time}", 
+				_lastScheduledDate.ToString("yyyy-MM-dd"), _lastScheduledTime);
+		}
 	}
 
     public (DateTime date, TimeSpan time) FindNextAvailableSlot(int durationMinutes)
 	{
-        // Use UTC date explicitly - Start from tomorrow (UTC)
-        var startDate = DateTime.SpecifyKind(DateTime.UtcNow.Date.AddDays(1), DateTimeKind.Utc);
+		var today = DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc);
+		var now = DateTime.UtcNow;
+		var currentTime = now.TimeOfDay;
+		
+		_logger?.LogInformation("[SCHEDULING] FindNextAvailableSlot called - Duration: {Duration}min, Today: {Today}, CurrentTime: {CurrentTime}", 
+			durationMinutes, today.ToString("yyyy-MM-dd"), currentTime);
+		_logger?.LogInformation("[SCHEDULING] Last scheduled - Date: {LastDate}, Time: {LastTime}", 
+			_lastScheduledDate.ToString("yyyy-MM-dd"), _lastScheduledTime);
+		
+		// Start from the last scheduled time + duration + buffer
+		var startDate = _lastScheduledDate;
+		var startTime = _lastScheduledTime.Add(TimeSpan.FromMinutes(durationMinutes + _bufferMinutes));
+		
+		_logger?.LogInformation("[SCHEDULING] Calculated start - Date: {StartDate}, Time: {StartTime}", 
+			startDate.ToString("yyyy-MM-dd"), startTime);
+		
+		// Handle midnight wrap-around: if startTime is after midnight but we're still on the same date,
+		// and the slot crosses midnight, we need to check if startTime is still within the slot
+		var isWeekendForStartDate = startDate.DayOfWeek == DayOfWeek.Saturday || startDate.DayOfWeek == DayOfWeek.Sunday;
+		var slotsForStartDate = isWeekendForStartDate ? _weekendSlots : _weekdaySlots;
+		
+		// If startTime wrapped past midnight (startTime < _lastScheduledTime) and slot crosses midnight,
+		// startTime is actually on the next day but still part of the current day's slot
+		bool startTimeWrappedPastMidnight = startTime < _lastScheduledTime;
+		_logger?.LogInformation("[SCHEDULING] StartDate slots - Start: {Start}, End: {End}, Wrapped: {Wrapped}", 
+			slotsForStartDate.start, slotsForStartDate.end, startTimeWrappedPastMidnight);
+		
+		if (startTimeWrappedPastMidnight && slotsForStartDate.end < slotsForStartDate.start)
+		{
+			// Time wrapped past midnight, but it's still within the slot (00:00 to 03:00)
+			// Keep startDate as is, startTime is correct (e.g., 00:15)
+			_logger?.LogInformation("[SCHEDULING] Time wrapped past midnight, slot crosses midnight - keeping startDate: {StartDate}, startTime: {StartTime}", 
+				startDate.ToString("yyyy-MM-dd"), startTime);
+		}
+		else if (startTimeWrappedPastMidnight)
+		{
+			// Time wrapped past midnight but slot doesn't cross midnight - move to next day
+			startDate = DateTime.SpecifyKind(startDate.AddDays(1), DateTimeKind.Utc);
+			_logger?.LogInformation("[SCHEDULING] Time wrapped past midnight, slot doesn't cross - moved to next day: {StartDate}", 
+				startDate.ToString("yyyy-MM-dd"));
+			// startTime is already correct (it's the wrapped time)
+		}
+		
 		var maxDays = 14; // Look ahead 2 weeks
 
-		for (int dayOffset = 0; dayOffset < maxDays; dayOffset++)
+		// First, check if we should start from today (if current time is within today's slots)
+		// OR if startDate is tomorrow but startTime is still within today's slot (for midnight-crossing slots)
+		var isWeekendForToday = today.DayOfWeek == DayOfWeek.Saturday || today.DayOfWeek == DayOfWeek.Sunday;
+		var slotsForToday = isWeekendForToday ? _weekendSlots : _weekdaySlots;
+		bool startTimeStillInTodaySlot = false;
+		
+		_logger?.LogInformation("[SCHEDULING] Today slots - Start: {Start}, End: {End}, StartDate vs Today: {StartDate} vs {Today}", 
+			slotsForToday.start, slotsForToday.end, startDate.ToString("yyyy-MM-dd"), today.ToString("yyyy-MM-dd"));
+		
+		if (startDate > today && slotsForToday.end < slotsForToday.start)
 		{
-			var date = DateTime.SpecifyKind(startDate.AddDays(dayOffset).Date, DateTimeKind.Utc);
+			// startDate is tomorrow, but check if startTime is still within today's slot (after midnight portion)
+			startTimeStillInTodaySlot = startTime < slotsForToday.end;
+			_logger?.LogInformation("[SCHEDULING] Checking if startTime still in today's slot - startTime: {StartTime}, slotEnd: {SlotEnd}, result: {Result}", 
+				startTime, slotsForToday.end, startTimeStillInTodaySlot);
+		}
+		
+		if (startDate <= today || startTimeStillInTodaySlot)
+		{
+			_logger?.LogInformation("[SCHEDULING] Entering TODAY branch - startDate <= today: {Condition1}, startTimeStillInTodaySlot: {Condition2}", 
+				startDate <= today, startTimeStillInTodaySlot);
+			var isWeekend = today.DayOfWeek == DayOfWeek.Saturday || today.DayOfWeek == DayOfWeek.Sunday;
+			var slots = isWeekend ? _weekendSlots : _weekdaySlots;
+			
+			// Determine the earliest time we can start today
+			TimeSpan todayStartTime;
+			bool isCurrentTimeInSlot = false;
+			if (slots.end > slots.start)
+			{
+				// Normal slot: start < end (e.g., 12:00 to 21:00)
+				isCurrentTimeInSlot = currentTime >= slots.start && currentTime < slots.end;
+			}
+			else
+			{
+				// Slot crosses midnight: start > end (e.g., 18:00 to 03:00)
+				// Time is in slot if it's >= start OR < end
+				isCurrentTimeInSlot = currentTime >= slots.start || currentTime < slots.end;
+			}
+			
+			if (isCurrentTimeInSlot)
+			{
+				// Current time is within today's slots - start from now
+				todayStartTime = currentTime;
+			}
+			else if (slots.end > slots.start && currentTime < slots.start)
+			{
+				// Normal slot: current time is before slot start - start from slot start
+				todayStartTime = slots.start;
+			}
+			else if (slots.end < slots.start && currentTime < slots.end)
+			{
+				// Slot crosses midnight: current time is in early morning part (before end) - start from now
+				todayStartTime = currentTime;
+			}
+			else if (slots.end < slots.start && currentTime >= slots.end && currentTime < slots.start)
+			{
+				// Slot crosses midnight: current time is between end and start (invalid zone) - start from slot start
+				todayStartTime = slots.start;
+			}
+			else
+			{
+				// Current time is after today's slots end - skip to tomorrow
+				todayStartTime = TimeSpan.Zero; // Will be skipped
+			}
+			
+			// If we can schedule today, try to find a slot starting from todayStartTime
+			if (todayStartTime != TimeSpan.Zero)
+			{
+				// Check if todayStartTime is within the slot window
+				bool isWithinSlot = false;
+				if (slots.end > slots.start)
+				{
+					// Normal slot: start < end (e.g., 12:00 to 21:00)
+					isWithinSlot = todayStartTime >= slots.start && todayStartTime < slots.end;
+				}
+				else
+				{
+					// Slot crosses midnight: start > end (e.g., 18:00 to 03:00)
+					// Time is within slot if it's >= start OR < end
+					isWithinSlot = todayStartTime >= slots.start || todayStartTime < slots.end;
+				}
+				
+				if (isWithinSlot)
+				{
+					// Determine the search start time
+					TimeSpan searchStartTime;
+					if (startDate == today || startTimeStillInTodaySlot)
+					{
+						// We're continuing from a previous task on the same day, OR
+						// startDate is tomorrow but startTime is still within today's slot
+						// Check if startTime wrapped past midnight
+						bool startTimeWrapped = startTime < _lastScheduledTime;
+						
+						_logger?.LogInformation("[SCHEDULING] Determining searchStartTime - startDate==today: {Cond1}, startTimeStillInTodaySlot: {Cond2}, startTimeWrapped: {Cond3}", 
+							startDate == today, startTimeStillInTodaySlot, startTimeWrapped);
+						_logger?.LogInformation("[SCHEDULING] Values - startTime: {StartTime}, todayStartTime: {TodayStartTime}, lastScheduledTime: {LastTime}", 
+							startTime, todayStartTime, _lastScheduledTime);
+						
+						if (startTimeWrapped && slots.end < slots.start)
+						{
+							// startTime wrapped past midnight (e.g., 23:30 + 45 min = 00:15)
+							// and slot crosses midnight - use startTime (e.g., 00:15)
+							// This time is still part of today's slot (extends to 03:00 UTC next day)
+							searchStartTime = startTime;
+							_logger?.LogInformation("[SCHEDULING] Using startTime (wrapped, slot crosses midnight): {SearchStartTime}", searchStartTime);
+						}
+						else if (startTimeStillInTodaySlot)
+						{
+							// startDate is tomorrow but startTime is still in today's slot (e.g., 01:00 UTC on Jan 1st, but still in Dec 31st's slot)
+							searchStartTime = startTime;
+							_logger?.LogInformation("[SCHEDULING] Using startTime (still in today's slot): {SearchStartTime}", searchStartTime);
+						}
+						else if (!startTimeWrapped && startTime > todayStartTime)
+						{
+							// startTime didn't wrap and is later than todayStartTime, use it
+							searchStartTime = startTime;
+							_logger?.LogInformation("[SCHEDULING] Using startTime (didn't wrap, later than todayStartTime): {SearchStartTime}", searchStartTime);
+						}
+						else
+						{
+							// Use todayStartTime (either it's later, or startTime wrapped but slot doesn't cross midnight)
+							searchStartTime = todayStartTime;
+							_logger?.LogInformation("[SCHEDULING] Using todayStartTime: {SearchStartTime}", searchStartTime);
+						}
+					}
+					else
+					{
+						// We're starting fresh today
+						searchStartTime = todayStartTime;
+						_logger?.LogInformation("[SCHEDULING] Starting fresh today, using todayStartTime: {SearchStartTime}", searchStartTime);
+					}
+					
+					// Ensure searchStartTime is at least at the slot start (for normal slots)
+					// For midnight-crossing slots, we handle this in FindAvailableTimeInDayFromTime
+					if (slots.end > slots.start && searchStartTime < slots.start)
+					{
+						searchStartTime = slots.start;
+					}
+					
+					// Check if searchStartTime is still within slot (handle midnight crossing)
+					bool searchTimeInSlot = false;
+					if (slots.end > slots.start)
+					{
+						// Normal slot
+						searchTimeInSlot = searchStartTime >= slots.start && searchStartTime < slots.end;
+					}
+					else
+					{
+						// Slot crosses midnight: time is in slot if it's >= start OR < end
+						searchTimeInSlot = searchStartTime >= slots.start || searchStartTime < slots.end;
+					}
+					
+					if (searchTimeInSlot)
+					{
+						_logger.LogInformation("[SCHEDULING] searchTimeInSlot is true, calling FindAvailableTimeInDayFromTime - date: {Date}, slots: {Start}-{End}, searchStartTime: {SearchStart}, duration: {Duration}", 
+							today.ToString("yyyy-MM-dd"), slots.start, slots.end, searchStartTime, durationMinutes);
+						var availableTime = FindAvailableTimeInDayFromTime(today, slots, searchStartTime, durationMinutes);
+						_logger.LogInformation("[SCHEDULING] FindAvailableTimeInDayFromTime returned: {AvailableTime}", availableTime);
+						
+						if (availableTime != TimeSpan.Zero)
+						{
+							// For midnight-crossing slots, if the available time is after midnight (before slot end),
+							// it should be on the next day
+							DateTime resultDate = today;
+							if (slots.end < slots.start && availableTime < slots.end)
+							{
+								// Time is after midnight, use next day
+								resultDate = DateTime.SpecifyKind(today.AddDays(1), DateTimeKind.Utc);
+								_logger.LogInformation("[SCHEDULING] Available time is after midnight, using next day: {ResultDate}", resultDate.ToString("yyyy-MM-dd"));
+							}
+							_logger.LogInformation("[SCHEDULING] Returning slot - Date: {Date}, Time: {Time}", resultDate.ToString("yyyy-MM-dd"), availableTime);
+							return (resultDate, availableTime);
+						}
+						else
+						{
+							_logger.LogWarning("[SCHEDULING] No available time found in today's slot!");
+						}
+					}
+					else if (slots.end > slots.start && searchStartTime < slots.start)
+					{
+						// For normal slots, if searchStartTime is before slot start, try from slot start
+						var availableTime = FindAvailableTimeInDayFromTime(today, slots, slots.start, durationMinutes);
+						if (availableTime != TimeSpan.Zero)
+						{
+							return (today, availableTime);
+						}
+					}
+                    else
+                    {
+                        _logger.LogWarning("[SCHEDULING] searchTimeInSlot is false - searchStartTime: {SearchStart}, slots: {Start}-{End}",
+                            searchStartTime, slots.start, slots.end);
+                    }
+                }
+			}
+			
+			// No time available today, move to tomorrow
+			_logger?.LogInformation("[SCHEDULING] No time available today, moving to tomorrow");
+			startDate = DateTime.SpecifyKind(today.AddDays(1), DateTimeKind.Utc);
+			var tomorrowIsWeekend = startDate.DayOfWeek == DayOfWeek.Saturday || startDate.DayOfWeek == DayOfWeek.Sunday;
+			startTime = tomorrowIsWeekend ? _weekendSlots.start : _weekdaySlots.start;
+			_logger?.LogInformation("[SCHEDULING] Tomorrow - Date: {Date}, Time: {Time}", startDate.ToString("yyyy-MM-dd"), startTime);
+		}
+		else
+		{
+			// We're already scheduling in the future, check if there's time on the same day
+			_logger?.LogInformation("[SCHEDULING] Entering ELSE branch - startDate is in the future: {StartDate}", startDate.ToString("yyyy-MM-dd"));
+			var isWeekend = startDate.DayOfWeek == DayOfWeek.Saturday || startDate.DayOfWeek == DayOfWeek.Sunday;
+			var slots = isWeekend ? _weekendSlots : _weekdaySlots;
+			
+			// Check if startTime is still within the same day's slot window (handle midnight crossing)
+			bool isStartTimeInSlot = false;
+			if (slots.end > slots.start)
+			{
+				// Normal slot: start < end
+				isStartTimeInSlot = startTime >= slots.start && startTime < slots.end;
+			}
+			else
+			{
+				// Slot crosses midnight: start > end
+				// Time is in slot if it's >= start OR < end
+				isStartTimeInSlot = startTime >= slots.start || startTime < slots.end;
+			}
+			
+			if (isStartTimeInSlot)
+			{
+				var availableTime = FindAvailableTimeInDayFromTime(startDate, slots, startTime, durationMinutes);
+				if (availableTime != TimeSpan.Zero)
+				{
+					// For midnight-crossing slots, if the available time is after midnight (before slot end),
+					// it should be on the next day
+					DateTime resultDate = startDate;
+					if (slots.end < slots.start && availableTime < slots.end)
+					{
+						// Time is after midnight, use next day
+						resultDate = DateTime.SpecifyKind(startDate.AddDays(1), DateTimeKind.Utc);
+					}
+					return (resultDate, availableTime);
+				}
+			}
+			
+			// No time available on same day, move to next day
+			startDate = startDate.AddDays(1);
+			var nextDayIsWeekend = startDate.DayOfWeek == DayOfWeek.Saturday || startDate.DayOfWeek == DayOfWeek.Sunday;
+			startTime = nextDayIsWeekend ? _weekendSlots.start : _weekdaySlots.start;
+		}
+
+		// Search from the calculated start date
+		var dayOffset = (int)(startDate.Date - today.AddDays(1)).TotalDays;
+		for (int i = dayOffset; i < maxDays; i++)
+		{
+			var date = DateTime.SpecifyKind(today.AddDays(1 + i), DateTimeKind.Utc);
 			var isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
 			var slots = isWeekend ? _weekendSlots : _weekdaySlots;
 
@@ -3228,12 +3624,20 @@ public class TimeSlotManager
 			var availableTime = FindAvailableTimeInDay(date, slots, durationMinutes);
 			if (availableTime != TimeSpan.Zero)
 			{
-				return (date, availableTime);
+				// For midnight-crossing slots, if the available time is after midnight (before slot end),
+				// it should be on the next day
+				DateTime resultDate = date;
+				if (slots.end < slots.start && availableTime < slots.end)
+				{
+					// Time is after midnight, use next day
+					resultDate = DateTime.SpecifyKind(date.AddDays(1), DateTimeKind.Utc);
+				}
+				return (resultDate, availableTime);
 			}
 		}
 
         // Fallback: return tomorrow at start of available slots (UTC)
-        var fallbackDate = DateTime.SpecifyKind(DateTime.UtcNow.Date.AddDays(1), DateTimeKind.Utc);
+        var fallbackDate = DateTime.SpecifyKind(today.AddDays(1), DateTimeKind.Utc);
 		var fallbackIsWeekend = fallbackDate.DayOfWeek == DayOfWeek.Saturday || fallbackDate.DayOfWeek == DayOfWeek.Sunday;
 		var fallbackSlots = fallbackIsWeekend ? _weekendSlots : _weekdaySlots;
 		return (fallbackDate, fallbackSlots.start);
@@ -3276,57 +3680,184 @@ public class TimeSlotManager
 
 		var endTime = time.Add(TimeSpan.FromMinutes(durationMinutes + _bufferMinutes));
         _reservedSlots[dateKey].Add((time, endTime));
+		
+		_logger?.LogInformation("[RESERVE] Reserving slot - Date: {Date}, Time: {Time}, Duration: {Duration}min, EndTime: {EndTime}", 
+			dateKey.ToString("yyyy-MM-dd"), time, durationMinutes, endTime);
+		
+		// Log all currently reserved slots for this date
+		if (_reservedSlots.ContainsKey(dateKey))
+		{
+			_logger?.LogInformation("[RESERVE] Current reserved slots for {Date}: {Count} slots", 
+				dateKey.ToString("yyyy-MM-dd"), _reservedSlots[dateKey].Count);
+			foreach (var slot in _reservedSlots[dateKey])
+			{
+				_logger?.LogInformation("[RESERVE]   - {Start} to {End}", slot.start, slot.end);
+			}
+		}
+		
+		// Update last scheduled date and time to track where we are
+		if (dateKey > _lastScheduledDate || (dateKey == _lastScheduledDate && time > _lastScheduledTime))
+		{
+			var oldDate = _lastScheduledDate;
+			var oldTime = _lastScheduledTime;
+			_lastScheduledDate = dateKey;
+			_lastScheduledTime = time;
+			_logger?.LogInformation("[RESERVE] Updated last scheduled - Old: {OldDate} {OldTime}, New: {NewDate} {NewTime}", 
+				oldDate.ToString("yyyy-MM-dd"), oldTime, dateKey.ToString("yyyy-MM-dd"), time);
+		}
 	}
 
 	private TimeSpan FindAvailableTimeInDay(DateTime date, (TimeSpan start, TimeSpan end) slots, int durationMinutes)
 	{
-		// Handle windows that may cross midnight (e.g., 22:00 -> 01:00)
+		return FindAvailableTimeInDayFromTime(date, slots, slots.start, durationMinutes);
+	}
+
+	private TimeSpan FindAvailableTimeInDayFromTime(DateTime date, (TimeSpan start, TimeSpan end) slots, TimeSpan startFromTime, int durationMinutes)
+	{
+		// Handle windows that may cross midnight (e.g., 18:00 -> 03:00)
 		var start = slots.start;
 		var end = slots.end;
-
-		TimeSpan Scan(TimeSpan segStart, TimeSpan segEnd)
+		
+		// Determine the actual scan start time based on slot type
+		TimeSpan scanStart;
+		if (end > start)
 		{
-			var t = segStart;
-			while (t.Add(TimeSpan.FromMinutes(durationMinutes)) <= segEnd)
+			// Normal slot: start < end (e.g., 12:00 to 21:00)
+			// Use the later of slot start or the requested start time, but ensure it's within the slot
+			if (startFromTime >= start && startFromTime < end)
 			{
-				if (IsTimeSlotAvailable(date, t, durationMinutes))
+				scanStart = startFromTime;
+			}
+			else if (startFromTime < start)
+			{
+				// Requested time is before slot start, use slot start
+				scanStart = start;
+			}
+			else
+			{
+				// Requested time is after slot end, no time available
+				return TimeSpan.Zero;
+			}
+		}
+		else
+		{
+			// Slot crosses midnight: start > end (e.g., 18:00 to 03:00)
+			// Time is in slot if it's >= start OR < end
+			if (startFromTime >= start || startFromTime < end)
+			{
+				// Requested time is within the slot
+				scanStart = startFromTime;
+			}
+			else if (startFromTime >= end && startFromTime < start)
+			{
+				// Requested time is between end and start (invalid zone), use slot start
+				scanStart = start;
+			}
+			else
+			{
+				// This shouldn't happen, but handle it
+				scanStart = start;
+			}
+		}
+
+		TimeSpan Scan(TimeSpan segStart, TimeSpan segEnd, bool isAfterMidnight = false)
+		{
+			_logger?.LogInformation("[FIND_SLOT] Scan called - segStart: {SegStart}, segEnd: {SegEnd}, isAfterMidnight: {AfterMidnight}", 
+				segStart, segEnd, isAfterMidnight);
+			
+			var t = segStart;
+			// Ensure we don't exceed the segment end
+			var maxTime = segEnd;
+			if (segEnd < segStart)
+			{
+				// Segment crosses midnight, use 24:00 as max
+				maxTime = new TimeSpan(24, 0, 0);
+			}
+			
+			// For after-midnight times, we need to check the next day
+			var checkDate = isAfterMidnight ? date.AddDays(1) : date;
+			_logger?.LogInformation("[FIND_SLOT] Scanning from {T} to {MaxTime}, checking date: {CheckDate}", t, maxTime, checkDate.ToString("yyyy-MM-dd"));
+			
+			int attempts = 0;
+			while (t.Add(TimeSpan.FromMinutes(durationMinutes)) <= maxTime && attempts < 100)
+			{
+				var isAvailable = IsTimeSlotAvailable(checkDate, t, durationMinutes);
+				_logger?.LogDebug("[FIND_SLOT] Checking time {Time} on {Date} - Available: {Available}", t, checkDate.ToString("yyyy-MM-dd"), isAvailable);
+				
+				if (isAvailable)
 				{
+					_logger?.LogInformation("[FIND_SLOT] Found available time: {Time} on {Date}", t, checkDate.ToString("yyyy-MM-dd"));
 					return t;
 				}
 				t = t.Add(TimeSpan.FromMinutes(30));
+				attempts++;
+				
+				// Prevent infinite loop if we somehow exceed 24 hours
+				if (t.TotalMinutes >= 24 * 60)
+					break;
 			}
+			_logger?.LogWarning("[FIND_SLOT] No available time found in segment {SegStart}-{SegEnd}", segStart, segEnd);
 			return TimeSpan.Zero;
 		}
 
 		if (end > start)
 		{
-			return Scan(start, end);
+			// Normal case: start < end (e.g., 12:00 to 21:00)
+			return Scan(scanStart, end);
 		}
 
-		var first = Scan(start, new TimeSpan(24, 0, 0));
-		if (first != TimeSpan.Zero) return first;
-
-		return Scan(TimeSpan.Zero, end);
+		// Handle case where end < start (crosses midnight, e.g., 18:00 to 03:00)
+		if (scanStart >= start)
+		{
+			// Scan from scanStart to end of day (midnight) - these times are on the current date
+			var first = Scan(scanStart, new TimeSpan(24, 0, 0), isAfterMidnight: false);
+			if (first != TimeSpan.Zero) return first;
+			// Then scan from start of day (00:00) to end (03:00) - these times are on the next day
+			return Scan(TimeSpan.Zero, end, isAfterMidnight: true);
+		}
+		else if (scanStart < end)
+		{
+			// scanStart is in the early morning part (before end, e.g., 01:00) - these times are on the next day
+			return Scan(scanStart, end, isAfterMidnight: true);
+		}
+		else
+		{
+			// scanStart is between end and start (invalid zone), scan from start
+			var first = Scan(start, new TimeSpan(24, 0, 0), isAfterMidnight: false);
+			if (first != TimeSpan.Zero) return first;
+			return Scan(TimeSpan.Zero, end, isAfterMidnight: true);
+		}
 	}
 
     private bool IsTimeSlotAvailable(DateTime date, TimeSpan time, int durationMinutes)
 	{
         var dateKey = date.Date; // normalize to date-only key (UTC date)
         if (!_reservedSlots.ContainsKey(dateKey))
+		{
+			_logger?.LogDebug("[IS_AVAILABLE] No reserved slots for date {Date}, returning true", dateKey.ToString("yyyy-MM-dd"));
 			return true;
+		}
 
 		var requestedStart = time;
 		var requestedEnd = time.Add(TimeSpan.FromMinutes(durationMinutes + _bufferMinutes));
+		
+		_logger?.LogDebug("[IS_AVAILABLE] Checking date {Date}, time {Time}, duration {Duration}min - requested range: {Start} to {End}", 
+			dateKey.ToString("yyyy-MM-dd"), time, durationMinutes, requestedStart, requestedEnd);
+		_logger?.LogDebug("[IS_AVAILABLE] Reserved slots for this date: {Count}", _reservedSlots[dateKey].Count);
 
         foreach (var reservedSlot in _reservedSlots[dateKey])
 		{
+			_logger?.LogDebug("[IS_AVAILABLE] Checking against reserved slot: {Start} to {End}", reservedSlot.start, reservedSlot.end);
 			// Check for overlap
 			if (requestedStart < reservedSlot.end && requestedEnd > reservedSlot.start)
 			{
+				_logger?.LogWarning("[IS_AVAILABLE] CONFLICT FOUND - Requested {Start}-{End} overlaps with reserved {ReservedStart}-{ReservedEnd}", 
+					requestedStart, requestedEnd, reservedSlot.start, reservedSlot.end);
 				return false;
 			}
 		}
 
+		_logger?.LogDebug("[IS_AVAILABLE] No conflicts found, slot is available");
 		return true;
 	}
 }

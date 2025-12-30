@@ -3,6 +3,7 @@ using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using Serilog;
+using Serilog.Events;
 using Mindflow_Web_API.EndPoints;
 using Mindflow_Web_API.Persistence;
 using Mindflow_Web_API.Services;
@@ -22,8 +23,18 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
-    .WriteTo.Console()  // Logs to Console
-    .WriteTo.File("logs/log-.txt", rollingInterval: RollingInterval.Day) // Logs to a file
+    .MinimumLevel.Information() // Set minimum log level to Information
+    .MinimumLevel.Override("Microsoft", LogEventLevel.Warning) // Reduce Microsoft logs to Warning
+    .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
+    .Enrich.FromLogContext()
+    .WriteTo.Console(
+        outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+    .WriteTo.File(
+        path: "logs/log-.txt",
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 30, // Keep logs for 30 days
+        outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Level:u3}] {Message:lj}{NewLine}{Exception}",
+        shared: true) // Allow multiple processes to write to the same file
     .CreateLogger();
 builder.Host.UseSerilog(); // Replace built-in logging with Serilog
 

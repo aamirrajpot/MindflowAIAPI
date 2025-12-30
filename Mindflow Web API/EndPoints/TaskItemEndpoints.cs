@@ -184,6 +184,23 @@ namespace Mindflow_Web_API.EndPoints
                 return op;
             });
 
+            tasksApi.MapDelete("/all", async (ITaskItemService taskService, HttpContext context) =>
+            {
+                if (!context.User.Identity?.IsAuthenticated ?? true)
+                    throw ApiExceptions.Unauthorized("User is not authenticated");
+                var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
+                if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+                    throw ApiExceptions.Unauthorized("Invalid user token");
+                var deletedCount = await taskService.DeleteAllAsync(userId);
+                return Results.Ok(new { message = $"Successfully deleted {deletedCount} task(s)", deletedCount });
+            })
+            .RequireAuthorization()
+            .WithOpenApi(op => {
+                op.Summary = "Delete all tasks";
+                op.Description = "Deletes all tasks for the authenticated user. Returns the count of deleted tasks.";
+                return op;
+            });
+
             tasksApi.MapPatch("/{taskId:guid}/status", async (Guid taskId, StatusUpdateDto dto, ITaskItemService taskService, HttpContext context) =>
             {
                 if (!context.User.Identity?.IsAuthenticated ?? true)
