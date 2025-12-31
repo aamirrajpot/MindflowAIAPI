@@ -175,9 +175,10 @@ namespace Mindflow_Web_API.Services
 						}
 					}
 
-					// Sort tasks by priority score (highest first)
+					// Sort tasks by urgency (High > Medium > Low), then by priority score as tiebreaker
 					suggestedActivities = suggestedActivities
-						.OrderByDescending(t => t.PriorityScore ?? 0)
+						.OrderByDescending(t => MapLevelToScore(t.Urgency)) // Urgency first (High=5, Medium=3, Low=1)
+						.ThenByDescending(t => t.PriorityScore ?? 0) // Priority score as tiebreaker
 						.ToList();
 				}
 				
@@ -239,13 +240,25 @@ namespace Mindflow_Web_API.Services
 				var brainDumpCount = suggestedActivities.Count;
 				suggestedActivities.AddRange(wellnessTasks);
 				
-				// Re-sort all tasks by priority score after merging
+				// Re-sort all tasks by urgency (High > Medium > Low), then by priority score as tiebreaker
 				suggestedActivities = suggestedActivities
-					.OrderByDescending(t => t.PriorityScore ?? 0)
+					.OrderByDescending(t => MapLevelToScore(t.Urgency)) // Urgency first (High=5, Medium=3, Low=1)
+					.ThenByDescending(t => t.PriorityScore ?? 0) // Priority score as tiebreaker
 					.ToList();
 				
-				_logger.LogInformation("Merged {BrainDumpCount} brain dump tasks with {WellnessCount} wellness tasks (total: {Total})", 
+				_logger.LogInformation("Merged {BrainDumpCount} brain dump tasks with {WellnessCount} wellness tasks (total: {Total}), sorted by urgency", 
 					brainDumpCount, wellnessTasks.Count, suggestedActivities.Count);
+			}
+			else
+			{
+				// If no wellness tasks, still sort brain dump tasks by urgency
+				if (suggestedActivities != null && suggestedActivities.Count > 0)
+				{
+					suggestedActivities = suggestedActivities
+						.OrderByDescending(t => MapLevelToScore(t.Urgency)) // Urgency first
+						.ThenByDescending(t => t.PriorityScore ?? 0) // Priority score as tiebreaker
+						.ToList();
+				}
 			}
 
 			// Step 5: Break Down Complex Tasks into Micro-Steps
