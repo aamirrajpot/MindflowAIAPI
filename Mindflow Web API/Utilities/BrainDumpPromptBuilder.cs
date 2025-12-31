@@ -444,6 +444,15 @@ namespace Mindflow_Web_API.Utilities
         }
 
         // Multi-prompt approach: Step 4 - Generate Task Suggestions
+        /// <summary>
+        /// Optimized prompt for Llama 2 - condensed from ~170 lines to ~70 lines for better processing.
+        /// Key optimizations:
+        /// - Removed redundant instructions and examples
+        /// - Condensed extraction rules into bullet points
+        /// - Simplified prioritization rules
+        /// - Focuses on thorough analysis rather than forced minimums
+        /// - Removed summary/themes/topics to avoid confusing the model - it should extract directly from original text
+        /// </summary>
         public static string BuildTaskSuggestionsPrompt(
             string originalText,
     string summary,
@@ -455,128 +464,58 @@ namespace Mindflow_Web_API.Utilities
     bool forceMinimumActivities = false)
         {
             var sb = new StringBuilder();
-            sb.Append("[INST] ");
-            sb.Append("You are a wellness coach. Extract and generate SPECIFIC, actionable task suggestions from the user's brain dump.\n\n");
+            sb.Append("[INST] Thoroughly analyze the brain dump and extract ALL specific tasks mentioned. Return ONLY a JSON array.\n\n");
 
-            sb.Append("CRITICAL: Your PRIMARY goal is to extract SPECIFIC tasks that are EXPLICITLY mentioned in the original text.\n");
-            sb.Append("Prioritize exact tasks with full context over generic suggestions.\n\n");
+            // Core instruction - focus on thoroughness, not minimums
+            sb.Append("INSTRUCTION: Read the ENTIRE text carefully. Extract EVERY task, obligation, responsibility, and action item you find.\n");
+            sb.Append("Be thorough - scan every sentence. Do not miss any tasks. Do not stop early.\n\n");
 
-            sb.Append("Original Text (READ CAREFULLY for specific tasks):\n");
+            // Only provide the original text - no summary, themes, or topics to avoid bias
+            sb.Append("Original Text:\n");
             sb.Append(originalText);
             sb.Append("\n\n");
 
-            sb.Append("Summary: ");
-            sb.Append(summary);
-            sb.Append("\n\n");
-
-            sb.Append("Themes: ");
-            sb.Append(string.Join(", ", themes));
-            sb.Append("\n\n");
-
-            sb.Append("Emotions: ");
-            sb.Append(string.Join(", ", emotions));
-            sb.Append("\n\n");
-
-            sb.Append("Topics: ");
-            sb.Append(string.Join(", ", topics));
-            sb.Append("\n\n");
-
-            // Add wellness summary (minimal)
-            sb.Append("Wellness Profile:\n");
-            sb.Append($"Mood: {wellness.MoodLevel ?? "not specified"}\n");
-            if (wellness.FocusAreas.Any())
-                sb.Append($"Focus Areas: {string.Join(", ", wellness.FocusAreas)}\n");
-            if (wellness.PreferredTimeBlocks.Any())
-                sb.Append($"Preferred Times: {string.Join(", ", wellness.PreferredTimeBlocks)}\n");
-            sb.Append("\n");
-
-            // Self-reported scores
+            // Only include wellness preferences and scores if available
+            //if (wellness.PreferredTimeBlocks.Any())
+                //sb.Append($"Preferred Times: {string.Join(", ", wellness.PreferredTimeBlocks)}\n");
             if (request.Mood.HasValue || request.Stress.HasValue || request.Purpose.HasValue)
             {
-                sb.Append("Self-Reported Scores: ");
-                if (request.Mood.HasValue) sb.Append($"Mood={request.Mood.Value} ");
-                if (request.Stress.HasValue) sb.Append($"Stress={request.Stress.Value} ");
-                if (request.Purpose.HasValue) sb.Append($"Purpose={request.Purpose.Value} ");
-                sb.Append("\n\n");
+                var scores = new List<string>();
+                if (request.Mood.HasValue) scores.Add($"Mood={request.Mood.Value}");
+                if (request.Stress.HasValue) scores.Add($"Stress={request.Stress.Value}");
+                if (request.Purpose.HasValue) scores.Add($"Purpose={request.Purpose.Value}");
+                sb.Append($"Scores: {string.Join(", ", scores)}\n");
             }
+            //if (wellness.PreferredTimeBlocks.Any() || request.Mood.HasValue || request.Stress.HasValue || request.Purpose.HasValue)
+              //  sb.Append("\n");
 
-            sb.Append("Return ONLY a JSON array of task objects:\n");
+            // Condensed extraction rules - emphasize thoroughness
+            sb.Append("EXTRACTION (be thorough):\n");
+            sb.Append("1. Read every sentence carefully. Look for action verbs: need to, must, should, have to, want to, plan to, going to.\n");
+            sb.Append("2. Break compound sentences into separate tasks. \"I need X and Y\" = TWO separate tasks.\n");
+            sb.Append("3. Include ALL context from the text: names, places, items, deadlines, dates, times.\n");
+            sb.Append("4. Extract implied tasks: coordinate, prepare, purchase, manage, schedule, call, email, meet.\n");
+            sb.Append("5. Continue scanning until you've reviewed the entire text - extract everything mentioned.\n\n");
+
+            // Prioritization - condensed
+            sb.Append("PRIORITIZATION:\n");
+            sb.Append("Urgency: HIGH=deadline soon/stressed, MEDIUM=soon, LOW=whenever\n");
+            sb.Append("Importance: HIGH=health/job/relationships/major events, MEDIUM=helpful, LOW=optional\n");
+            sb.Append("priorityScore: High+High=9-10, High+Med=7-8, Med+Med=5-6, Med+Low=3-4, Low+Low=1-2\n\n");
+
+            // JSON format - concise
+            sb.Append("JSON FORMAT:\n");
             sb.Append("[\n");
-            sb.Append("  {\n");
-            sb.Append("    \"task\": \"SPECIFIC actionable task with full context\",\n");
-            sb.Append("    \"frequency\": \"MUST be exactly: once | daily | weekly | bi-weekly | monthly | weekdays | never\",\n");
-            sb.Append("    \"duration\": \"MUST be parseable: 10 minutes | 30 minutes | 1 hour | 2 hours | 1-2 hours | 30-60 minutes\",\n");
-            sb.Append("    \"notes\": \"short explanation tied to themes\",\n");
-            sb.Append("    \"priority\": \"High | Medium | Low\",\n");
-            sb.Append("    \"suggestedTime\": \"MUST be exactly: Morning | Afternoon | Evening\",\n");
-            sb.Append("    \"urgency\": \"Low | Medium | High\",\n");
-            sb.Append("    \"importance\": \"Low | Medium | High\",\n");
-            sb.Append("    \"priorityScore\": 1-10\n");
-            sb.Append("  }\n");
+            sb.Append("  {\"task\": \"specific task with full context\", \"frequency\": \"once|daily|weekly|bi-weekly|monthly|weekdays|never\", \"duration\": \"10 minutes|1 hour|etc\", \"notes\": \"short reason\", \"priority\": \"High|Medium|Low\", \"suggestedTime\": \"Morning|Afternoon|Evening\", \"urgency\": \"Low|Medium|High\", \"importance\": \"Low|Medium|High\", \"priorityScore\": 1-10}\n");
             sb.Append("]\n\n");
 
-            sb.Append("EXTRACTION RULES (PRIORITY ORDER):\n");
-            sb.Append("1. FIRST: Extract SPECIFIC tasks explicitly mentioned in the original text.\n");
-            sb.Append("   - Include ALL context: names, places, specific items, deadlines.\n");
-            sb.Append("   - Example (DO NOT COPY THIS LITERALLY): \"Call [doctor name] about test results\" NOT \"Call doctor\"\n");
-            sb.Append("   - Example (DO NOT COPY THIS LITERALLY): \"Pack kitchen items into labeled boxes\" NOT \"organize belongings\"\n");
-            sb.Append("   - Example (DO NOT COPY THIS LITERALLY): \"Email [person] about the project deadline on Friday\" NOT \"Send email\"\n\n");
-            sb.Append("2. SECOND: Break complex task mentions into separate, specific tasks.\n");
-            sb.Append("   - If text says \"I need to clean the garage and organize my office\", create TWO tasks.\n");
-            sb.Append("   - Each task should be specific: \"Clean garage and sort items into keep/donate/trash\" and \"Organize office desk and file important documents\"\n\n");
-            sb.Append("3. THIRD: Only if no explicit tasks found, infer actionable tasks from themes/emotions.\n");
-            sb.Append("   - Even inferred tasks should be specific and actionable.\n");
-            sb.Append("   - Example: If theme is \"work stress\", suggest \"Review workload and prioritize top 3 tasks for tomorrow\" NOT \"reduce stress\"\n\n");
-            sb.Append("4. ALWAYS: Include actionable details that make the task clear and executable.\n");
-            sb.Append("   - Specify what, where, when, or who when mentioned in the text.\n");
-            sb.Append("   - Make tasks concrete, not abstract.\n\n");
-
-            sb.Append("PRIORITIZATION RULES (URGENCY & IMPORTANCE):\n");
-            sb.Append("- Urgency = how time-sensitive the task is.\n");
-            sb.Append("  - HIGH: Has a deadline within a few days, is blocking something important, or user sounds very stressed about timing.\n");
-            sb.Append("  - MEDIUM: Should be done soon but not today; some time pressure.\n");
-            sb.Append("  - LOW: No clear deadline; can be done whenever.\n");
-            sb.Append("- Importance = how impactful the task is on the user's life, health, work, or relationships.\n");
-            sb.Append("  - HIGH: Affects health, job security, core relationships, or major life events (moving, finances, legal, medical).\n");
-            sb.Append("  - MEDIUM: Helpful for stability, progress, or well-being but not critical.\n");
-            sb.Append("  - LOW: Nice-to-have, optional, or minor convenience.\n");
-            sb.Append("- priorityScore: 1-10 where higher = more urgent AND more important.\n");
-            sb.Append("  - Example mapping:\n");
-            sb.Append("    - High urgency + High importance => 9-10\n");
-            sb.Append("    - High importance + Medium urgency => 7-8\n");
-            sb.Append("    - Medium importance + Medium urgency => 5-6\n");
-            sb.Append("    - Medium importance + Low urgency => 3-4\n");
-            sb.Append("    - Low importance + Low urgency => 1-2\n\n");
-
-            sb.Append("GENERAL RULES:\n");
-            sb.Append("- Generate at least one task per theme.\n");
-            sb.Append("- Use ONLY information from the original text. No hallucinations.\n");
-            sb.Append("- Keep tasks practical, specific, and immediately actionable.\n");
-            sb.Append("- Preserve all specific details (names, places, items, dates) from the original text.\n");
-            if (forceMinimumActivities)
-                sb.Append("- Return AT LEAST 12 tasks total.\n");
-            
-            sb.Append("\n");
-            sb.Append("CRITICAL OUTPUT FORMAT:\n");
-            sb.Append("You MUST return ONLY a valid JSON array. Do NOT include:\n");
-            sb.Append("- Any introductory text like \"Here are...\" or \"The tasks are...\"\n");
-            sb.Append("- Numbered lists or bullet points\n");
-            sb.Append("- Explanations, summaries, or commentary\n");
-            sb.Append("- Priority score lists or additional formatting\n");
-            sb.Append("- Any text before or after the JSON array\n\n");
-            
-            sb.Append("CORRECT FORMAT EXAMPLE (USE THIS STRUCTURE, NOT THE SAMPLE CONTENT):\n");
-            sb.Append("[\n");
-            sb.Append("  {\"task\": \"<task 1 from the user's text>\", \"frequency\": \"once\", \"duration\": \"10 minutes\", \"notes\": \"Short reason based on the brain dump\", \"priority\": \"High\", \"suggestedTime\": \"Morning\", \"urgency\": \"High\", \"importance\": \"Medium\", \"priorityScore\": 9},\n");
-            sb.Append("  {\"task\": \"<task 2 from the user's text>\", \"frequency\": \"weekly\", \"duration\": \"1-2 hours\", \"notes\": \"Short reason based on the brain dump\", \"priority\": \"Medium\", \"suggestedTime\": \"Afternoon\", \"urgency\": \"Low\", \"importance\": \"Medium\", \"priorityScore\": 7}\n");
-            sb.Append("]\n\n");
-            
-            sb.Append("INCORRECT FORMAT (DO NOT DO THIS):\n");
-            sb.Append("Here are ten specific tasks...\n");
-            sb.Append("1. Task: ...\n");
-            sb.Append("Priority score for each task: ...\n\n");
-            
-            sb.Append("Your response must start with [ and end with ]. Nothing else. [/INST]");
+            sb.Append("CRITICAL:\n");
+            sb.Append("- Extract ALL tasks mentioned in the text - be thorough and complete\n");
+            sb.Append("- Return ONLY JSON array, no other text\n");
+            sb.Append("- Start with [ and end with ]\n");
+            sb.Append("- Break compound sentences into separate tasks\n");
+            sb.Append("- Preserve ALL specific details from original text (names, places, dates, etc.)\n");
+            sb.Append("[/INST]");
 
             return sb.ToString();
         }
