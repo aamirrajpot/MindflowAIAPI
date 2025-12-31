@@ -100,6 +100,23 @@ namespace Mindflow_Web_API.Services
             if (user == null)
                 return new SendOtpResponseDto(email, false);
 
+            // Check if there's a recent OTP that was sent within the last 60 seconds to prevent duplicate emails
+            // Since OTPs expire in 5 minutes, if an unused OTP expires more than 4 minutes from now, 
+            // it was created less than 1 minute ago
+            var now = DateTimeOffset.UtcNow;
+            var oneMinuteFromNow = now.AddMinutes(1);
+            var recentOtp = await _dbContext.UserOtps
+                .Where(o => o.UserId == user.Id && !o.IsUsed && o.Expiry > oneMinuteFromNow)
+                .OrderByDescending(o => o.Expiry) // Get the most recent one (highest expiry = most recently created)
+                .FirstOrDefaultAsync();
+
+            // If there's a recent OTP (created within last minute), don't send another email
+            if (recentOtp != null)
+            {
+                _logger.LogInformation($"OTP already sent recently for user {user.Email}. Skipping duplicate email send.");
+                return new SendOtpResponseDto(email, true); // Return success but don't send another email
+            }
+
             // Mark all previous OTPs as expired
             var previousOtps = await _dbContext.UserOtps
                 .Where(o => o.UserId == user.Id && !o.IsUsed)
@@ -121,6 +138,9 @@ namespace Mindflow_Web_API.Services
             };
             await _dbContext.UserOtps.AddAsync(userOtp);
             await _dbContext.SaveChangesAsync();
+            
+            _logger.LogInformation($"Sending OTP email to {email} for user {user.UserName}");
+            
             var subject = "Your Mindflow AI OTP Code";
             var body = $@"
                     Hi {user.FirstName} {user.LastName},<br/><br/>
