@@ -1266,8 +1266,19 @@ namespace Mindflow_Web_API.Services
 		if (wellnessData?.WeekdayStartTimeUtc.HasValue == true && wellnessData?.WeekdayEndTimeUtc.HasValue == true)
 		{
 			// Use UTC fields directly - extract time portion
-			weekdaySlots = (wellnessData.WeekdayStartTimeUtc.Value.TimeOfDay, wellnessData.WeekdayEndTimeUtc.Value.TimeOfDay);
-			_logger.LogInformation("Using UTC fields for weekday slots: {Start} to {End}", weekdaySlots.start, weekdaySlots.end);
+			// Note: The UTC DateTime may have a date component, but we only need the time
+			var startTime = wellnessData.WeekdayStartTimeUtc.Value.TimeOfDay;
+			var endTime = wellnessData.WeekdayEndTimeUtc.Value.TimeOfDay;
+			
+			// Log the raw UTC DateTime values for debugging
+			_logger.LogInformation("[SCHEDULING] Raw UTC DateTime values - Start: {StartUtc}, End: {EndUtc}", 
+				wellnessData.WeekdayStartTimeUtc.Value, wellnessData.WeekdayEndTimeUtc.Value);
+			
+			// If end time is earlier than start time, it means the slot crosses midnight
+			// This is correct - e.g., 18:00 to 03:00 means 6 PM to 3 AM next day
+			weekdaySlots = (startTime, endTime);
+			_logger.LogInformation("[SCHEDULING] Using UTC fields for weekday slots: {Start} to {End} (crosses midnight: {CrossesMidnight}, timezone: {Timezone})", 
+				weekdaySlots.start, weekdaySlots.end, endTime < startTime, wellnessData.TimezoneId);
 		}
 		else
 		{
@@ -1287,8 +1298,19 @@ namespace Mindflow_Web_API.Services
 		if (wellnessData?.WeekendStartTimeUtc.HasValue == true && wellnessData?.WeekendEndTimeUtc.HasValue == true)
 		{
 			// Use UTC fields directly - extract time portion
-			weekendSlots = (wellnessData.WeekendStartTimeUtc.Value.TimeOfDay, wellnessData.WeekendEndTimeUtc.Value.TimeOfDay);
-			_logger.LogInformation("Using UTC fields for weekend slots: {Start} to {End}", weekendSlots.start, weekendSlots.end);
+			// Note: The UTC DateTime may have a date component, but we only need the time
+			var startTime = wellnessData.WeekendStartTimeUtc.Value.TimeOfDay;
+			var endTime = wellnessData.WeekendEndTimeUtc.Value.TimeOfDay;
+			
+			// Log the raw UTC DateTime values for debugging
+			_logger.LogInformation("[SCHEDULING] Raw UTC DateTime values - Start: {StartUtc}, End: {EndUtc}", 
+				wellnessData.WeekendStartTimeUtc.Value, wellnessData.WeekendEndTimeUtc.Value);
+			
+			// If end time is earlier than start time, it means the slot crosses midnight
+			// This is correct - e.g., 16:00 to 00:00 means 4 PM to midnight
+			weekendSlots = (startTime, endTime);
+			_logger.LogInformation("[SCHEDULING] Using UTC fields for weekend slots: {Start} to {End} (crosses midnight: {CrossesMidnight}, timezone: {Timezone})", 
+				weekendSlots.start, weekendSlots.end, endTime < startTime, wellnessData.TimezoneId);
 		}
 		else
 		{
@@ -1388,12 +1410,23 @@ namespace Mindflow_Web_API.Services
 			(TimeSpan start, TimeSpan end) weekdaySlots;
 			(TimeSpan start, TimeSpan end) weekendSlots;
 			
-			if (wellnessData?.WeekdayStartTimeUtc.HasValue == true && wellnessData?.WeekdayEndTimeUtc.HasValue == true)
-			{
-				// Use UTC fields directly - extract time portion
-				weekdaySlots = (wellnessData.WeekdayStartTimeUtc.Value.TimeOfDay, wellnessData.WeekdayEndTimeUtc.Value.TimeOfDay);
-				_logger.LogDebug("Using UTC fields for weekday slots: {Start} to {End}", weekdaySlots.start, weekdaySlots.end);
-			}
+		if (wellnessData?.WeekdayStartTimeUtc.HasValue == true && wellnessData?.WeekdayEndTimeUtc.HasValue == true)
+		{
+			// Use UTC fields directly - extract time portion
+			// Note: The UTC DateTime may have a date component, but we only need the time
+			var startTime = wellnessData.WeekdayStartTimeUtc.Value.TimeOfDay;
+			var endTime = wellnessData.WeekdayEndTimeUtc.Value.TimeOfDay;
+			
+			// Log the raw UTC DateTime values for debugging
+			_logger.LogInformation("[SCHEDULING] Raw UTC DateTime values (Weekday) - Start: {StartUtc}, End: {EndUtc}", 
+				wellnessData.WeekdayStartTimeUtc.Value, wellnessData.WeekdayEndTimeUtc.Value);
+			
+			// If end time is earlier than start time, it means the slot crosses midnight
+			// This is correct - e.g., 18:00 to 03:00 means 6 PM to 3 AM next day
+			weekdaySlots = (startTime, endTime);
+			_logger.LogInformation("[SCHEDULING] Using UTC fields for weekday slots: {Start} to {End} (crosses midnight: {CrossesMidnight}, timezone: {Timezone})", 
+				weekdaySlots.start, weekdaySlots.end, endTime < startTime, wellnessData.TimezoneId);
+		}
 			else
 			{
 				// Fall back to converting local time fields
@@ -1407,12 +1440,23 @@ namespace Mindflow_Web_API.Services
 					wellnessData?.TimezoneId);
 			}
 			
-			if (wellnessData?.WeekendStartTimeUtc.HasValue == true && wellnessData?.WeekendEndTimeUtc.HasValue == true)
-			{
-				// Use UTC fields directly - extract time portion
-				weekendSlots = (wellnessData.WeekendStartTimeUtc.Value.TimeOfDay, wellnessData.WeekendEndTimeUtc.Value.TimeOfDay);
-				_logger.LogDebug("Using UTC fields for weekend slots: {Start} to {End}", weekendSlots.start, weekendSlots.end);
-			}
+		if (wellnessData?.WeekendStartTimeUtc.HasValue == true && wellnessData?.WeekendEndTimeUtc.HasValue == true)
+		{
+			// Use UTC fields directly - extract time portion
+			// Note: The UTC DateTime may have a date component, but we only need the time
+			var startTime = wellnessData.WeekendStartTimeUtc.Value.TimeOfDay;
+			var endTime = wellnessData.WeekendEndTimeUtc.Value.TimeOfDay;
+			
+			// Log the raw UTC DateTime values for debugging
+			_logger.LogInformation("[SCHEDULING] Raw UTC DateTime values (Weekend) - Start: {StartUtc}, End: {EndUtc}", 
+				wellnessData.WeekendStartTimeUtc.Value, wellnessData.WeekendEndTimeUtc.Value);
+			
+			// If end time is earlier than start time, it means the slot crosses midnight
+			// This is correct - e.g., 16:00 to 00:00 means 4 PM to midnight
+			weekendSlots = (startTime, endTime);
+			_logger.LogInformation("[SCHEDULING] Using UTC fields for weekend slots: {Start} to {End} (crosses midnight: {CrossesMidnight}, timezone: {Timezone})", 
+				weekendSlots.start, weekendSlots.end, endTime < startTime, wellnessData.TimezoneId);
+		}
 			else
 			{
 				// Fall back to converting local time fields
@@ -1426,15 +1470,15 @@ namespace Mindflow_Web_API.Services
 					wellnessData?.TimezoneId);
 			}
 
-			_logger.LogDebug("Determining optimal schedule for task with duration {Duration} minutes", durationMinutes);
-			_logger.LogDebug("Weekday slots (UTC): {WeekdayStart} to {WeekdayEnd}", weekdaySlots.start, weekdaySlots.end);
-			_logger.LogDebug("Weekend slots (UTC): {WeekendStart} to {WeekendEnd}", weekendSlots.start, weekendSlots.end);
+		_logger.LogInformation("[SCHEDULING] Determining optimal schedule for task with duration {Duration} minutes", durationMinutes);
+		_logger.LogInformation("[SCHEDULING] Weekday slots (UTC): {WeekdayStart} to {WeekdayEnd}", weekdaySlots.start, weekdaySlots.end);
+		_logger.LogInformation("[SCHEDULING] Weekend slots (UTC): {WeekendStart} to {WeekendEnd}", weekendSlots.start, weekendSlots.end);
 
-			// Calculate optimal date and time based on available slots
-			// No user preferences - find optimal date and time using wellness data slots
-			_logger.LogDebug("Calculating optimal date and time based on available slots");
-			var (optimalDate, optimalTime) = await FindNextAvailableSlotAsync(durationMinutes, weekdaySlots, weekendSlots, userId, wellnessData);
-			_logger.LogDebug("Found optimal slot: {Date} at {Time}", optimalDate.ToString("yyyy-MM-dd"), optimalTime);
+		// Calculate optimal date and time based on available slots
+		// No user preferences - find optimal date and time using wellness data slots
+		_logger.LogInformation("[SCHEDULING] Calculating optimal date and time based on available slots");
+		var (optimalDate, optimalTime) = await FindNextAvailableSlotAsync(durationMinutes, weekdaySlots, weekendSlots, userId, wellnessData);
+		_logger.LogInformation("[SCHEDULING] Found optimal slot: {Date} at {Time}", optimalDate.ToString("yyyy-MM-dd"), optimalTime);
 			return (optimalDate, optimalTime);
 		}
 
@@ -1618,40 +1662,94 @@ namespace Mindflow_Web_API.Services
 			}
 		}
 
-	private async Task<TimeSpan> FindAvailableTimeInDayAsync(DateTime date, (TimeSpan start, TimeSpan end) slots, int durationMinutes, Guid userId)
+	private async Task<(DateTime date, TimeSpan time)> FindAvailableTimeInDayAsync(DateTime date, (TimeSpan start, TimeSpan end) slots, int durationMinutes, Guid userId)
 	{
     // Handle windows that may cross midnight (e.g., 22:00 -> 01:00)
     var start = slots.start;
     var end = slots.end;
 
-    // Local function to scan a single segment [segStart, segEnd)
-    async Task<TimeSpan> ScanAsync(TimeSpan segStart, TimeSpan segEnd)
+    // Local function to scan a single segment [segStart, segEnd) on a specific date
+    async Task<(DateTime scanDate, TimeSpan time)> ScanAsync(TimeSpan segStart, TimeSpan segEnd, DateTime scanDate)
     {
+        _logger?.LogInformation("[SCAN] Starting scan - segStart: {SegStart}, segEnd: {SegEnd}, scanDate: {ScanDate}, duration: {Duration}min", 
+            segStart, segEnd, scanDate.ToString("yyyy-MM-dd"), durationMinutes);
         var t = segStart;
-        while (t.Add(TimeSpan.FromMinutes(durationMinutes)) <= segEnd)
+        // For segments that don't cross midnight, ensure we don't exceed segEnd
+        var maxTime = segEnd;
+        if (segEnd < segStart)
         {
-            if (await IsTimeSlotAvailableAsync(date, t, durationMinutes, userId))
+            // Segment crosses midnight, use 24:00 as max for the first part
+            maxTime = new TimeSpan(24, 0, 0);
+        }
+        
+        int attemptCount = 0;
+        while (t.Add(TimeSpan.FromMinutes(durationMinutes)) <= maxTime)
+        {
+            attemptCount++;
+            var isAvailable = await IsTimeSlotAvailableAsync(scanDate, t, durationMinutes, userId);
+            _logger?.LogInformation("[SCAN] Attempt {Attempt}: Checking {Time} on {Date} - Available: {Available}", 
+                attemptCount, t, scanDate.ToString("yyyy-MM-dd"), isAvailable);
+            
+            if (isAvailable)
             {
-                return t;
+                _logger?.LogInformation("[SCAN] Found available time: {Time} on {Date}", t, scanDate.ToString("yyyy-MM-dd"));
+                return (scanDate, t);
             }
             t = t.Add(TimeSpan.FromMinutes(30));
+            
+            // Prevent infinite loop
+            if (t.TotalMinutes >= 24 * 60)
+            {
+                _logger?.LogWarning("[SCAN] Time exceeded 24 hours, breaking loop");
+                break;
+            }
         }
-        return TimeSpan.Zero;
+        _logger?.LogInformation("[SCAN] No available time found after {AttemptCount} attempts", attemptCount);
+        return (DateTime.MinValue, TimeSpan.Zero);
     }
 
-    // Case 1: simple same-day window
+    // Case 1: simple same-day window (e.g., 12:00 to 21:00)
     if (end > start)
     {
-        var found = await ScanAsync(start, end);
-        return found;
+        var found = await ScanAsync(start, end, date);
+        // Check if a time was found by checking the date (ScanAsync returns DateTime.MinValue when no time is found)
+        if (found.scanDate != DateTime.MinValue)
+            return (found.scanDate, found.time);
+        return (DateTime.MinValue, TimeSpan.Zero);
     }
 
-    // Case 2: window crosses midnight → scan [start, 24:00) then [00:00, end)
-    var first = await ScanAsync(start, new TimeSpan(24, 0, 0));
-    if (first != TimeSpan.Zero) return first;
+    // Case 2: window crosses midnight (e.g., 18:00 to 03:00)
+    // For a slot that crosses midnight, when checking a date, we need to consider:
+    // 1. The after-midnight portion (00:00 to end) on the CURRENT date (this is the continuation from the previous day's slot)
+    // 2. The before-midnight portion (start to 24:00) on the CURRENT date (this is the start of the current day's slot)
+    
+    // First, check the after-midnight portion (00:00 to 03:00) on the current date
+    // This represents times that are part of the previous day's slot but fall on this date
+    _logger?.LogInformation("[FIND_AVAILABLE] Checking after-midnight portion: 00:00 to {End} on {Date}", end, date.ToString("yyyy-MM-dd"));
+    var afterMidnight = await ScanAsync(TimeSpan.Zero, end, date);
+    // Check if a time was found by checking the date (ScanAsync returns DateTime.MinValue when no time is found)
+    if (afterMidnight.scanDate != DateTime.MinValue)
+    {
+        _logger?.LogInformation("[FIND_AVAILABLE] Found time in after-midnight portion: {Time} on {Date}", afterMidnight.time, afterMidnight.scanDate.ToString("yyyy-MM-dd"));
+        return (afterMidnight.scanDate, afterMidnight.time);
+    }
+    else
+    {
+        _logger?.LogInformation("[FIND_AVAILABLE] No available time found in after-midnight portion (00:00 to {End}) on {Date}", end, date.ToString("yyyy-MM-dd"));
+    }
 
-    var second = await ScanAsync(TimeSpan.Zero, end);
-    return second;
+    // Then scan from start to end of day (midnight) on current date
+    // This is the main portion of the slot for this day
+    var beforeMidnight = await ScanAsync(start, new TimeSpan(24, 0, 0), date);
+    // Check if a time was found by checking the date (ScanAsync returns DateTime.MinValue when no time is found)
+    if (beforeMidnight.scanDate != DateTime.MinValue)
+    {
+        _logger?.LogInformation("[FIND_AVAILABLE] Found time in before-midnight portion: {Time} on {Date}", beforeMidnight.time, beforeMidnight.scanDate.ToString("yyyy-MM-dd"));
+        return (beforeMidnight.scanDate, beforeMidnight.time);
+    }
+
+    // No time found in either portion
+    return (DateTime.MinValue, TimeSpan.Zero);
 	}
 
 	private async Task<(DateTime date, TimeSpan time)> FindNextAvailableDateForTimeAsync(TimeSpan preferredTime, int durationMinutes, (TimeSpan start, TimeSpan end) weekdaySlots, (TimeSpan start, TimeSpan end) weekendSlots, Guid userId)
@@ -1667,7 +1765,22 @@ namespace Mindflow_Web_API.Services
 			var slots = isWeekend ? weekendSlots : weekdaySlots;
 
 			// Check if preferred time fits within available slots
-			if (preferredTime >= slots.start && preferredTime.Add(TimeSpan.FromMinutes(durationMinutes)) <= slots.end)
+			// Handle both normal slots and midnight-crossing slots
+			bool timeFitsInSlot;
+			if (slots.end > slots.start)
+			{
+				// Normal slot: start < end (e.g., 12:00 to 21:00)
+				timeFitsInSlot = preferredTime >= slots.start && preferredTime.Add(TimeSpan.FromMinutes(durationMinutes)) <= slots.end;
+			}
+			else
+			{
+				// Slot crosses midnight: start > end (e.g., 18:00 to 03:00)
+				// Time fits if it's >= start OR < end (with duration check)
+				timeFitsInSlot = (preferredTime >= slots.start && preferredTime.Add(TimeSpan.FromMinutes(durationMinutes)) <= new TimeSpan(24, 0, 0)) ||
+								  (preferredTime < slots.end && preferredTime.Add(TimeSpan.FromMinutes(durationMinutes)) <= slots.end);
+			}
+			
+			if (timeFitsInSlot)
 			{
 				// Check if this time slot is available
 				if (await IsTimeSlotAvailableAsync(date, preferredTime, durationMinutes, userId))
@@ -1682,14 +1795,21 @@ namespace Mindflow_Web_API.Services
 
 	private async Task<(DateTime date, TimeSpan time)> FindNextAvailableSlotAsync(int durationMinutes, (TimeSpan start, TimeSpan end) weekdaySlots, (TimeSpan start, TimeSpan end) weekendSlots, Guid userId, DTOs.WellnessCheckInDto? wellnessData = null)
 	{
-		// Use UTC date explicitly - Start from tomorrow (UTC)
-		var startDate = DateTime.SpecifyKind(DateTime.UtcNow.Date.AddDays(1), DateTimeKind.Utc);
+		// Use UTC date explicitly - Start from tomorrow (UTC) to ensure we have a full day
+		// For midnight-crossing slots, when checking tomorrow, we'll check its after-midnight portion (00:00-03:00)
+		// which is the continuation of today's slot, and then the before-midnight portion (18:00-24:00)
+		var today = DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc);
+		var startDate = today.AddDays(1); // Start from tomorrow to ensure full day availability
 		var maxDays = 14; // Look ahead 2 weeks
+
+		_logger?.LogInformation("[FIND_NEXT_SLOT] Starting search from {StartDate} (today: {Today})", startDate.ToString("yyyy-MM-dd"), today.ToString("yyyy-MM-dd"));
 
 		for (int dayOffset = 0; dayOffset < maxDays; dayOffset++)
 		{
 			var date = DateTime.SpecifyKind(startDate.AddDays(dayOffset).Date, DateTimeKind.Utc);
 			var isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
+			
+			_logger?.LogInformation("[FIND_NEXT_SLOT] Checking date {Date} (dayOffset: {Offset}, isWeekend: {IsWeekend})", date.ToString("yyyy-MM-dd"), dayOffset, isWeekend);
 			
 			// Use UTC fields if available (they're already converted to UTC)
 			// Otherwise use the slots passed in or fall back to converting local time fields
@@ -1742,10 +1862,11 @@ namespace Mindflow_Web_API.Services
 			}
 
 			// Find available time within the day's slots
-			var availableTime = await FindAvailableTimeInDayAsync(date, slots, durationMinutes, userId);
-			if (availableTime != TimeSpan.Zero)
+			var (availableDate, availableTime) = await FindAvailableTimeInDayAsync(date, slots, durationMinutes, userId);
+			// Check if a time was found by checking the date (FindAvailableTimeInDayAsync returns DateTime.MinValue when no time is found)
+			if (availableDate != DateTime.MinValue)
 			{
-				return (date, availableTime);
+				return (availableDate, availableTime);
 			}
 		}
 
@@ -3830,8 +3951,8 @@ public class TimeSlotManager
 
 		TimeSpan Scan(TimeSpan segStart, TimeSpan segEnd, bool isAfterMidnight = false)
 		{
-			_logger?.LogInformation("[FIND_SLOT] Scan called - segStart: {SegStart}, segEnd: {SegEnd}, isAfterMidnight: {AfterMidnight}", 
-				segStart, segEnd, isAfterMidnight);
+			_logger?.LogInformation("[FIND_SLOT] Scan called - segStart: {SegStart}, segEnd: {SegEnd}, isAfterMidnight: {AfterMidnight}, baseDate: {BaseDate}", 
+				segStart, segEnd, isAfterMidnight, date.ToString("yyyy-MM-dd"));
 			
 			var t = segStart;
 			// Ensure we don't exceed the segment end
@@ -3844,13 +3965,17 @@ public class TimeSlotManager
 			
 			// For after-midnight times, we need to check the next day
 			var checkDate = isAfterMidnight ? date.AddDays(1) : date;
-			_logger?.LogInformation("[FIND_SLOT] Scanning from {T} to {MaxTime}, checking date: {CheckDate}", t, maxTime, checkDate.ToString("yyyy-MM-dd"));
+			_logger?.LogInformation("[FIND_SLOT] Scanning from {T} to {MaxTime}, checking date: {CheckDate} (isAfterMidnight: {AfterMidnight})", 
+				t, maxTime, checkDate.ToString("yyyy-MM-dd"), isAfterMidnight);
 			
 			int attempts = 0;
+			int checkedCount = 0;
 			while (t.Add(TimeSpan.FromMinutes(durationMinutes)) <= maxTime && attempts < 100)
 			{
+				checkedCount++;
 				var isAvailable = IsTimeSlotAvailable(checkDate, t, durationMinutes);
-				_logger?.LogDebug("[FIND_SLOT] Checking time {Time} on {Date} - Available: {Available}", t, checkDate.ToString("yyyy-MM-dd"), isAvailable);
+				_logger?.LogInformation("[FIND_SLOT] Attempt {Attempt}: Checking time {Time} on {Date} - Available: {Available}", 
+					checkedCount, t, checkDate.ToString("yyyy-MM-dd"), isAvailable);
 				
 				if (isAvailable)
 				{
@@ -3862,9 +3987,13 @@ public class TimeSlotManager
 				
 				// Prevent infinite loop if we somehow exceed 24 hours
 				if (t.TotalMinutes >= 24 * 60)
+				{
+					_logger?.LogWarning("[FIND_SLOT] Time exceeded 24 hours, breaking loop");
 					break;
+				}
 			}
-			_logger?.LogWarning("[FIND_SLOT] No available time found in segment {SegStart}-{SegEnd}", segStart, segEnd);
+			_logger?.LogWarning("[FIND_SLOT] No available time found in segment {SegStart}-{SegEnd} after {CheckedCount} attempts", 
+				segStart, segEnd, checkedCount);
 			return TimeSpan.Zero;
 		}
 
@@ -3878,19 +4007,28 @@ public class TimeSlotManager
 		if (scanStart >= start)
 		{
 			// Scan from scanStart to end of day (midnight) - these times are on the current date
+			_logger?.LogInformation("[FIND_SLOT] scanStart >= start, scanning first segment from {ScanStart} to 24:00 on {Date}", 
+				scanStart, date.ToString("yyyy-MM-dd"));
 			var first = Scan(scanStart, new TimeSpan(24, 0, 0), isAfterMidnight: false);
-			if (first != TimeSpan.Zero) return first;
+			if (first != TimeSpan.Zero)
+			{
+				_logger?.LogInformation("[FIND_SLOT] Found time in first segment: {Time}", first);
+				return first;
+			}
 			// Then scan from start of day (00:00) to end (03:00) - these times are on the next day
+			_logger?.LogInformation("[FIND_SLOT] No time found in first segment, scanning second segment from 00:00 to {End} on next day", end);
 			return Scan(TimeSpan.Zero, end, isAfterMidnight: true);
 		}
 		else if (scanStart < end)
 		{
 			// scanStart is in the early morning part (before end, e.g., 01:00) - these times are on the next day
+			_logger?.LogInformation("[FIND_SLOT] scanStart < end, scanning from {ScanStart} to {End} on next day", scanStart, end);
 			return Scan(scanStart, end, isAfterMidnight: true);
 		}
 		else
 		{
 			// scanStart is between end and start (invalid zone), scan from start
+			_logger?.LogInformation("[FIND_SLOT] scanStart is in invalid zone, scanning from start {Start} to 24:00, then 00:00 to {End}", start, end);
 			var first = Scan(start, new TimeSpan(24, 0, 0), isAfterMidnight: false);
 			if (first != TimeSpan.Zero) return first;
 			return Scan(TimeSpan.Zero, end, isAfterMidnight: true);

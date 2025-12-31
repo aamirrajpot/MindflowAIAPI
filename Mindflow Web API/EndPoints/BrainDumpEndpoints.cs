@@ -106,31 +106,125 @@ namespace Mindflow_Web_API.EndPoints
 				if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
 					return Results.Unauthorized();
 
-				try
+			try
+			{
+				// Get database context to query TaskSuggestionRecords
+				var dbContext = ctx.RequestServices.GetRequiredService<MindflowDbContext>();
+				
+				// Extract suggestion IDs from the request (assuming only IDs are provided)
+				var suggestionIds = request.Suggestions
+					.Where(s => s.Id.HasValue)
+					.Select(s => s.Id!.Value)
+					.Distinct()
+					.ToList();
+				
+				if (suggestionIds.Count == 0)
 				{
-					var taskItems = await service.AddMultipleTasksToCalendarAsync(userId, request.Suggestions, null, request.BrainDumpEntryId);
+					return Results.BadRequest(new { message = "No valid suggestion IDs provided" });
+				}
 
-					return Results.Ok(new
+				// Fetch task suggestion records from database based on IDs
+				var suggestionRecords = await dbContext.TaskSuggestionRecords
+					.Where(r => suggestionIds.Contains(r.Id) && r.UserId == userId)
+					.ToListAsync();
+
+				if (suggestionRecords.Count == 0)
+				{
+					return Results.NotFound(new { message = "No task suggestions found for the provided IDs" });
+				}
+
+				// Check if all IDs were found
+				if (suggestionRecords.Count != suggestionIds.Count)
+				{
+					var foundIds = suggestionRecords.Select(r => r.Id).ToList();
+					var missingIds = suggestionIds.Except(foundIds).ToList();
+					// Log warning but continue with found records
+					var logger = ctx.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("BrainDumpEndpoints");
+					logger.LogWarning("Some suggestion IDs were not found: {MissingIds}", string.Join(", ", missingIds));
+				}
+
+				var taskItems = new List<TaskItem>();
+				var errors = new List<string>();
+
+				// Process tasks in parallel for better performance
+				await Parallel.ForEachAsync(
+					suggestionRecords,
+					new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount },
+					async (suggestionRecord, ct) =>
 					{
-						message = $"Successfully added {taskItems.Count} tasks to calendar",
-						taskCount = taskItems.Count,
-						tasks = taskItems.Select(t => new
+						try
 						{
-							Id = t.Id,
-							Title = t.Title,
-							Description = t.Description,
-							Category = t.Category,
-							Date = t.Date,
-							Time = t.Time,
-							DurationMinutes = t.DurationMinutes,
-							RepeatType = t.RepeatType,
-							SourceBrainDumpEntryId = t.SourceBrainDumpEntryId,
-							SourceTextExcerpt = t.SourceTextExcerpt,
-							LifeArea = t.LifeArea,
-							EmotionTag = t.EmotionTag
-						}).ToList()
+							// Convert TaskSuggestionRecord to AddToCalendarRequest
+							var addRequest = new AddToCalendarRequest
+							{
+								Task = suggestionRecord.Task,
+								Frequency = suggestionRecord.Frequency ?? "once",
+								Duration = suggestionRecord.Duration ?? "30 minutes",
+								Notes = suggestionRecord.Notes,
+								BrainDumpEntryId = request.BrainDumpEntryId ?? suggestionRecord.BrainDumpEntryId,
+								Urgency = suggestionRecord.Urgency,
+								Importance = suggestionRecord.Importance,
+								PriorityScore = suggestionRecord.PriorityScore,
+								ReminderEnabled = false // Default to false, can be made configurable
+							};
+
+							var taskItem = await service.AddTaskToCalendarAsync(userId, addRequest);
+							
+							// Update the suggestion record to mark it as scheduled
+							suggestionRecord.Status = TaskSuggestionStatus.Scheduled;
+							suggestionRecord.TaskItemId = taskItem.Id;
+							
+							lock (taskItems)
+							{
+								taskItems.Add(taskItem);
+							}
+						}
+						catch (Exception ex)
+						{
+							lock (errors)
+							{
+								errors.Add($"Failed to add task '{suggestionRecord.Task}': {ex.Message}");
+							}
+						}
+					});
+
+				// Save status updates to database
+				if (taskItems.Count > 0)
+				{
+					await dbContext.SaveChangesAsync();
+				}
+
+				if (errors.Count > 0 && taskItems.Count == 0)
+				{
+					return Results.BadRequest(new
+					{
+						message = "Failed to add any tasks to calendar",
+						errors = errors
 					});
 				}
+
+				return Results.Ok(new
+				{
+					message = $"Successfully added {taskItems.Count} of {request.Suggestions.Count} tasks to calendar",
+					taskCount = taskItems.Count,
+					errors = errors.Count > 0 ? errors : null,
+					tasks = taskItems.Select(t => new
+					{
+						Id = t.Id,
+						Title = t.Title,
+						Description = t.Description,
+						Category = t.Category,
+						Date = t.Date,
+						Time = t.Time,
+						DurationMinutes = t.DurationMinutes,
+						RepeatType = t.RepeatType,
+						SourceBrainDumpEntryId = t.SourceBrainDumpEntryId,
+						SourceTextExcerpt = t.SourceTextExcerpt,
+						LifeArea = t.LifeArea,
+						EmotionTag = t.EmotionTag
+					}).ToList()
+				});
+			}
 				catch (ArgumentException ex)
 				{
 					return Results.BadRequest(ex.Message);
