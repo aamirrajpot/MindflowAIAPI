@@ -193,6 +193,61 @@ namespace Mindflow_Web_API.Services
 				currentTemperature = Math.Max(0.2, currentTemperature - 0.2);
 			}
 
+			// Step 4.5: Generate Wellness Tasks (separate from brain dump tasks)
+			_logger.LogDebug("Step 4.5: Generating wellness task suggestions");
+			List<TaskSuggestion> wellnessTasks = new();
+			try
+			{
+				var wellnessPrompt = BrainDumpPromptBuilder.BuildWellnessTaskSuggestionsPrompt(wellnessSummary, request);
+				var wellnessResponse = await _runPodService.SendPromptAsync(wellnessPrompt, 800, temperature);
+				wellnessTasks = BrainDumpPromptBuilder.ParseTaskSuggestionsResponse(wellnessResponse, _logger);
+
+				// Post-process wellness tasks (same as brain dump tasks)
+				if (wellnessTasks != null && wellnessTasks.Count > 0)
+				{
+					foreach (var t in wellnessTasks)
+					{
+						// Normalize urgency/importance casing
+						if (!string.IsNullOrWhiteSpace(t.Urgency))
+							t.Urgency = NormalizePriorityLevel(t.Urgency);
+						if (!string.IsNullOrWhiteSpace(t.Importance))
+							t.Importance = NormalizePriorityLevel(t.Importance);
+
+						// Compute priority score if not provided or out of range
+						if (!t.PriorityScore.HasValue || t.PriorityScore < 1 || t.PriorityScore > 10)
+						{
+							var urgencyScore = MapLevelToScore(t.Urgency);
+							var importanceScore = MapLevelToScore(t.Importance);
+							// Heavier weight on importance
+							t.PriorityScore = Math.Clamp(importanceScore * 2 + urgencyScore, 1, 10);
+						}
+					}
+
+					_logger.LogInformation("Successfully generated {Count} wellness task suggestions", wellnessTasks.Count);
+				}
+			}
+			catch (Exception ex)
+			{
+				_logger.LogWarning(ex, "Failed to generate wellness tasks, continuing with brain dump tasks only");
+				// Continue without wellness tasks - brain dump tasks will still work
+			}
+
+			// Merge brain dump tasks and wellness tasks
+			if (wellnessTasks != null && wellnessTasks.Count > 0)
+			{
+				suggestedActivities = suggestedActivities ?? new List<TaskSuggestion>();
+				var brainDumpCount = suggestedActivities.Count;
+				suggestedActivities.AddRange(wellnessTasks);
+				
+				// Re-sort all tasks by priority score after merging
+				suggestedActivities = suggestedActivities
+					.OrderByDescending(t => t.PriorityScore ?? 0)
+					.ToList();
+				
+				_logger.LogInformation("Merged {BrainDumpCount} brain dump tasks with {WellnessCount} wellness tasks (total: {Total})", 
+					brainDumpCount, wellnessTasks.Count, suggestedActivities.Count);
+			}
+
 			// Step 5: Break Down Complex Tasks into Micro-Steps
 			if (suggestedActivities != null && suggestedActivities.Count > 0)
 			{

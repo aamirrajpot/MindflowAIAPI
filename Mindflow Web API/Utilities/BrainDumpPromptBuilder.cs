@@ -520,6 +520,83 @@ namespace Mindflow_Web_API.Utilities
             return sb.ToString();
         }
 
+        /// <summary>
+        /// Generates wellness-specific task suggestions based on user's wellness profile.
+        /// This is separate from brain dump tasks to focus on self-care and wellness activities.
+        /// </summary>
+        public static string BuildWellnessTaskSuggestionsPrompt(
+            WellnessSummary wellness,
+            BrainDumpRequest? request = null)
+        {
+            var sb = new StringBuilder();
+            sb.Append("[INST] Generate wellness and self-care task suggestions based on the user's wellness profile. Return ONLY a JSON array.\n\n");
+
+            sb.Append("INSTRUCTION: Create actionable wellness tasks that support the user's focus areas, mood, and preferences.\n");
+            sb.Append("Focus on self-care, mental health, physical wellness, and personal growth activities.\n\n");
+
+            // Wellness data
+            sb.Append("Wellness Profile:\n");
+            if (!string.IsNullOrWhiteSpace(wellness.MoodLevel))
+                sb.Append($"Current Mood: {wellness.MoodLevel}\n");
+            
+            if (wellness.FocusAreas.Any())
+                sb.Append($"Focus Areas: {string.Join(", ", wellness.FocusAreas)}\n");
+            
+            if (wellness.PreferredTimeBlocks.Any())
+                sb.Append($"Preferred Times: {string.Join(", ", wellness.PreferredTimeBlocks)}\n");
+            
+            if (wellness.KeyResponses.Any())
+            {
+                sb.Append("Additional Context:\n");
+                foreach (var kvp in wellness.KeyResponses.Take(5)) // Limit to avoid too much data
+                {
+                    sb.Append($"- {kvp.Key}: {kvp.Value}\n");
+                }
+            }
+            
+            if (request != null && (request.Mood.HasValue || request.Stress.HasValue || request.Purpose.HasValue))
+            {
+                var scores = new List<string>();
+                if (request.Mood.HasValue) scores.Add($"Mood={request.Mood.Value}");
+                if (request.Stress.HasValue) scores.Add($"Stress={request.Stress.Value}");
+                if (request.Purpose.HasValue) scores.Add($"Purpose={request.Purpose.Value}");
+                sb.Append($"Self-Reported Scores: {string.Join(", ", scores)}\n");
+            }
+            sb.Append("\n");
+
+            // Wellness task generation rules
+            sb.Append("WELLNESS TASK GENERATION:\n");
+            sb.Append("1. Create tasks aligned with the user's focus areas (e.g., if 'spirituality', suggest meditation/prayer tasks)\n");
+            sb.Append("2. Consider current mood - suggest activities that support or improve mood\n");
+            sb.Append("3. Include self-care activities: exercise, meditation, journaling, rest, social connection\n");
+            sb.Append("4. Respect preferred time blocks when suggesting times\n");
+            sb.Append("5. Make tasks specific and actionable (e.g., \"10-minute morning meditation\" not just \"meditate\")\n");
+            sb.Append("6. Include variety: physical, mental, emotional, and social wellness activities\n");
+            sb.Append("7. Keep tasks realistic and achievable (5-60 minutes typically)\n\n");
+
+            // Prioritization
+            sb.Append("PRIORITIZATION:\n");
+            sb.Append("Urgency: Usually LOW for wellness tasks (self-care can be done flexibly)\n");
+            sb.Append("Importance: MEDIUM to HIGH (wellness supports overall health and productivity)\n");
+            sb.Append("priorityScore: Typically 3-7 for wellness tasks (important but not urgent)\n\n");
+
+            // JSON format
+            sb.Append("JSON FORMAT:\n");
+            sb.Append("[\n");
+            sb.Append("  {\"task\": \"specific wellness activity\", \"frequency\": \"once|daily|weekly|bi-weekly|monthly|weekdays|never\", \"duration\": \"10 minutes|30 minutes|1 hour|etc\", \"notes\": \"why this supports wellness\", \"priority\": \"High|Medium|Low\", \"suggestedTime\": \"Morning|Afternoon|Evening\", \"urgency\": \"Low|Medium|High\", \"importance\": \"Low|Medium|High\", \"priorityScore\": 3-7}\n");
+            sb.Append("]\n\n");
+
+            sb.Append("CRITICAL:\n");
+            sb.Append("- Generate 3-5 wellness tasks that align with focus areas and mood\n");
+            sb.Append("- Return ONLY JSON array, no other text\n");
+            sb.Append("- Start with [ and end with ]\n");
+            sb.Append("- Make tasks specific and actionable\n");
+            sb.Append("- Focus on self-care, wellness, and personal growth\n");
+            sb.Append("[/INST]");
+
+            return sb.ToString();
+        }
+
         // Legacy method kept for backward compatibility (can be removed later)
         public static string BuildTaskSuggestionsPrompt(
     string summary,
