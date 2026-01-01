@@ -35,13 +35,13 @@ namespace Mindflow_Web_API.Services
                 throw ApiExceptions.Conflict("Username or Email already exists.");
             
             // Check for deactivated users with same email/username
-            var deactivatedUser = await _dbContext.Users.FirstOrDefaultAsync(u => 
-                (u.UserName == command.UserName || u.Email == command.Email) && !u.IsActive);
+            var unconfirmedUser = await _dbContext.Users.FirstOrDefaultAsync(u => 
+                (u.UserName == command.UserName || u.Email == command.Email) && !u.IsActive && !u.EmailConfirmed);
             
-            if (deactivatedUser != null)
+            if (unconfirmedUser != null)
             {
-                _logger.LogWarning($"Attempted registration with deactivated user credentials: {command.UserName} / {command.Email}");
-                throw ApiExceptions.Conflict("This account has been deactivated. Please contact support if you believe this is an error.");
+                _logger.LogWarning($"Inactive or unconfirmed user tried to sign in: {command.UserName}");
+                throw ApiExceptions.ValidationError("Please verify your email and then try to sign in.");
             }
 
             var user = new User
