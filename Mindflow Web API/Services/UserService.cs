@@ -40,8 +40,9 @@ namespace Mindflow_Web_API.Services
             
             if (unconfirmedUser != null)
             {
-                _logger.LogWarning($"Inactive or unconfirmed user tried to sign in: {command.UserName}");
-                throw ApiExceptions.ValidationError("Please verify your email and then try to sign in.");
+                // Automatically send OTP after registration
+                await SendOtpAsync(unconfirmedUser.Email);
+                return new UserDto(unconfirmedUser.Id, unconfirmedUser.UserName, unconfirmedUser.Email, unconfirmedUser.EmailConfirmed, unconfirmedUser.FirstName, unconfirmedUser.LastName, unconfirmedUser.IsActive, unconfirmedUser.DateOfBirth, unconfirmedUser.ProfilePic, unconfirmedUser.StripeCustomerId, unconfirmedUser.QuestionnaireFilled);
             }
 
             var user = new User
