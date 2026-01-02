@@ -1811,7 +1811,7 @@ namespace Mindflow_Web_API.Services
 		// For midnight-crossing slots, when checking tomorrow, we'll check its after-midnight portion (00:00-03:00)
 		// which is the continuation of today's slot, and then the before-midnight portion (18:00-24:00)
 		var today = DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc);
-		var startDate = today.AddDays(3); // Start from tomorrow to ensure full day availability
+		var startDate = today.AddDays(1); // Start from tomorrow to ensure full day availability
 		var maxDays = 14; // Look ahead 2 weeks
 
 		_logger?.LogInformation("[FIND_NEXT_SLOT] Starting search from {StartDate} (today: {Today})", startDate.ToString("yyyy-MM-dd"), today.ToString("yyyy-MM-dd"));
