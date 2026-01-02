@@ -108,8 +108,15 @@ namespace Mindflow_Web_API.Services
 
             if (cachingEnabled && _cache.TryGetValue(cacheKey, out string cachedResponse))
             {
-                _logger.LogDebug("RunPod cache hit for key {Key}", cacheKey);
+                _logger.LogInformation("RunPod cache HIT for key {Key} (prompt length: {PromptLength}, maxTokens: {MaxTokens}, temperature: {Temperature})", 
+                    cacheKey, prompt?.Length ?? 0, maxTokens, temperature);
                 return cachedResponse;
+            }
+
+            if (cachingEnabled)
+            {
+                _logger.LogInformation("RunPod cache MISS for key {Key} (prompt length: {PromptLength}, maxTokens: {MaxTokens}, temperature: {Temperature}) - making API call", 
+                    cacheKey, prompt?.Length ?? 0, maxTokens, temperature);
             }
 
             var maxRetries = _configuration.GetValue<int>("RunPod:MaxRetries", 3);
@@ -168,7 +175,18 @@ namespace Mindflow_Web_API.Services
                     if (responseContent.Contains("\"status\":\"IN_PROGRESS\"") || responseContent.Contains("\"status\":\"IN_QUEUE\""))
                     {
                         _logger.LogInformation("Task is in progress, starting polling for completion...");
-                        return await PollForCompletionAsync(responseContent, cts.Token);
+                        var polledResponse = await PollForCompletionAsync(responseContent, cts.Token);
+                        
+                        // Cache the polled response as well
+                        if (cachingEnabled)
+                        {
+                            _cache.Set(cacheKey, polledResponse, new MemoryCacheEntryOptions
+                            {
+                                AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(Math.Max(10, cacheSeconds))
+                            });
+                            _logger.LogInformation("Cached RunPod response (from polling) for key {Key} with TTL {CacheSeconds}s", cacheKey, cacheSeconds);
+                        }
+                        return polledResponse;
                     }
                     
                     _logger.LogInformation("Successfully received response from RunPod after {Attempt} attempt(s)", attempt);
@@ -178,6 +196,7 @@ namespace Mindflow_Web_API.Services
                         {
                             AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(Math.Max(10, cacheSeconds))
                         });
+                        _logger.LogInformation("Cached RunPod response for key {Key} with TTL {CacheSeconds}s", cacheKey, cacheSeconds);
                     }
                     return responseContent;
                 }

@@ -1719,33 +1719,45 @@ namespace Mindflow_Web_API.Services
     }
 
     // Case 2: window crosses midnight (e.g., 18:00 to 03:00)
-    // For a slot that crosses midnight, when checking a date, we need to consider:
-    // 1. The after-midnight portion (00:00 to end) on the CURRENT date (this is the continuation from the previous day's slot)
-    // 2. The before-midnight portion (start to 24:00) on the CURRENT date (this is the start of the current day's slot)
+    // For a slot that crosses midnight, when checking a specific date, we need to check BOTH portions:
+    // 1. The before-midnight portion (start to 24:00) - the portion that STARTS on the current date
+    //    Example: On date X, check 18:00-24:00 on date X (this is date X's slot starting)
+    // 2. The after-midnight portion (00:00 to end) - the portion that CONTINUES into the next day
+    //    Example: On date X, check 00:00-03:00 on date X+1 (this is date X's slot continuing into next day)
+    //
+    // Why check both? Because when checking date X with slot 18:00-03:00:
+    // - Date X's slot: 18:00 (X) to 03:00 (X+1) - spans two days
+    // So on date X, we need to check:
+    // - 18:00-24:00 on date X (the portion that starts on date X)
+    // - 00:00-03:00 on date X+1 (the portion that continues into the next day)
     
-    // First, check the after-midnight portion (00:00 to 03:00) on the current date
-    // This represents times that are part of the previous day's slot but fall on this date
-    _logger?.LogInformation("[FIND_AVAILABLE] Checking after-midnight portion: 00:00 to {End} on {Date}", end, date.ToString("yyyy-MM-dd"));
-    var afterMidnight = await ScanAsync(TimeSpan.Zero, end, date);
-    // Check if a time was found by checking the date (ScanAsync returns DateTime.MinValue when no time is found)
-    if (afterMidnight.scanDate != DateTime.MinValue)
-    {
-        _logger?.LogInformation("[FIND_AVAILABLE] Found time in after-midnight portion: {Time} on {Date}", afterMidnight.time, afterMidnight.scanDate.ToString("yyyy-MM-dd"));
-        return (afterMidnight.scanDate, afterMidnight.time);
-    }
-    else
-    {
-        _logger?.LogInformation("[FIND_AVAILABLE] No available time found in after-midnight portion (00:00 to {End}) on {Date}", end, date.ToString("yyyy-MM-dd"));
-    }
-
-    // Then scan from start to end of day (midnight) on current date
-    // This is the main portion of the slot for this day
+    // First, check the before-midnight portion (start to 24:00) on the current date
+    // This is the portion of the slot that starts on the current date
+    _logger?.LogInformation("[FIND_AVAILABLE] Checking before-midnight portion: {Start} to 24:00 on {Date} (slot crosses midnight, ends at {End} next day)", 
+        start, date.ToString("yyyy-MM-dd"), end);
     var beforeMidnight = await ScanAsync(start, new TimeSpan(24, 0, 0), date);
-    // Check if a time was found by checking the date (ScanAsync returns DateTime.MinValue when no time is found)
     if (beforeMidnight.scanDate != DateTime.MinValue)
     {
         _logger?.LogInformation("[FIND_AVAILABLE] Found time in before-midnight portion: {Time} on {Date}", beforeMidnight.time, beforeMidnight.scanDate.ToString("yyyy-MM-dd"));
         return (beforeMidnight.scanDate, beforeMidnight.time);
+    }
+
+    // Then, check the after-midnight portion (00:00 to end) on the NEXT day
+    // This is the portion of the slot that continues into the next day
+    // For slot 18:00-03:00: When checking date X, the after-midnight portion (00:00-03:00) 
+    // belongs to date X+1, not date X
+    // Skip if end is 00:00 (TimeSpan.Zero) because that means the slot ends exactly at midnight
+    if (end != TimeSpan.Zero)
+    {
+        var nextDate = date.AddDays(1);
+        _logger?.LogInformation("[FIND_AVAILABLE] Checking after-midnight portion: 00:00 to {End} on {NextDate} (continuation of current day's slot into next day)", 
+            end, nextDate.ToString("yyyy-MM-dd"));
+        var afterMidnight = await ScanAsync(TimeSpan.Zero, end, nextDate);
+        if (afterMidnight.scanDate != DateTime.MinValue)
+        {
+            _logger?.LogInformation("[FIND_AVAILABLE] Found time in after-midnight portion: {Time} on {Date}", afterMidnight.time, afterMidnight.scanDate.ToString("yyyy-MM-dd"));
+            return (afterMidnight.scanDate, afterMidnight.time);
+        }
     }
 
     // No time found in either portion
@@ -1799,7 +1811,7 @@ namespace Mindflow_Web_API.Services
 		// For midnight-crossing slots, when checking tomorrow, we'll check its after-midnight portion (00:00-03:00)
 		// which is the continuation of today's slot, and then the before-midnight portion (18:00-24:00)
 		var today = DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc);
-		var startDate = today.AddDays(1); // Start from tomorrow to ensure full day availability
+		var startDate = today.AddDays(3); // Start from tomorrow to ensure full day availability
 		var maxDays = 14; // Look ahead 2 weeks
 
 		_logger?.LogInformation("[FIND_NEXT_SLOT] Starting search from {StartDate} (today: {Today})", startDate.ToString("yyyy-MM-dd"), today.ToString("yyyy-MM-dd"));
