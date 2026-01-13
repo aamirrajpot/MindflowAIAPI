@@ -695,7 +695,7 @@ namespace Mindflow_Web_API.Services
 			// Prevent stacking: if chosen time is occupied, calculate next available time
 			// based on conflicting task end + buffer, rounded to 30-minute increments
 			// BUT ensure we stay within slot boundaries
-			var maxAttempts = 100; // Prevent infinite loops
+			var maxAttempts = 1000; // Prevent infinite loops
 			var attempts = 0;
 			const int bufferMinutes = 15; // Buffer between tasks
 			const int incrementMinutes = 30; // Time slot increment
@@ -1047,7 +1047,7 @@ namespace Mindflow_Web_API.Services
 				// TimeSlotManager already scheduled this task avoiding conflicts with existing DB tasks
 				// We only need to check for conflicts with tasks created in this batch and ensure it's within slot boundaries
 				// Skip the database check since TimeSlotManager already handled that
-				var maxAttempts = 100; // Prevent infinite loops
+				var maxAttempts = 1000; // Prevent infinite loops
 				var attempts = 0;
 				while (
 					attempts < maxAttempts &&
