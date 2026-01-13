@@ -19,6 +19,8 @@ namespace Mindflow_Web_API.Services
 		Task<List<TaskItem>> AddMultipleTasksToCalendarAsync(Guid userId, List<TaskSuggestion> suggestions, DTOs.WellnessCheckInDto? wellnessData = null, Guid? brainDumpEntryId = null);
 		Task<string?> GenerateAiInsightAsync(Guid userId, Guid entryId);
 		Task<AnalyticsDto> GetAnalyticsAsync(Guid userId, Guid? brainDumpEntryId = null);
+		Task<List<TaskItem>> AutoScheduleAllTasksAsync(Guid userId, Guid brainDumpEntryId, List<Guid>? suggestionIds = null);
+		Task<bool> SkipTasksAsync(Guid userId, Guid brainDumpEntryId, List<Guid>? suggestionIds = null);
 	}
 
 	public class BrainDumpService : IBrainDumpService
@@ -50,12 +52,15 @@ namespace Mindflow_Web_API.Services
 			var userName = GetUserDisplayName(userProfile);
 			
 			// Extract tags using LLM
-			var extractedTags = await ExtractTagsFromTextAsync(request.Text ?? string.Empty);
-			
-			var prompt = BrainDumpPromptBuilder.BuildTaskSuggestionsPrompt(request, wellnessData, userName);
+            var emotions = await ExtractEmotionsAsync(request.Text);
+            var topics = await ExtractTopicsAsync(request.Text);
+            var summary = await SummarizeMindDumpAsync(request.Text);
 
-			// Create entry
-			var entry = new BrainDumpEntry
+            // ⚠️ WellnessData is huge — reduce it first
+            var wellnessSummary = WellnessReducer.Reduce(wellnessData);
+
+            // Create entry
+            var entry = new BrainDumpEntry
 			{
 				UserId = userId,
 				Text = request.Text ?? string.Empty,
@@ -68,42 +73,269 @@ namespace Mindflow_Web_API.Services
 				// Journal-specific fields
 				Title = GenerateDefaultTitle(request.Text ?? string.Empty),
 				WordCount = CalculateWordCount(request.Text ?? string.Empty),
-				Tags = extractedTags,
+				Tags = string.Join(", ", topics),
 				IsFavorite = false,
 				Source = BrainDumpSource.Web // Brain dump comes from web/mobile app
 			};
 			_db.BrainDumpEntries.Add(entry);
 			await _db.SaveChangesAsync();
 
+			// Multi-prompt approach: Execute steps sequentially
+			_logger.LogInformation("Starting multi-prompt approach for brain dump entry {EntryId}", entry.Id);
+			
+			// Step 1: Extract Key Themes
+			_logger.LogDebug("Step 1: Extracting key themes");
+			var themesPrompt = BrainDumpPromptBuilder.BuildExtractThemesPrompt(summary, emotions, topics);
+			var themesResponse = await _runPodService.SendPromptAsync(themesPrompt, 200, temperature);
+			var themes = BrainDumpPromptBuilder.ParseThemesResponse(themesResponse, _logger);
+			if (themes.Count == 0)
+			{
+				_logger.LogWarning("No themes extracted, using fallback themes");
+				themes = new List<string> { "General", "Wellness", "Personal" };
+			}
+			_logger.LogDebug("Extracted {Count} themes: {Themes}", themes.Count, string.Join(", ", themes));
+
+			// Step 2: Generate User Profile (Enhanced with original text)
+			_logger.LogDebug("Step 2: Generating user profile");
+			var profilePrompt = BrainDumpPromptBuilder.BuildUserProfilePrompt(
+				request.Text ?? string.Empty, 
+				summary, 
+				emotions, 
+				userName
+			);
+			var profileResponse = await _runPodService.SendPromptAsync(profilePrompt, 300, temperature); // Increased tokens for better response
+			if (!string.IsNullOrWhiteSpace(profileResponse))
+			{
+				_logger.LogDebug("Raw profile response received: {Response}", profileResponse.Substring(0, Math.Min(200, profileResponse.Length)));
+			}
+			else
+			{
+				_logger.LogWarning("Profile response is null or empty");
+			}
+			var userProfileSummary = BrainDumpPromptBuilder.ParseUserProfileResponse(profileResponse ?? string.Empty, _logger);
+			_logger.LogInformation("Generated user profile: Name={Name}, State={State}, Emoji={Emoji}", 
+				userProfileSummary.Name, userProfileSummary.CurrentState, userProfileSummary.Emoji);
+
+			// Step 3: Generate AI Summary (Enhanced with original text for deeper context)
+			_logger.LogDebug("Step 3: Generating enhanced AI summary");
+			var summaryPrompt = BrainDumpPromptBuilder.BuildAiSummaryPrompt(
+				request.Text ?? string.Empty, 
+				summary, 
+				emotions, 
+				themes, 
+				request
+			);
+			var summaryResponse = await _runPodService.SendPromptAsync(summaryPrompt, 400, temperature); // Increased tokens for deeper analysis
+			var aiSummary = BrainDumpPromptBuilder.ParseAiSummaryResponse(summaryResponse, _logger);
+			_logger.LogDebug("Generated AI summary: {Summary}", aiSummary.Substring(0, Math.Min(100, aiSummary.Length)));
+
+			// Step 4: Generate Task Suggestions (with retry logic)
+			_logger.LogDebug("Step 4: Generating task suggestions");
 			BrainDumpResponse? brainDumpResponse = null;
-			string response = string.Empty;
 			int attempt = 0;
-			int maxAttempts = 3; // initial + 2 retries
+			int maxAttempts = 3;
 			double currentTemperature = temperature;
 			bool forceMinimumActivities = false;
+			List<TaskSuggestion> suggestedActivities = new();
+
 			while (attempt < maxAttempts)
 			{
-				response = await _runPodService.SendPromptAsync(prompt, maxTokens, currentTemperature);
-				brainDumpResponse = BrainDumpPromptBuilder.ParseBrainDumpResponse(response, _logger);
+				var tasksPrompt = BrainDumpPromptBuilder.BuildTaskSuggestionsPrompt(
+					request.Text ?? string.Empty, // Original text for specific task extraction
+					summary,
+					emotions,
+					topics,
+					themes,
+					wellnessSummary,
+					request,
+					forceMinimumActivities
+				);
 				
-				var hasActivities = brainDumpResponse != null && brainDumpResponse.SuggestedActivities != null && brainDumpResponse.SuggestedActivities.Count > 0;
-				if (brainDumpResponse != null && hasActivities)
+				var tasksResponse = await _runPodService.SendPromptAsync(tasksPrompt, maxTokens, currentTemperature);
+				suggestedActivities = BrainDumpPromptBuilder.ParseTaskSuggestionsResponse(tasksResponse, _logger);
+
+				// Post-process prioritization scores if missing or inconsistent
+				if (suggestedActivities != null && suggestedActivities.Count > 0)
 				{
+					foreach (var t in suggestedActivities)
+					{
+						// Normalize urgency/importance casing
+						if (!string.IsNullOrWhiteSpace(t.Urgency))
+							t.Urgency = NormalizePriorityLevel(t.Urgency);
+						if (!string.IsNullOrWhiteSpace(t.Importance))
+							t.Importance = NormalizePriorityLevel(t.Importance);
+
+						// Compute priority score if not provided or out of range
+						if (!t.PriorityScore.HasValue || t.PriorityScore < 1 || t.PriorityScore > 10)
+						{
+							var urgencyScore = MapLevelToScore(t.Urgency);
+							var importanceScore = MapLevelToScore(t.Importance);
+							// Heavier weight on importance
+							t.PriorityScore = Math.Clamp(importanceScore * 2 + urgencyScore, 1, 10);
+						}
+					}
+
+					// Sort tasks by urgency (High > Medium > Low), then by priority score as tiebreaker
+					suggestedActivities = suggestedActivities
+						.OrderByDescending(t => MapLevelToScore(t.Urgency)) // Urgency first (High=5, Medium=3, Low=1)
+						.ThenByDescending(t => t.PriorityScore ?? 0) // Priority score as tiebreaker
+						.ToList();
+				}
+				
+				if (suggestedActivities != null && suggestedActivities.Count > 0)
+				{
+					_logger.LogDebug("Successfully generated {Count} task suggestions", suggestedActivities.Count);
 					break; // success
 				}
 
 				attempt++;
-				_logger.LogWarning("BrainDump suggestions empty (attempt {Attempt}/{Max}). Retrying with stricter prompt.", attempt, maxAttempts);
-				// Tighten prompt and reduce temperature for determinism
+				_logger.LogWarning("Task suggestions empty (attempt {Attempt}/{Max}). Retrying with stricter settings.", attempt, maxAttempts);
 				forceMinimumActivities = true;
 				currentTemperature = Math.Max(0.2, currentTemperature - 0.2);
-				prompt = BrainDumpPromptBuilder.BuildTaskSuggestionsPrompt(request, wellnessData, userName, forceMinimumActivities);
 			}
 
-			if (brainDumpResponse == null)
+			// Step 4.5: Generate Wellness Tasks (separate from brain dump tasks)
+			_logger.LogDebug("Step 4.5: Generating wellness task suggestions");
+			List<TaskSuggestion> wellnessTasks = new();
+			try
 			{
-				throw new InvalidOperationException("Failed to parse AI response");
+				var wellnessPrompt = BrainDumpPromptBuilder.BuildWellnessTaskSuggestionsPrompt(wellnessSummary, request);
+				var wellnessResponse = await _runPodService.SendPromptAsync(wellnessPrompt, 800, temperature);
+				wellnessTasks = BrainDumpPromptBuilder.ParseTaskSuggestionsResponse(wellnessResponse, _logger);
+
+				// Post-process wellness tasks (same as brain dump tasks)
+				if (wellnessTasks != null && wellnessTasks.Count > 0)
+				{
+					foreach (var t in wellnessTasks)
+					{
+						// Normalize urgency/importance casing
+						if (!string.IsNullOrWhiteSpace(t.Urgency))
+							t.Urgency = NormalizePriorityLevel(t.Urgency);
+						if (!string.IsNullOrWhiteSpace(t.Importance))
+							t.Importance = NormalizePriorityLevel(t.Importance);
+
+						// Compute priority score if not provided or out of range
+						if (!t.PriorityScore.HasValue || t.PriorityScore < 1 || t.PriorityScore > 10)
+						{
+							var urgencyScore = MapLevelToScore(t.Urgency);
+							var importanceScore = MapLevelToScore(t.Importance);
+							// Heavier weight on importance
+							t.PriorityScore = Math.Clamp(importanceScore * 2 + urgencyScore, 1, 10);
+						}
+					}
+
+					_logger.LogInformation("Successfully generated {Count} wellness task suggestions", wellnessTasks.Count);
+				}
 			}
+			catch (Exception ex)
+			{
+				_logger.LogWarning(ex, "Failed to generate wellness tasks, continuing with brain dump tasks only");
+				// Continue without wellness tasks - brain dump tasks will still work
+			}
+
+			// Merge brain dump tasks and wellness tasks
+			if (wellnessTasks != null && wellnessTasks.Count > 0)
+			{
+				suggestedActivities = suggestedActivities ?? new List<TaskSuggestion>();
+				var brainDumpCount = suggestedActivities.Count;
+				suggestedActivities.AddRange(wellnessTasks);
+				
+				// Re-sort all tasks by urgency (High > Medium > Low), then by priority score as tiebreaker
+				suggestedActivities = suggestedActivities
+					.OrderByDescending(t => MapLevelToScore(t.Urgency)) // Urgency first (High=5, Medium=3, Low=1)
+					.ThenByDescending(t => t.PriorityScore ?? 0) // Priority score as tiebreaker
+					.ToList();
+				
+				_logger.LogInformation("Merged {BrainDumpCount} brain dump tasks with {WellnessCount} wellness tasks (total: {Total}), sorted by urgency", 
+					brainDumpCount, wellnessTasks.Count, suggestedActivities.Count);
+			}
+			else
+			{
+				// If no wellness tasks, still sort brain dump tasks by urgency
+				if (suggestedActivities != null && suggestedActivities.Count > 0)
+				{
+					suggestedActivities = suggestedActivities
+						.OrderByDescending(t => MapLevelToScore(t.Urgency)) // Urgency first
+						.ThenByDescending(t => t.PriorityScore ?? 0) // Priority score as tiebreaker
+						.ToList();
+				}
+			}
+
+			// Step 5: Break Down Complex Tasks into Micro-Steps
+			if (suggestedActivities != null && suggestedActivities.Count > 0)
+			{
+				_logger.LogDebug("Step 5: Breaking down complex tasks into micro-steps");
+				try
+				{
+					var breakdownPrompt = BrainDumpPromptBuilder.BuildTaskBreakdownPrompt(suggestedActivities, request.Text ?? string.Empty);
+					var breakdownResponse = await _runPodService.SendPromptAsync(breakdownPrompt, 600, temperature);
+					var taskBreakdown = BrainDumpPromptBuilder.ParseTaskBreakdownResponse(breakdownResponse, _logger);
+					
+					// Apply breakdown to tasks
+					foreach (var kvp in taskBreakdown)
+					{
+						if (kvp.Key >= 0 && kvp.Key < suggestedActivities.Count && kvp.Value != null && kvp.Value.Count > 0)
+						{
+							suggestedActivities[kvp.Key].SubSteps = kvp.Value;
+							_logger.LogDebug("Added {Count} sub-steps to task: {Task}", kvp.Value.Count, suggestedActivities[kvp.Key].Task);
+						}
+					}
+					
+					var tasksWithSubSteps = taskBreakdown.Count;
+					_logger.LogInformation("Successfully broke down {Count} tasks into micro-steps", tasksWithSubSteps);
+				}
+				catch (Exception ex)
+				{
+					_logger.LogWarning(ex, "Failed to break down tasks into micro-steps, continuing without breakdown");
+					// Continue without breakdown - tasks will still work
+				}
+			}
+
+			// Step 6: Generate Emotional Intelligence Layer
+			_logger.LogDebug("Step 6: Generating emotional intelligence layer");
+			string? emotionalValidation = null;
+			string? patternInsight = null;
+			List<string>? copingTools = null;
+			
+			try
+			{
+				var emotionalIntelligencePrompt = BrainDumpPromptBuilder.BuildEmotionalIntelligencePrompt(
+					request.Text ?? string.Empty,
+					summary,
+					emotions,
+					themes,
+					request
+				);
+				var emotionalIntelligenceResponse = await _runPodService.SendPromptAsync(emotionalIntelligencePrompt, 500, temperature);
+				var (validation, pattern, tools) = BrainDumpPromptBuilder.ParseEmotionalIntelligenceResponse(emotionalIntelligenceResponse, _logger);
+				
+				emotionalValidation = validation;
+				patternInsight = pattern;
+				copingTools = tools;
+				
+				_logger.LogInformation("Generated emotional intelligence: Validation={HasValidation}, Pattern={HasPattern}, Tools={ToolsCount}", 
+					!string.IsNullOrWhiteSpace(emotionalValidation),
+					!string.IsNullOrWhiteSpace(patternInsight),
+					copingTools?.Count ?? 0);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogWarning(ex, "Failed to generate emotional intelligence layer, continuing without it");
+				// Continue without emotional intelligence - response will still work
+			}
+
+			// Build the response object
+			brainDumpResponse = new BrainDumpResponse
+			{
+				UserProfile = userProfileSummary,
+				KeyThemes = themes,
+				AiSummary = aiSummary,
+				SuggestedActivities = suggestedActivities ?? new List<TaskSuggestion>(),
+				// Emotional Intelligence Layer
+				EmotionalValidation = emotionalValidation,
+				PatternInsight = patternInsight,
+				CopingTools = copingTools
+			};
 
 			// If still no activities after retries, synthesize a minimal fallback list
 			if (brainDumpResponse.SuggestedActivities == null || brainDumpResponse.SuggestedActivities.Count == 0)
@@ -157,7 +389,7 @@ namespace Mindflow_Web_API.Services
 			_logger.LogDebug("Gathering progress metrics and emotion trends for user {UserId}. Current entry text length: {TextLength}", 
 				userId, entry.Text?.Length ?? 0);
 			var progressMetrics = await CalculateProgressMetricsAsync(userId);
-			var emotionTrends = await AnalyzeEmotionTrendsAsync(userId, entry); // Pass current entry for fallback
+			var emotionTrends = await AnalyzeEmotionTrendsAsync(userId, entry, emotions); // Pass current entry and extracted emotions
 			var insights = GenerateInsights(progressMetrics, emotionTrends, entry); // Pass current entry for fallback
 			var patterns = GeneratePatterns(emotionTrends);
 			
@@ -177,7 +409,75 @@ namespace Mindflow_Web_API.Services
 			// Add brain dump entry ID for linking tasks
 			brainDumpResponse.BrainDumpEntryId = entry.Id;
 
+			// Persist suggestions for later scheduling/skip actions
+			await SaveTaskSuggestionRecordsAsync(userId, entry.Id, brainDumpResponse.SuggestedActivities ?? new List<TaskSuggestion>());
+
 			return brainDumpResponse;
+		}
+
+		private async Task SaveTaskSuggestionRecordsAsync(Guid userId, Guid brainDumpEntryId, List<TaskSuggestion> suggestions)
+		{
+			// Remove existing suggestions for this brain dump entry to avoid duplicates
+			var existing = await _db.TaskSuggestionRecords
+				.Where(r => r.BrainDumpEntryId == brainDumpEntryId && r.UserId == userId)
+				.ToListAsync();
+			if (existing.Count > 0)
+				_db.TaskSuggestionRecords.RemoveRange(existing);
+
+			if (suggestions == null || suggestions.Count == 0)
+			{
+				await _db.SaveChangesAsync();
+				return;
+			}
+
+			foreach (var s in suggestions)
+			{
+				string? subStepsJson = null;
+				if (s.SubSteps != null && s.SubSteps.Count > 0)
+				{
+					try
+					{
+						subStepsJson = System.Text.Json.JsonSerializer.Serialize(s.SubSteps);
+					}
+					catch (Exception ex)
+					{
+						_logger.LogWarning(ex, "Failed to serialize sub-steps for suggestion {Task}", s.Task);
+					}
+				}
+
+				var record = new TaskSuggestionRecord
+				{
+					UserId = userId,
+					BrainDumpEntryId = brainDumpEntryId,
+					Task = s.Task ?? string.Empty,
+					Notes = s.Notes,
+					Frequency = s.Frequency ?? string.Empty,
+					Duration = s.Duration ?? string.Empty,
+					Priority = s.Priority,
+					SuggestedTime = s.SuggestedTime,
+					Urgency = s.Urgency,
+					Importance = s.Importance,
+					PriorityScore = s.PriorityScore,
+					SubSteps = subStepsJson,
+					Status = TaskSuggestionStatus.Suggested,
+					CreatedAtUtc = DateTime.UtcNow
+				};
+
+				_db.TaskSuggestionRecords.Add(record);
+			}
+
+			await _db.SaveChangesAsync();
+
+			// Attach generated record Ids back to suggestions so UI can reference them
+			var savedRecords = await _db.TaskSuggestionRecords
+				.Where(r => r.BrainDumpEntryId == brainDumpEntryId && r.UserId == userId)
+				.OrderBy(r => r.CreatedAtUtc)
+				.ToListAsync();
+
+			for (int i = 0; i < suggestions.Count && i < savedRecords.Count; i++)
+			{
+				suggestions[i].Id = savedRecords[i].Id;
+			}
 		}
 
 		private static List<TaskSuggestion> GenerateFallbackActivities(BrainDumpRequest request)
@@ -187,28 +487,94 @@ namespace Mindflow_Web_API.Services
 			// Basic heuristics to generate 4 concise tasks
 			if (text.Contains("anxiety") || text.Contains("stress") || text.Contains("overwhelm"))
 			{
-				list.Add(new TaskSuggestion { Task = "Do a 5-minute deep breathing session", Frequency = "Once today", Duration = "5 minutes", Notes = "Helps lower cortisol and reset focus", Priority = "High", SuggestedTime = "Afternoon" });
+				list.Add(new TaskSuggestion
+				{
+					Task = "Do a 5-minute deep breathing session",
+					Frequency = "Once today",
+					Duration = "5 minutes",
+					Notes = "Helps lower cortisol and reset focus",
+					Priority = "High",
+					SuggestedTime = "Afternoon",
+					Urgency = "High",
+					Importance = "High",
+					PriorityScore = 9
+				});
 			}
 			if (text.Contains("sleep"))
 			{
-				list.Add(new TaskSuggestion { Task = "Prepare a simple wind-down routine", Frequency = "Tonight", Duration = "10 minutes", Notes = "Light stretch, no screens for 30 minutes", Priority = "Medium", SuggestedTime = "Evening" });
+				list.Add(new TaskSuggestion
+				{
+					Task = "Prepare a simple wind-down routine",
+					Frequency = "Tonight",
+					Duration = "10 minutes",
+					Notes = "Light stretch, no screens for 30 minutes",
+					Priority = "Medium",
+					SuggestedTime = "Evening",
+					Urgency = "Medium",
+					Importance = "High",
+					PriorityScore = 7
+				});
 			}
 			if (text.Contains("email") || text.Contains("inbox") || text.Contains("admin"))
 			{
-				list.Add(new TaskSuggestion { Task = "Clear your top 5 emails", Frequency = "Once today", Duration = "15 minutes", Notes = "Reply or archive; schedule longer replies", Priority = "Medium", SuggestedTime = "Morning" });
+				list.Add(new TaskSuggestion
+				{
+					Task = "Clear your top 5 emails",
+					Frequency = "Once today",
+					Duration = "15 minutes",
+					Notes = "Reply or archive; schedule longer replies",
+					Priority = "Medium",
+					SuggestedTime = "Morning",
+					Urgency = "Medium",
+					Importance = "Medium",
+					PriorityScore = 5
+				});
 			}
 			if (text.Contains("call") || text.Contains("doctor") || text.Contains("appointment"))
 			{
-				list.Add(new TaskSuggestion { Task = "Schedule the pending appointment", Frequency = "Once today", Duration = "10 minutes", Notes = "Pick a date within 2 weeks", Priority = "High", SuggestedTime = "Morning" });
+				list.Add(new TaskSuggestion
+				{
+					Task = "Schedule the pending appointment",
+					Frequency = "Once today",
+					Duration = "10 minutes",
+					Notes = "Pick a date within 2 weeks",
+					Priority = "High",
+					SuggestedTime = "Morning",
+					Urgency = "High",
+					Importance = "High",
+					PriorityScore = 9
+				});
 			}
 			// Always include two general-purpose wellness tasks if list is short
 			if (list.Count < 4)
 			{
-				list.Add(new TaskSuggestion { Task = "Take a 10-minute walk", Frequency = "Once today", Duration = "10 minutes", Notes = "Gentle movement boosts mood and clarity", Priority = "Medium", SuggestedTime = "Afternoon" });
+				list.Add(new TaskSuggestion
+				{
+					Task = "Take a 10-minute walk",
+					Frequency = "Once today",
+					Duration = "10 minutes",
+					Notes = "Gentle movement boosts mood and clarity",
+					Priority = "Medium",
+					SuggestedTime = "Afternoon",
+					Urgency = "Low",
+					Importance = "Medium",
+					PriorityScore = 3
+				});
 			}
 			if (list.Count < 4)
 			{
-				list.Add(new TaskSuggestion { Task = "Write 3 lines of reflection", Frequency = "Once today", Duration = "5 minutes", Notes = "Capture one worry and one win", Priority = "Low", SuggestedTime = "Evening" });
+				list.Add(new TaskSuggestion
+				{
+					Task = "Write 3 lines of reflection",
+					Frequency = "Once today",
+					Duration = "5 minutes",
+					Notes = "Capture one worry and one win",
+					Priority = "Low",
+					SuggestedTime = "Evening",
+					Urgency = "Low",
+					Importance = "Low",
+					PriorityScore = 2
+				});
 			}
 			return list.Take(6).ToList();
 		}
@@ -326,10 +692,13 @@ namespace Mindflow_Web_API.Services
 				}
 			}
 			
-			// Prevent stacking: if chosen time is occupied, move forward in 30-minute increments
+			// Prevent stacking: if chosen time is occupied, calculate next available time
+			// based on conflicting task end + buffer, rounded to 30-minute increments
 			// BUT ensure we stay within slot boundaries
-			var maxAttempts = 100; // Prevent infinite loops
+			var maxAttempts = 1000; // Prevent infinite loops
 			var attempts = 0;
+			const int bufferMinutes = 15; // Buffer between tasks
+			const int incrementMinutes = 30; // Time slot increment
 			
 			_logger.LogDebug("Starting conflict check loop for task. Initial time: {Time}, Slot bounds: {Start} to {End}", 
 				adjustedTime, slotBounds.slotStart, slotBounds.slotEnd);
@@ -342,10 +711,22 @@ namespace Mindflow_Web_API.Services
 				)
 			)
 			{
-				_logger.LogDebug("Time {Time} is not available or not within slot. Attempt {Attempt}. Moving forward by 30 minutes.", 
-					adjustedTime, attempts + 1);
+				// Find the next available time by checking for conflicting tasks
+				var nextAvailableTime = await CalculateNextAvailableTimeAsync(adjustedDate, adjustedTime, durationMinutes, userId, bufferMinutes, incrementMinutes);
 				
-				adjustedTime = adjustedTime.Add(TimeSpan.FromMinutes(30));
+				if (nextAvailableTime.HasValue)
+				{
+					_logger.LogDebug("Time {Time} is not available. Attempt {Attempt}. Calculated next available time: {NextTime}", 
+						adjustedTime, attempts + 1, nextAvailableTime.Value);
+					adjustedTime = nextAvailableTime.Value;
+				}
+				else
+				{
+					// Fallback: move forward by 30 minutes if we can't calculate next available time
+					_logger.LogDebug("Time {Time} is not available. Attempt {Attempt}. Moving forward by 30 minutes (fallback).", 
+						adjustedTime, attempts + 1);
+					adjustedTime = adjustedTime.Add(TimeSpan.FromMinutes(incrementMinutes));
+				}
 				
 				// Check if we've exceeded the slot end time (handle midnight crossing)
 				bool exceededSlot = false;
@@ -499,7 +880,11 @@ namespace Mindflow_Web_API.Services
 				SourceBrainDumpEntryId = request.BrainDumpEntryId,
 				SourceTextExcerpt = sourceTextExcerpt,
 				LifeArea = lifeArea,
-				EmotionTag = emotionTag
+				EmotionTag = emotionTag,
+				// Prioritization (from AI suggestion, if provided)
+				Urgency = request.Urgency,
+				Importance = request.Importance,
+				PriorityScore = request.PriorityScore
 			};
 
 			_db.Tasks.Add(taskItem);
@@ -534,7 +919,7 @@ namespace Mindflow_Web_API.Services
 			}).ToList();
 
 			// Schedule tasks across available time slots
-			var scheduledTasks = ScheduleTasksAcrossTimeSlots(sortedSuggestions, wellnessData);
+			var scheduledTasks = await ScheduleTasksAcrossTimeSlotsAsync(sortedSuggestions, wellnessData, userId);
 
 			foreach (var scheduledTask in scheduledTasks)
 			{
@@ -659,15 +1044,15 @@ namespace Mindflow_Web_API.Services
 					}
 				}
 				
-				// Move forward until there is no conflict with already created tasks and DB tasks
-				// AND the task fits within the slot boundaries
-				var maxAttempts = 100; // Prevent infinite loops
+				// TimeSlotManager already scheduled this task avoiding conflicts with existing DB tasks
+				// We only need to check for conflicts with tasks created in this batch and ensure it's within slot boundaries
+				// Skip the database check since TimeSlotManager already handled that
+				var maxAttempts = 1000; // Prevent infinite loops
 				var attempts = 0;
 				while (
 					attempts < maxAttempts &&
 					(
 						ConflictsWithCreatedTasks(candidateDate, candidateTime, durationMinutes)
-						|| !(await IsTimeSlotAvailableAsync(candidateDate, candidateTime, durationMinutes, userId))
 						|| !IsTimeWithinSlot(candidateTime, TimeSpan.FromMinutes(durationMinutes), slotBounds.slotStart, slotBounds.slotEnd)
 					)
 				)
@@ -753,6 +1138,20 @@ namespace Mindflow_Web_API.Services
 					emotionTag = DetermineEmotionTag(brainDumpEntry.Text, brainDumpEntry.Tags);
 				}
 
+				// Serialize sub-steps to JSON string for storage
+				string? subStepsJson = null;
+				if (scheduledTask.Suggestion.SubSteps != null && scheduledTask.Suggestion.SubSteps.Count > 0)
+				{
+					try
+					{
+						subStepsJson = System.Text.Json.JsonSerializer.Serialize(scheduledTask.Suggestion.SubSteps);
+					}
+					catch (Exception ex)
+					{
+						_logger.LogWarning(ex, "Failed to serialize sub-steps for task: {Task}", scheduledTask.Suggestion.Task);
+					}
+				}
+				
 				var taskItem = new TaskItem
 				{
 					UserId = userId,
@@ -774,7 +1173,13 @@ namespace Mindflow_Web_API.Services
 					SourceBrainDumpEntryId = brainDumpEntryId,
 					SourceTextExcerpt = sourceTextExcerpt,
 					LifeArea = lifeArea,
-					EmotionTag = emotionTag
+					EmotionTag = emotionTag,
+					// Micro-step breakdown
+					SubSteps = subStepsJson,
+					// Prioritization (from AI suggestion)
+					Urgency = scheduledTask.Suggestion.Urgency,
+					Importance = scheduledTask.Suggestion.Importance,
+					PriorityScore = scheduledTask.Suggestion.PriorityScore
 				};
 
 				_db.Tasks.Add(taskItem);
@@ -785,7 +1190,69 @@ namespace Mindflow_Web_API.Services
 			return createdTasks;
 		}
 
-	private List<ScheduledTask> ScheduleTasksAcrossTimeSlots(List<TaskSuggestion> suggestions, DTOs.WellnessCheckInDto? wellnessData)
+		public async Task<List<TaskItem>> AutoScheduleAllTasksAsync(Guid userId, Guid brainDumpEntryId, List<Guid>? suggestionIds = null)
+		{
+			// Fetch pending suggestions for this brain dump entry
+			var query = _db.TaskSuggestionRecords
+				.Where(r => r.UserId == userId && r.BrainDumpEntryId == brainDumpEntryId && r.Status == TaskSuggestionStatus.Suggested);
+
+			if (suggestionIds != null && suggestionIds.Count > 0)
+				query = query.Where(r => suggestionIds.Contains(r.Id));
+
+			var records = await query.ToListAsync();
+			if (records.Count == 0)
+			{
+				_logger.LogInformation("No pending suggestions to auto-schedule for BrainDumpEntry {BrainDumpEntryId}", brainDumpEntryId);
+				return new List<TaskItem>();
+			}
+
+			var created = new List<TaskItem>();
+
+			foreach (var record in records)
+			{
+				var request = new AddToCalendarRequest
+				{
+					Task = record.Task,
+					Notes = record.Notes,
+					Frequency = record.Frequency,
+					Duration = record.Duration,
+					BrainDumpEntryId = record.BrainDumpEntryId,
+					Urgency = record.Urgency,
+					Importance = record.Importance,
+					PriorityScore = record.PriorityScore,
+					ReminderEnabled = false
+				};
+
+				var taskItem = await AddTaskToCalendarAsync(userId, request);
+				record.Status = TaskSuggestionStatus.Scheduled;
+				record.TaskItemId = taskItem.Id;
+				created.Add(taskItem);
+			}
+
+			await _db.SaveChangesAsync();
+			return created;
+		}
+
+		public async Task<bool> SkipTasksAsync(Guid userId, Guid brainDumpEntryId, List<Guid>? suggestionIds = null)
+		{
+			var query = _db.TaskSuggestionRecords
+				.Where(r => r.UserId == userId && r.BrainDumpEntryId == brainDumpEntryId && r.Status == TaskSuggestionStatus.Suggested);
+
+			if (suggestionIds != null && suggestionIds.Count > 0)
+				query = query.Where(r => suggestionIds.Contains(r.Id));
+
+			var records = await query.ToListAsync();
+			if (records.Count == 0)
+				return false;
+
+			foreach (var record in records)
+				record.Status = TaskSuggestionStatus.Skipped;
+
+			await _db.SaveChangesAsync();
+			return true;
+		}
+
+	private async Task<List<ScheduledTask>> ScheduleTasksAcrossTimeSlotsAsync(List<TaskSuggestion> suggestions, DTOs.WellnessCheckInDto? wellnessData, Guid userId)
 	{
 		var scheduledTasks = new List<ScheduledTask>();
 		
@@ -799,8 +1266,19 @@ namespace Mindflow_Web_API.Services
 		if (wellnessData?.WeekdayStartTimeUtc.HasValue == true && wellnessData?.WeekdayEndTimeUtc.HasValue == true)
 		{
 			// Use UTC fields directly - extract time portion
-			weekdaySlots = (wellnessData.WeekdayStartTimeUtc.Value.TimeOfDay, wellnessData.WeekdayEndTimeUtc.Value.TimeOfDay);
-			_logger.LogInformation("Using UTC fields for weekday slots: {Start} to {End}", weekdaySlots.start, weekdaySlots.end);
+			// Note: The UTC DateTime may have a date component, but we only need the time
+			var startTime = wellnessData.WeekdayStartTimeUtc.Value.TimeOfDay;
+			var endTime = wellnessData.WeekdayEndTimeUtc.Value.TimeOfDay;
+			
+			// Log the raw UTC DateTime values for debugging
+			_logger.LogInformation("[SCHEDULING] Raw UTC DateTime values - Start: {StartUtc}, End: {EndUtc}", 
+				wellnessData.WeekdayStartTimeUtc.Value, wellnessData.WeekdayEndTimeUtc.Value);
+			
+			// If end time is earlier than start time, it means the slot crosses midnight
+			// This is correct - e.g., 18:00 to 03:00 means 6 PM to 3 AM next day
+			weekdaySlots = (startTime, endTime);
+			_logger.LogInformation("[SCHEDULING] Using UTC fields for weekday slots: {Start} to {End} (crosses midnight: {CrossesMidnight}, timezone: {Timezone})", 
+				weekdaySlots.start, weekdaySlots.end, endTime < startTime, wellnessData.TimezoneId);
 		}
 		else
 		{
@@ -820,8 +1298,19 @@ namespace Mindflow_Web_API.Services
 		if (wellnessData?.WeekendStartTimeUtc.HasValue == true && wellnessData?.WeekendEndTimeUtc.HasValue == true)
 		{
 			// Use UTC fields directly - extract time portion
-			weekendSlots = (wellnessData.WeekendStartTimeUtc.Value.TimeOfDay, wellnessData.WeekendEndTimeUtc.Value.TimeOfDay);
-			_logger.LogInformation("Using UTC fields for weekend slots: {Start} to {End}", weekendSlots.start, weekendSlots.end);
+			// Note: The UTC DateTime may have a date component, but we only need the time
+			var startTime = wellnessData.WeekendStartTimeUtc.Value.TimeOfDay;
+			var endTime = wellnessData.WeekendEndTimeUtc.Value.TimeOfDay;
+			
+			// Log the raw UTC DateTime values for debugging
+			_logger.LogInformation("[SCHEDULING] Raw UTC DateTime values - Start: {StartUtc}, End: {EndUtc}", 
+				wellnessData.WeekendStartTimeUtc.Value, wellnessData.WeekendEndTimeUtc.Value);
+			
+			// If end time is earlier than start time, it means the slot crosses midnight
+			// This is correct - e.g., 16:00 to 00:00 means 4 PM to midnight
+			weekendSlots = (startTime, endTime);
+			_logger.LogInformation("[SCHEDULING] Using UTC fields for weekend slots: {Start} to {End} (crosses midnight: {CrossesMidnight}, timezone: {Timezone})", 
+				weekendSlots.start, weekendSlots.end, endTime < startTime, wellnessData.TimezoneId);
 		}
 		else
 		{
@@ -841,8 +1330,39 @@ namespace Mindflow_Web_API.Services
 		_logger.LogInformation("Weekday slots (UTC): {WeekdayStart} to {WeekdayEnd}", weekdaySlots.start, weekdaySlots.end);
 		_logger.LogInformation("Weekend slots (UTC): {WeekendStart} to {WeekendEnd}", weekendSlots.start, weekendSlots.end);
 
+		// Load existing tasks from database to avoid conflicts
+		var today = DateTime.UtcNow.Date;
+		var lookAheadDays = 14; // Look ahead 2 weeks
+		var existingTasks = await _db.Tasks
+			.Where(t => t.UserId == userId 
+				&& t.IsActive 
+				&& t.Time >= today 
+				&& t.Time < today.AddDays(lookAheadDays))
+			.ToListAsync();
+		
+		_logger.LogInformation("Loaded {Count} existing tasks from database to avoid conflicts", existingTasks.Count);
+
 		// Create a time slot manager to track available slots
-		var slotManager = new TimeSlotManager(weekdaySlots, weekendSlots);
+		var slotManager = new TimeSlotManager(weekdaySlots, weekendSlots, _logger);
+		
+		// Pre-populate TimeSlotManager with existing tasks
+		_logger.LogInformation("Pre-populating TimeSlotManager with {Count} existing tasks", existingTasks.Count);
+		foreach (var existingTask in existingTasks)
+		{
+			var taskStart = existingTask.Time;
+			if (taskStart.Kind != DateTimeKind.Utc)
+			{
+				taskStart = DateTime.SpecifyKind(taskStart, DateTimeKind.Utc);
+			}
+			var taskDate = taskStart.Date;
+			var taskTime = taskStart.TimeOfDay;
+			var duration = existingTask.DurationMinutes;
+			
+			_logger.LogInformation("Pre-reserving existing task - Date: {Date}, Time: {Time}, Duration: {Duration}min, TaskId: {TaskId}", 
+				taskDate.ToString("yyyy-MM-dd"), taskTime, duration, existingTask.Id);
+			slotManager.ReserveSlot(taskDate, taskTime, duration);
+		}
+		_logger.LogInformation("Finished pre-populating TimeSlotManager with existing tasks");
 		
 		// Sort tasks by priority and duration for optimal scheduling
 		var sortedSuggestions = suggestions.OrderBy(s => s.Priority switch
@@ -890,12 +1410,23 @@ namespace Mindflow_Web_API.Services
 			(TimeSpan start, TimeSpan end) weekdaySlots;
 			(TimeSpan start, TimeSpan end) weekendSlots;
 			
-			if (wellnessData?.WeekdayStartTimeUtc.HasValue == true && wellnessData?.WeekdayEndTimeUtc.HasValue == true)
-			{
-				// Use UTC fields directly - extract time portion
-				weekdaySlots = (wellnessData.WeekdayStartTimeUtc.Value.TimeOfDay, wellnessData.WeekdayEndTimeUtc.Value.TimeOfDay);
-				_logger.LogDebug("Using UTC fields for weekday slots: {Start} to {End}", weekdaySlots.start, weekdaySlots.end);
-			}
+		if (wellnessData?.WeekdayStartTimeUtc.HasValue == true && wellnessData?.WeekdayEndTimeUtc.HasValue == true)
+		{
+			// Use UTC fields directly - extract time portion
+			// Note: The UTC DateTime may have a date component, but we only need the time
+			var startTime = wellnessData.WeekdayStartTimeUtc.Value.TimeOfDay;
+			var endTime = wellnessData.WeekdayEndTimeUtc.Value.TimeOfDay;
+			
+			// Log the raw UTC DateTime values for debugging
+			_logger.LogInformation("[SCHEDULING] Raw UTC DateTime values (Weekday) - Start: {StartUtc}, End: {EndUtc}", 
+				wellnessData.WeekdayStartTimeUtc.Value, wellnessData.WeekdayEndTimeUtc.Value);
+			
+			// If end time is earlier than start time, it means the slot crosses midnight
+			// This is correct - e.g., 18:00 to 03:00 means 6 PM to 3 AM next day
+			weekdaySlots = (startTime, endTime);
+			_logger.LogInformation("[SCHEDULING] Using UTC fields for weekday slots: {Start} to {End} (crosses midnight: {CrossesMidnight}, timezone: {Timezone})", 
+				weekdaySlots.start, weekdaySlots.end, endTime < startTime, wellnessData.TimezoneId);
+		}
 			else
 			{
 				// Fall back to converting local time fields
@@ -909,12 +1440,23 @@ namespace Mindflow_Web_API.Services
 					wellnessData?.TimezoneId);
 			}
 			
-			if (wellnessData?.WeekendStartTimeUtc.HasValue == true && wellnessData?.WeekendEndTimeUtc.HasValue == true)
-			{
-				// Use UTC fields directly - extract time portion
-				weekendSlots = (wellnessData.WeekendStartTimeUtc.Value.TimeOfDay, wellnessData.WeekendEndTimeUtc.Value.TimeOfDay);
-				_logger.LogDebug("Using UTC fields for weekend slots: {Start} to {End}", weekendSlots.start, weekendSlots.end);
-			}
+		if (wellnessData?.WeekendStartTimeUtc.HasValue == true && wellnessData?.WeekendEndTimeUtc.HasValue == true)
+		{
+			// Use UTC fields directly - extract time portion
+			// Note: The UTC DateTime may have a date component, but we only need the time
+			var startTime = wellnessData.WeekendStartTimeUtc.Value.TimeOfDay;
+			var endTime = wellnessData.WeekendEndTimeUtc.Value.TimeOfDay;
+			
+			// Log the raw UTC DateTime values for debugging
+			_logger.LogInformation("[SCHEDULING] Raw UTC DateTime values (Weekend) - Start: {StartUtc}, End: {EndUtc}", 
+				wellnessData.WeekendStartTimeUtc.Value, wellnessData.WeekendEndTimeUtc.Value);
+			
+			// If end time is earlier than start time, it means the slot crosses midnight
+			// This is correct - e.g., 16:00 to 00:00 means 4 PM to midnight
+			weekendSlots = (startTime, endTime);
+			_logger.LogInformation("[SCHEDULING] Using UTC fields for weekend slots: {Start} to {End} (crosses midnight: {CrossesMidnight}, timezone: {Timezone})", 
+				weekendSlots.start, weekendSlots.end, endTime < startTime, wellnessData.TimezoneId);
+		}
 			else
 			{
 				// Fall back to converting local time fields
@@ -928,15 +1470,15 @@ namespace Mindflow_Web_API.Services
 					wellnessData?.TimezoneId);
 			}
 
-			_logger.LogDebug("Determining optimal schedule for task with duration {Duration} minutes", durationMinutes);
-			_logger.LogDebug("Weekday slots (UTC): {WeekdayStart} to {WeekdayEnd}", weekdaySlots.start, weekdaySlots.end);
-			_logger.LogDebug("Weekend slots (UTC): {WeekendStart} to {WeekendEnd}", weekendSlots.start, weekendSlots.end);
+		_logger.LogInformation("[SCHEDULING] Determining optimal schedule for task with duration {Duration} minutes", durationMinutes);
+		_logger.LogInformation("[SCHEDULING] Weekday slots (UTC): {WeekdayStart} to {WeekdayEnd}", weekdaySlots.start, weekdaySlots.end);
+		_logger.LogInformation("[SCHEDULING] Weekend slots (UTC): {WeekendStart} to {WeekendEnd}", weekendSlots.start, weekendSlots.end);
 
-			// Calculate optimal date and time based on available slots
-			// No user preferences - find optimal date and time using wellness data slots
-			_logger.LogDebug("Calculating optimal date and time based on available slots");
-			var (optimalDate, optimalTime) = await FindNextAvailableSlotAsync(durationMinutes, weekdaySlots, weekendSlots, userId, wellnessData);
-			_logger.LogDebug("Found optimal slot: {Date} at {Time}", optimalDate.ToString("yyyy-MM-dd"), optimalTime);
+		// Calculate optimal date and time based on available slots
+		// No user preferences - find optimal date and time using wellness data slots
+		_logger.LogInformation("[SCHEDULING] Calculating optimal date and time based on available slots");
+		var (optimalDate, optimalTime) = await FindNextAvailableSlotAsync(durationMinutes, weekdaySlots, weekendSlots, userId, wellnessData);
+		_logger.LogInformation("[SCHEDULING] Found optimal slot: {Date} at {Time}", optimalDate.ToString("yyyy-MM-dd"), optimalTime);
 			return (optimalDate, optimalTime);
 		}
 
@@ -1025,40 +1567,201 @@ namespace Mindflow_Web_API.Services
 			}
 		}
 
-	private async Task<TimeSpan> FindAvailableTimeInDayAsync(DateTime date, (TimeSpan start, TimeSpan end) slots, int durationMinutes, Guid userId)
+		/// <summary>
+		/// Calculates the next available time after a conflict, ensuring consistent gaps between tasks.
+		/// Finds the latest end time of conflicting tasks, adds buffer, and rounds up to the next increment.
+		/// </summary>
+		private async Task<TimeSpan?> CalculateNextAvailableTimeAsync(DateTime date, TimeSpan candidateTime, int durationMinutes, Guid userId, int bufferMinutes, int incrementMinutes)
+		{
+			try
+			{
+				// Treat input as UTC for comparisons
+				var candidateStart = DateTime.SpecifyKind(date.Date.Add(candidateTime), DateTimeKind.Utc);
+				var candidateEnd = candidateStart.AddMinutes(durationMinutes);
+
+				// Get all tasks on the same date
+				var tasksOnDate = await _db.Tasks
+					.Where(t => t.UserId == userId 
+						&& t.IsActive 
+						&& (t.Date.Date == candidateStart.Date || t.Time.Date == candidateStart.Date))
+					.ToListAsync();
+
+				if (tasksOnDate.Count == 0)
+				{
+					// No tasks on this date, return null to use fallback
+					return null;
+				}
+
+				// Find the latest end time of tasks that conflict with the candidate time
+				DateTime? latestConflictEnd = null;
+				var bufferMinutesLocal = bufferMinutes;
+
+				foreach (var existingTask in tasksOnDate)
+				{
+					var existingTaskStart = existingTask.Time;
+					if (existingTaskStart.Kind != DateTimeKind.Utc)
+					{
+						existingTaskStart = DateTime.SpecifyKind(existingTaskStart, DateTimeKind.Utc);
+					}
+					var existingTaskEnd = existingTaskStart.AddMinutes(existingTask.DurationMinutes);
+
+					// Check if this task conflicts with the candidate (with buffer)
+					var candidateStartWithBuffer = candidateStart.AddMinutes(-bufferMinutesLocal);
+					var candidateEndWithBuffer = candidateEnd.AddMinutes(bufferMinutesLocal);
+					var existingTaskStartWithBuffer = existingTaskStart.AddMinutes(-bufferMinutesLocal);
+					var existingTaskEndWithBuffer = existingTaskEnd.AddMinutes(bufferMinutesLocal);
+
+					bool hasOverlap = (candidateStartWithBuffer < existingTaskEndWithBuffer) && (candidateEndWithBuffer > existingTaskStartWithBuffer);
+
+					if (hasOverlap)
+					{
+						// This task conflicts - track its end time (with buffer)
+						var conflictEnd = existingTaskEndWithBuffer;
+						if (!latestConflictEnd.HasValue || conflictEnd > latestConflictEnd.Value)
+						{
+							latestConflictEnd = conflictEnd;
+						}
+					}
+				}
+
+				if (!latestConflictEnd.HasValue)
+				{
+					// No conflicts found (shouldn't happen if this method is called), return null
+					return null;
+				}
+
+				// Calculate next available time: latest conflict end, rounded up to next increment
+				var nextAvailableDateTime = latestConflictEnd.Value;
+				var nextAvailableTimeOfDay = nextAvailableDateTime.TimeOfDay;
+
+				// Round up to the next increment (30-minute mark)
+				var totalMinutes = (int)nextAvailableTimeOfDay.TotalMinutes;
+				var remainder = totalMinutes % incrementMinutes;
+				if (remainder > 0)
+				{
+					totalMinutes = totalMinutes + (incrementMinutes - remainder);
+				}
+
+				// Ensure we don't exceed 24 hours
+				if (totalMinutes >= 24 * 60)
+				{
+					return null; // Will trigger day rollover in calling code
+				}
+
+				var nextAvailableTime = TimeSpan.FromMinutes(totalMinutes);
+
+				_logger.LogDebug("Calculated next available time: {NextTime} (after conflict ending at {ConflictEnd})", 
+					nextAvailableTime, latestConflictEnd.Value);
+
+				return nextAvailableTime;
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Error calculating next available time for {Date} at {Time}", date, candidateTime);
+				return null; // Fallback to simple increment
+			}
+		}
+
+	private async Task<(DateTime date, TimeSpan time)> FindAvailableTimeInDayAsync(DateTime date, (TimeSpan start, TimeSpan end) slots, int durationMinutes, Guid userId)
 	{
     // Handle windows that may cross midnight (e.g., 22:00 -> 01:00)
     var start = slots.start;
     var end = slots.end;
 
-    // Local function to scan a single segment [segStart, segEnd)
-    async Task<TimeSpan> ScanAsync(TimeSpan segStart, TimeSpan segEnd)
+    // Local function to scan a single segment [segStart, segEnd) on a specific date
+    async Task<(DateTime scanDate, TimeSpan time)> ScanAsync(TimeSpan segStart, TimeSpan segEnd, DateTime scanDate)
     {
+        _logger?.LogInformation("[SCAN] Starting scan - segStart: {SegStart}, segEnd: {SegEnd}, scanDate: {ScanDate}, duration: {Duration}min", 
+            segStart, segEnd, scanDate.ToString("yyyy-MM-dd"), durationMinutes);
         var t = segStart;
-        while (t.Add(TimeSpan.FromMinutes(durationMinutes)) <= segEnd)
+        // For segments that don't cross midnight, ensure we don't exceed segEnd
+        var maxTime = segEnd;
+        if (segEnd < segStart)
         {
-            if (await IsTimeSlotAvailableAsync(date, t, durationMinutes, userId))
+            // Segment crosses midnight, use 24:00 as max for the first part
+            maxTime = new TimeSpan(24, 0, 0);
+        }
+        
+        int attemptCount = 0;
+        while (t.Add(TimeSpan.FromMinutes(durationMinutes)) <= maxTime)
+        {
+            attemptCount++;
+            var isAvailable = await IsTimeSlotAvailableAsync(scanDate, t, durationMinutes, userId);
+            _logger?.LogInformation("[SCAN] Attempt {Attempt}: Checking {Time} on {Date} - Available: {Available}", 
+                attemptCount, t, scanDate.ToString("yyyy-MM-dd"), isAvailable);
+            
+            if (isAvailable)
             {
-                return t;
+                _logger?.LogInformation("[SCAN] Found available time: {Time} on {Date}", t, scanDate.ToString("yyyy-MM-dd"));
+                return (scanDate, t);
             }
             t = t.Add(TimeSpan.FromMinutes(30));
+            
+            // Prevent infinite loop
+            if (t.TotalMinutes >= 24 * 60)
+            {
+                _logger?.LogWarning("[SCAN] Time exceeded 24 hours, breaking loop");
+                break;
+            }
         }
-        return TimeSpan.Zero;
+        _logger?.LogInformation("[SCAN] No available time found after {AttemptCount} attempts", attemptCount);
+        return (DateTime.MinValue, TimeSpan.Zero);
     }
 
-    // Case 1: simple same-day window
+    // Case 1: simple same-day window (e.g., 12:00 to 21:00)
     if (end > start)
     {
-        var found = await ScanAsync(start, end);
-        return found;
+        var found = await ScanAsync(start, end, date);
+        // Check if a time was found by checking the date (ScanAsync returns DateTime.MinValue when no time is found)
+        if (found.scanDate != DateTime.MinValue)
+            return (found.scanDate, found.time);
+        return (DateTime.MinValue, TimeSpan.Zero);
     }
 
-    // Case 2: window crosses midnight → scan [start, 24:00) then [00:00, end)
-    var first = await ScanAsync(start, new TimeSpan(24, 0, 0));
-    if (first != TimeSpan.Zero) return first;
+    // Case 2: window crosses midnight (e.g., 18:00 to 03:00)
+    // For a slot that crosses midnight, when checking a specific date, we need to check BOTH portions:
+    // 1. The before-midnight portion (start to 24:00) - the portion that STARTS on the current date
+    //    Example: On date X, check 18:00-24:00 on date X (this is date X's slot starting)
+    // 2. The after-midnight portion (00:00 to end) - the portion that CONTINUES into the next day
+    //    Example: On date X, check 00:00-03:00 on date X+1 (this is date X's slot continuing into next day)
+    //
+    // Why check both? Because when checking date X with slot 18:00-03:00:
+    // - Date X's slot: 18:00 (X) to 03:00 (X+1) - spans two days
+    // So on date X, we need to check:
+    // - 18:00-24:00 on date X (the portion that starts on date X)
+    // - 00:00-03:00 on date X+1 (the portion that continues into the next day)
+    
+    // First, check the before-midnight portion (start to 24:00) on the current date
+    // This is the portion of the slot that starts on the current date
+    _logger?.LogInformation("[FIND_AVAILABLE] Checking before-midnight portion: {Start} to 24:00 on {Date} (slot crosses midnight, ends at {End} next day)", 
+        start, date.ToString("yyyy-MM-dd"), end);
+    var beforeMidnight = await ScanAsync(start, new TimeSpan(24, 0, 0), date);
+    if (beforeMidnight.scanDate != DateTime.MinValue)
+    {
+        _logger?.LogInformation("[FIND_AVAILABLE] Found time in before-midnight portion: {Time} on {Date}", beforeMidnight.time, beforeMidnight.scanDate.ToString("yyyy-MM-dd"));
+        return (beforeMidnight.scanDate, beforeMidnight.time);
+    }
 
-    var second = await ScanAsync(TimeSpan.Zero, end);
-    return second;
+    // Then, check the after-midnight portion (00:00 to end) on the NEXT day
+    // This is the portion of the slot that continues into the next day
+    // For slot 18:00-03:00: When checking date X, the after-midnight portion (00:00-03:00) 
+    // belongs to date X+1, not date X
+    // Skip if end is 00:00 (TimeSpan.Zero) because that means the slot ends exactly at midnight
+    if (end != TimeSpan.Zero)
+    {
+        var nextDate = date.AddDays(1);
+        _logger?.LogInformation("[FIND_AVAILABLE] Checking after-midnight portion: 00:00 to {End} on {NextDate} (continuation of current day's slot into next day)", 
+            end, nextDate.ToString("yyyy-MM-dd"));
+        var afterMidnight = await ScanAsync(TimeSpan.Zero, end, nextDate);
+        if (afterMidnight.scanDate != DateTime.MinValue)
+        {
+            _logger?.LogInformation("[FIND_AVAILABLE] Found time in after-midnight portion: {Time} on {Date}", afterMidnight.time, afterMidnight.scanDate.ToString("yyyy-MM-dd"));
+            return (afterMidnight.scanDate, afterMidnight.time);
+        }
+    }
+
+    // No time found in either portion
+    return (DateTime.MinValue, TimeSpan.Zero);
 	}
 
 	private async Task<(DateTime date, TimeSpan time)> FindNextAvailableDateForTimeAsync(TimeSpan preferredTime, int durationMinutes, (TimeSpan start, TimeSpan end) weekdaySlots, (TimeSpan start, TimeSpan end) weekendSlots, Guid userId)
@@ -1074,7 +1777,22 @@ namespace Mindflow_Web_API.Services
 			var slots = isWeekend ? weekendSlots : weekdaySlots;
 
 			// Check if preferred time fits within available slots
-			if (preferredTime >= slots.start && preferredTime.Add(TimeSpan.FromMinutes(durationMinutes)) <= slots.end)
+			// Handle both normal slots and midnight-crossing slots
+			bool timeFitsInSlot;
+			if (slots.end > slots.start)
+			{
+				// Normal slot: start < end (e.g., 12:00 to 21:00)
+				timeFitsInSlot = preferredTime >= slots.start && preferredTime.Add(TimeSpan.FromMinutes(durationMinutes)) <= slots.end;
+			}
+			else
+			{
+				// Slot crosses midnight: start > end (e.g., 18:00 to 03:00)
+				// Time fits if it's >= start OR < end (with duration check)
+				timeFitsInSlot = (preferredTime >= slots.start && preferredTime.Add(TimeSpan.FromMinutes(durationMinutes)) <= new TimeSpan(24, 0, 0)) ||
+								  (preferredTime < slots.end && preferredTime.Add(TimeSpan.FromMinutes(durationMinutes)) <= slots.end);
+			}
+			
+			if (timeFitsInSlot)
 			{
 				// Check if this time slot is available
 				if (await IsTimeSlotAvailableAsync(date, preferredTime, durationMinutes, userId))
@@ -1089,14 +1807,21 @@ namespace Mindflow_Web_API.Services
 
 	private async Task<(DateTime date, TimeSpan time)> FindNextAvailableSlotAsync(int durationMinutes, (TimeSpan start, TimeSpan end) weekdaySlots, (TimeSpan start, TimeSpan end) weekendSlots, Guid userId, DTOs.WellnessCheckInDto? wellnessData = null)
 	{
-		// Use UTC date explicitly - Start from tomorrow (UTC)
-		var startDate = DateTime.SpecifyKind(DateTime.UtcNow.Date.AddDays(1), DateTimeKind.Utc);
+		// Use UTC date explicitly - Start from tomorrow (UTC) to ensure we have a full day
+		// For midnight-crossing slots, when checking tomorrow, we'll check its after-midnight portion (00:00-03:00)
+		// which is the continuation of today's slot, and then the before-midnight portion (18:00-24:00)
+		var today = DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc);
+		var startDate = today.AddDays(1); // Start from tomorrow to ensure full day availability
 		var maxDays = 14; // Look ahead 2 weeks
+
+		_logger?.LogInformation("[FIND_NEXT_SLOT] Starting search from {StartDate} (today: {Today})", startDate.ToString("yyyy-MM-dd"), today.ToString("yyyy-MM-dd"));
 
 		for (int dayOffset = 0; dayOffset < maxDays; dayOffset++)
 		{
 			var date = DateTime.SpecifyKind(startDate.AddDays(dayOffset).Date, DateTimeKind.Utc);
 			var isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
+			
+			_logger?.LogInformation("[FIND_NEXT_SLOT] Checking date {Date} (dayOffset: {Offset}, isWeekend: {IsWeekend})", date.ToString("yyyy-MM-dd"), dayOffset, isWeekend);
 			
 			// Use UTC fields if available (they're already converted to UTC)
 			// Otherwise use the slots passed in or fall back to converting local time fields
@@ -1149,10 +1874,11 @@ namespace Mindflow_Web_API.Services
 			}
 
 			// Find available time within the day's slots
-			var availableTime = await FindAvailableTimeInDayAsync(date, slots, durationMinutes, userId);
-			if (availableTime != TimeSpan.Zero)
+			var (availableDate, availableTime) = await FindAvailableTimeInDayAsync(date, slots, durationMinutes, userId);
+			// Check if a time was found by checking the date (FindAvailableTimeInDayAsync returns DateTime.MinValue when no time is found)
+			if (availableDate != DateTime.MinValue)
 			{
-				return (date, availableTime);
+				return (availableDate, availableTime);
 			}
 		}
 
@@ -1879,34 +2605,149 @@ namespace Mindflow_Web_API.Services
 			return words.Length;
 		}
 
-		private async Task<string> ExtractTagsFromTextAsync(string text)
-		{
-			if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+        /// <summary>
+        /// Normalizes urgency/importance strings to \"Low\" | \"Medium\" | \"High\".
+        /// </summary>
+        private static string NormalizePriorityLevel(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return "Medium";
 
-			try
-			{
-				// Use LLM for intelligent tag extraction
-				var prompt = BrainDumpPromptBuilder.BuildTagExtractionPrompt(text);
-				var response = await _runPodService.SendPromptAsync(prompt, 200, 0.3); // Lower temperature for more consistent results
-				
-				var extractedTags = BrainDumpPromptBuilder.ParseTagExtractionResponse(response, _logger);
-				
-				// Fallback to simple keyword extraction if LLM fails
-				if (string.IsNullOrWhiteSpace(extractedTags))
-				{
-					return ExtractTagsFromTextFallback(text);
-				}
-				
-				return extractedTags;
-			}
-			catch (Exception ex)
-			{
-				_logger.LogWarning(ex, "Failed to extract tags using LLM, falling back to keyword extraction");
-				return ExtractTagsFromTextFallback(text);
-			}
-		}
+            var v = value.Trim().ToLowerInvariant();
+            if (v.StartsWith("high")) return "High";
+            if (v.StartsWith("med")) return "Medium";
+            if (v.StartsWith("low")) return "Low";
 
-		private static string ExtractTagsFromTextFallback(string text)
+            // Fallback: map common variants
+            if (v.Contains("urgent")) return "High";
+            if (v.Contains("soon")) return "Medium";
+
+            return "Medium";
+        }
+
+        /// <summary>
+        /// Maps \"Low\" | \"Medium\" | \"High\" to numeric score 1, 3, 5.
+        /// </summary>
+        private static int MapLevelToScore(string? level)
+        {
+            switch (level)
+            {
+                case "High":
+                    return 5;
+                case "Low":
+                    return 1;
+                default:
+                    return 3;
+            }
+        }
+
+        private async Task<List<string>> ExtractEmotionsAsync(string text)
+        {
+			var prompt = $@"
+				[INST]
+				You are a JSON extraction tool. Extract the top 3 emotions from the user's text.
+				
+				CRITICAL: Return ONLY a valid JSON array. Do NOT include any explanations, descriptions, or additional text.
+				Do NOT use phrases like ""Sure, here are..."", ""The emotions are:"", or any other introductory text.
+				Do NOT provide explanations for why each emotion was chosen.
+				
+				Format: [""emotion1"", ""emotion2"", ""emotion3""]
+				Example: [""happy"", ""anxious"", ""frustrated""]
+				
+				Text:
+				{text}
+				
+				Response (JSON array only, no other text):
+				[/INST]";
+
+            var response = await _runPodService.SendPromptAsync(prompt, 200, 0.2);
+
+            try
+            {
+                // Extract text from RunPod response envelope (handles both new and old structures)
+                var extractedText = RunpodResponseHelper.ExtractTextFromRunpodResponse(response);
+                
+                // Try to extract JSON array from the response text (may contain explanatory text)
+                var jsonStart = extractedText.IndexOf('[');
+                var jsonEnd = extractedText.LastIndexOf(']');
+                
+                if (jsonStart >= 0 && jsonEnd > jsonStart)
+                {
+                    var jsonArray = extractedText.Substring(jsonStart, jsonEnd - jsonStart + 1);
+                    return JsonSerializer.Deserialize<List<string>>(jsonArray) ?? new List<string>();
+                }
+                
+                // Fallback: try to deserialize the entire extracted text
+                return JsonSerializer.Deserialize<List<string>>(extractedText) ?? new List<string>();
+            }
+            catch
+            {
+                return new List<string>();
+            }
+        }
+        private async Task<string> SummarizeMindDumpAsync(string text)
+        {
+            var prompt = $@"
+			[INST]
+			Summarize the user's brain dump in 3–4 clear sentences.
+			Do not add advice. Preserve all actionable themes.
+
+			Text:
+			{text}
+			[/INST]";
+
+            var response = await _runPodService.SendPromptAsync(prompt, 300, 0.3);
+            
+            // Extract text from RunPod response envelope (handles both new and old structures)
+            return RunpodResponseHelper.ExtractTextFromRunpodResponse(response);
+        }
+        private async Task<List<string>> ExtractTopicsAsync(string text)
+        {
+            var prompt = $@"
+				[INST]
+				You are a JSON extraction tool. Extract all major topics from the text.
+				Topics should be simple words like: moving, work, kids, health, chores, relationships, school.
+				
+				CRITICAL: Return ONLY a valid JSON array. Do NOT include any explanations, descriptions, or additional text.
+				Do NOT use phrases like ""Sure, here are..."", ""The topics are:"", or any other introductory text.
+				Do NOT provide explanations for why each topic was chosen.
+				
+				Format: [""topic1"", ""topic2"", ""topic3""]
+				Example: [""work"", ""family"", ""health""]
+				
+				Text:
+				{text}
+				
+				Response (JSON array only, no other text):
+				[/INST]";
+
+            var response = await _runPodService.SendPromptAsync(prompt, 200, 0.2);
+
+            try
+            {
+                // Extract text from RunPod response envelope (handles both new and old structures)
+                var extractedText = RunpodResponseHelper.ExtractTextFromRunpodResponse(response);
+                
+                // Try to extract JSON array from the response text (may contain explanatory text)
+                var jsonStart = extractedText.IndexOf('[');
+                var jsonEnd = extractedText.LastIndexOf(']');
+                
+                if (jsonStart >= 0 && jsonEnd > jsonStart)
+                {
+                    var jsonArray = extractedText.Substring(jsonStart, jsonEnd - jsonStart + 1);
+                    return JsonSerializer.Deserialize<List<string>>(jsonArray) ?? new();
+                }
+                
+                // Fallback: try to deserialize the entire extracted text
+                return JsonSerializer.Deserialize<List<string>>(extractedText) ?? new();
+            }
+            catch
+            {
+                return new();
+            }
+        }
+
+        private static string ExtractTagsFromTextFallback(string text)
 		{
 			if (string.IsNullOrWhiteSpace(text)) return string.Empty;
 
@@ -2045,140 +2886,133 @@ namespace Mindflow_Web_API.Services
 			}
 		}
 
-		private async Task<EmotionTrendsDto?> AnalyzeEmotionTrendsAsync(Guid userId, BrainDumpEntry? currentEntry = null)
-		{
-			try
-			{
-				_logger.LogDebug("Analyzing emotion trends for user {UserId}", userId);
-				
-				var now = DateTime.UtcNow;
-				// Calculate start of this week (Sunday = 0)
-				var daysSinceSunday = (int)now.DayOfWeek;
-				var thisWeekStart = now.Date.AddDays(-daysSinceSunday);
+        private async Task<EmotionTrendsDto?> AnalyzeEmotionTrendsAsync(
+        Guid userId,
+        BrainDumpEntry? currentEntry,
+        List<string> extractedEmotions)
+        {
+            try
+            {
+                _logger.LogDebug("Analyzing emotion trends for user {UserId}", userId);
 
-				// Get brain dump entries for this week
-				var entries = await _db.BrainDumpEntries
-					.Where(e => e.UserId == userId 
-						&& e.CreatedAtUtc >= thisWeekStart 
-						&& e.DeletedAtUtc == null)
-					.ToListAsync();
-				
-				_logger.LogDebug("Found {Count} brain dump entries this week for user {UserId}. ThisWeekStart: {ThisWeekStart}", 
-					entries.Count, userId, thisWeekStart);
-				
-				// Always include current entry if provided (it might not be saved yet or might be today's entry)
-				if (currentEntry != null)
-				{
-					// Check if current entry is already in the list
-					if (!entries.Any(e => e.Id == currentEntry.Id))
-					{
-						_logger.LogDebug("Adding current entry to analysis (not yet in database or created today)");
-						entries.Add(currentEntry);
-					}
-					else
-					{
-						_logger.LogDebug("Current entry already included in this week's entries");
-					}
-				}
-				
-				if (entries.Count == 0)
-				{
-					_logger.LogWarning("No brain dump entries found for user {UserId} - cannot analyze emotion trends", userId);
-					return new EmotionTrendsDto(
-						new Dictionary<string, int>(),
-						new List<string>(),
-						new List<string>()
-					);
-				}
+                var now = DateTime.UtcNow;
+                var daysSinceSunday = (int)now.DayOfWeek;
+                var thisWeekStart = now.Date.AddDays(-daysSinceSunday);
 
-				// Common emotion keywords to track
-				var emotionKeywords = new[] { 
-					"anxious", "anxiety", "worried", "worry", "stressed", "stress", "overwhelmed", "overwhelm",
-					"exhausted", "exhaustion", "tired", "fatigue", "burnout", "burned out",
-					"grateful", "gratitude", "thankful", "appreciate", "happy", "happiness", "joy", "joyful",
-					"sad", "sadness", "depressed", "depression", "down", "low",
-					"calm", "peaceful", "relaxed", "content", "satisfied",
-					"frustrated", "frustration", "angry", "anger", "irritated", "irritation"
-				};
+                var entries = await _db.BrainDumpEntries
+                    .Where(e => e.UserId == userId
+                        && e.CreatedAtUtc >= thisWeekStart
+                        && e.DeletedAtUtc == null)
+                    .ToListAsync();
 
-				var emotionFrequency = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-				
-				// Count emotion keywords in brain dump text
-				foreach (var entry in entries)
-				{
-					var text = $"{entry.Text} {entry.Context}".ToLower();
-					_logger.LogDebug("Analyzing entry {EntryId} with text length {TextLength}", entry.Id, text.Length);
-					
-					foreach (var keyword in emotionKeywords)
-					{
-						var count = CountOccurrences(text, keyword);
-						if (count > 0)
-						{
-							emotionFrequency[keyword] = emotionFrequency.GetValueOrDefault(keyword, 0) + count;
-							_logger.LogDebug("Found keyword '{Keyword}' {Count} times in entry {EntryId}", keyword, count, entry.Id);
-						}
-					}
-				}
-				
-				_logger.LogDebug("Total emotion frequency count: {Count} unique emotions found", emotionFrequency.Count);
+                if (currentEntry != null && !entries.Any(e => e.Id == currentEntry.Id))
+                {
+                    entries.Add(currentEntry);
+                }
 
-				// Get top 3 emotions
-				var topEmotions = emotionFrequency
-					.OrderByDescending(kvp => kvp.Value)
-					.Take(3)
-					.Select(kvp => kvp.Key)
-					.ToList();
+                if (entries.Count == 0)
+                {
+                    return new EmotionTrendsDto(
+                        new Dictionary<string, int>(),
+                        extractedEmotions,
+                        new List<string>()
+                    );
+                }
 
-				// Generate emotion insights (lower threshold for new users)
-				var emotionInsights = new List<string>();
-				if (topEmotions.Any())
-				{
-					foreach (var emotion in topEmotions)
-					{
-						var count = emotionFrequency[emotion];
-						_logger.LogDebug("Processing emotion '{Emotion}' with count {Count}", emotion, count);
-						
-						// Lower threshold: show if mentioned 2+ times (or 1+ if only one entry)
-						if (count >= 2 || (entries.Count == 1 && count >= 1))
-						{
-							if (entries.Count == 1)
-							{
-								emotionInsights.Add($"You mentioned '{emotion}' in your brain dump");
-							}
-							else
-							{
-								emotionInsights.Add($"You've mentioned '{emotion}' {count} times this week");
-							}
-						}
-					}
-				}
-				else
-				{
-					_logger.LogDebug("No top emotions found - emotionFrequency is empty or all counts are 0");
-				}
+                // ------------------------------------------------------
+                // ⭐ 1. Start with current extractedEmotions (highest confidence)
+                // ------------------------------------------------------
+                var emotionFrequency = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
-				_logger.LogDebug("Analyzed emotion trends for user {UserId}. TopEmotions: {TopEmotions}, TotalEmotions: {TotalEmotions}", 
-					userId, string.Join(", ", topEmotions), emotionFrequency.Count);
+                foreach (var emotion in extractedEmotions)
+                {
+                    emotionFrequency[emotion] = emotionFrequency.GetValueOrDefault(emotion, 0) + 1;
+                }
 
-				return new EmotionTrendsDto(
-					emotionFrequency,
-					topEmotions,
-					emotionInsights
-				);
-			}
-			catch (Exception ex)
-			{
-				_logger.LogWarning(ex, "Failed to analyze emotion trends for user {UserId}", userId);
-				// Return default emotion trends instead of null
-				return new EmotionTrendsDto(
-					new Dictionary<string, int>(),
-					new List<string>(),
-					new List<string>()
-				);
-			}
-		}
+                // ------------------------------------------------------
+                // ⭐ 2. Add historical extracted emotions from stored entries
+                // Note: Emotions are not stored directly in BrainDumpEntry.
+                // Historical emotion analysis would require re-extracting from text or storing separately.
+                // For now, we rely on the current extractedEmotions and keyword scanning below.
+                // ------------------------------------------------------
+                // TODO: If historical emotion storage is needed, consider adding an Emotions property to BrainDumpEntry
+                // or extracting emotions from Tags if they contain emotion keywords
 
-		private int CountOccurrences(string text, string keyword)
+                // ------------------------------------------------------
+                // ⭐ 3. Fallback: keyword scan only if no emotions found
+                // ------------------------------------------------------
+                if (emotionFrequency.Count == 0)
+                {
+                    _logger.LogDebug("No extracted emotions found, falling back to keyword scanning.");
+
+                    var keywords = new[]
+                    {
+                "anxious","anxiety","worried","worry","stressed","stress","overwhelmed","overwhelm",
+                "exhausted","exhaustion","tired","fatigue","burnout","burned out",
+                "grateful","gratitude","thankful","appreciate","happy","happiness","joy","joyful",
+                "sad","sadness","depressed","depression","down","low",
+                "calm","peaceful","relaxed","content","satisfied",
+                "frustrated","frustration","angry","anger","irritated","irritation"
+            };
+
+                    foreach (var entry in entries)
+                    {
+                        var text = $"{entry.Text} {entry.Context}".ToLower();
+
+                        foreach (var keyword in keywords)
+                        {
+                            var count = CountOccurrences(text, keyword);
+                            if (count > 0)
+                            {
+                                emotionFrequency[keyword] = emotionFrequency.GetValueOrDefault(keyword, 0) + count;
+                            }
+                        }
+                    }
+                }
+
+                // ------------------------------------------------------
+                // ⭐ 4. Determine top emotions
+                // ------------------------------------------------------
+                var topEmotions = emotionFrequency
+                    .OrderByDescending(kvp => kvp.Value)
+                    .Take(3)
+                    .Select(kvp => kvp.Key)
+                    .ToList();
+
+                // ------------------------------------------------------
+                // ⭐ 5. Build insights
+                // ------------------------------------------------------
+                var emotionInsights = new List<string>();
+
+                foreach (var emotion in topEmotions)
+                {
+                    var count = emotionFrequency[emotion];
+
+                    if (entries.Count == 1)
+                        emotionInsights.Add($"You mentioned feeling '{emotion}' today.");
+                    else
+                        emotionInsights.Add($"You've experienced '{emotion}' {count} times this week.");
+                }
+
+                return new EmotionTrendsDto(
+                    emotionFrequency,
+                    topEmotions,
+                    emotionInsights
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to analyze emotion trends for user {UserId}", userId);
+
+                return new EmotionTrendsDto(
+                    new Dictionary<string, int>(),
+                    new List<string>(),
+                    new List<string>()
+                );
+            }
+        }
+
+        private int CountOccurrences(string text, string keyword)
 		{
 			if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(keyword))
 				return 0;
@@ -2420,7 +3254,22 @@ namespace Mindflow_Web_API.Services
 					0.0, 0, 0, 0.0, 0.0, 0.0, 0.0, 
 					"Start tracking your wellness to see progress metrics here!"
 				);
-				var emotionTrends = await AnalyzeEmotionTrendsAsync(userId, currentEntry) ?? new EmotionTrendsDto(
+				
+				// Extract emotions from current entry if available, otherwise use empty list
+				List<string> extractedEmotions = new();
+				if (currentEntry != null && !string.IsNullOrWhiteSpace(currentEntry.Text))
+				{
+					try
+					{
+						extractedEmotions = await ExtractEmotionsAsync(currentEntry.Text);
+					}
+					catch (Exception ex)
+					{
+						_logger.LogWarning(ex, "Failed to extract emotions from current entry for analytics");
+					}
+				}
+				
+				var emotionTrends = await AnalyzeEmotionTrendsAsync(userId, currentEntry, extractedEmotions) ?? new EmotionTrendsDto(
 					new Dictionary<string, int>(),
 					new List<string>(),
 					new List<string>()
@@ -2587,23 +3436,388 @@ public class TimeSlotManager
 	private readonly (TimeSpan start, TimeSpan end) _weekendSlots;
 	private readonly Dictionary<DateTime, List<(TimeSpan start, TimeSpan end)>> _reservedSlots;
 	private readonly int _bufferMinutes = 15;
+	private DateTime _lastScheduledDate;
+	private TimeSpan _lastScheduledTime;
+	private readonly ILogger? _logger;
 
-	public TimeSlotManager((TimeSpan start, TimeSpan end) weekdaySlots, (TimeSpan start, TimeSpan end) weekendSlots)
+	public TimeSlotManager((TimeSpan start, TimeSpan end) weekdaySlots, (TimeSpan start, TimeSpan end) weekendSlots, ILogger? logger = null)
 	{
 		_weekdaySlots = weekdaySlots;
 		_weekendSlots = weekendSlots;
 		_reservedSlots = new Dictionary<DateTime, List<(TimeSpan start, TimeSpan end)>>();
+		_logger = logger;
+		
+		_logger?.LogInformation("[TIMESLOT_MANAGER] Initializing with weekday slots: {Start}-{End}, weekend slots: {WeekendStart}-{WeekendEnd}", 
+			weekdaySlots.start, weekdaySlots.end, weekendSlots.start, weekendSlots.end);
+		
+		// Initialize to today's current time (if within slots) or start of today's slots
+		var today = DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc);
+		var now = DateTime.UtcNow;
+		var isWeekend = today.DayOfWeek == DayOfWeek.Saturday || today.DayOfWeek == DayOfWeek.Sunday;
+		var slots = isWeekend ? weekendSlots : weekdaySlots;
+		var currentTime = now.TimeOfDay;
+		
+		_logger?.LogInformation("[TIMESLOT_MANAGER] Today: {Today}, Current UTC time: {CurrentTime}, IsWeekend: {IsWeekend}, Using slots: {Start}-{End}", 
+			today.ToString("yyyy-MM-dd"), currentTime, isWeekend, slots.start, slots.end);
+		
+		// If current time is within today's available slots, start from current time
+		// Otherwise, start from the beginning of today's slots (if slots haven't started yet)
+		// Or tomorrow if today's slots have already ended
+		// Handle midnight-crossing slots (end < start)
+		bool isInSlot = false;
+		if (slots.end > slots.start)
+		{
+			// Normal slot: start < end
+			isInSlot = currentTime >= slots.start && currentTime < slots.end;
+		}
+		else
+		{
+			// Slot crosses midnight: start > end (e.g., 18:00 to 03:00)
+			// Time is in slot if it's >= start OR < end
+			isInSlot = currentTime >= slots.start || currentTime < slots.end;
+		}
+		
+		if (isInSlot)
+		{
+			// Current time is within today's slots - start from now
+			_lastScheduledDate = today;
+			_lastScheduledTime = currentTime;
+			_logger?.LogInformation("[TIMESLOT_MANAGER] Current time is within slots, starting from: {Date} {Time}", 
+				_lastScheduledDate.ToString("yyyy-MM-dd"), _lastScheduledTime);
+		}
+		else if (slots.end > slots.start && currentTime < slots.start)
+		{
+			// Normal slot: current time is before slot start - start from slot start today
+			_lastScheduledDate = today;
+			_lastScheduledTime = slots.start;
+			_logger?.LogInformation("[TIMESLOT_MANAGER] Current time is before slot start, starting from slot start: {Date} {Time}", 
+				_lastScheduledDate.ToString("yyyy-MM-dd"), _lastScheduledTime);
+		}
+		else if (slots.end < slots.start && currentTime < slots.end)
+		{
+			// Slot crosses midnight: current time is in early morning part (before end) - start from now
+			_lastScheduledDate = today;
+			_lastScheduledTime = currentTime;
+			_logger?.LogInformation("[TIMESLOT_MANAGER] Current time is in early morning part of midnight-crossing slot, starting from: {Date} {Time}", 
+				_lastScheduledDate.ToString("yyyy-MM-dd"), _lastScheduledTime);
+		}
+		else if (slots.end < slots.start && currentTime >= slots.end && currentTime < slots.start)
+		{
+			// Slot crosses midnight: current time is between end and start (invalid zone) - start from slot start
+			_lastScheduledDate = today;
+			_lastScheduledTime = slots.start;
+			_logger?.LogInformation("[TIMESLOT_MANAGER] Current time is in invalid zone, starting from slot start: {Date} {Time}", 
+				_lastScheduledDate.ToString("yyyy-MM-dd"), _lastScheduledTime);
+		}
+		else
+		{
+			// Current time is after today's slots end - start from tomorrow
+			_lastScheduledDate = DateTime.SpecifyKind(DateTime.UtcNow.Date.AddDays(1), DateTimeKind.Utc);
+			var tomorrowIsWeekend = _lastScheduledDate.DayOfWeek == DayOfWeek.Saturday || _lastScheduledDate.DayOfWeek == DayOfWeek.Sunday;
+			_lastScheduledTime = tomorrowIsWeekend ? weekendSlots.start : weekdaySlots.start;
+			_logger?.LogInformation("[TIMESLOT_MANAGER] Current time is after slots end, starting from tomorrow: {Date} {Time}", 
+				_lastScheduledDate.ToString("yyyy-MM-dd"), _lastScheduledTime);
+		}
 	}
 
     public (DateTime date, TimeSpan time) FindNextAvailableSlot(int durationMinutes)
 	{
-        // Use UTC date explicitly - Start from tomorrow (UTC)
-        var startDate = DateTime.SpecifyKind(DateTime.UtcNow.Date.AddDays(1), DateTimeKind.Utc);
+		var today = DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc);
+		var now = DateTime.UtcNow;
+		var currentTime = now.TimeOfDay;
+		
+		_logger?.LogInformation("[SCHEDULING] FindNextAvailableSlot called - Duration: {Duration}min, Today: {Today}, CurrentTime: {CurrentTime}", 
+			durationMinutes, today.ToString("yyyy-MM-dd"), currentTime);
+		_logger?.LogInformation("[SCHEDULING] Last scheduled - Date: {LastDate}, Time: {LastTime}", 
+			_lastScheduledDate.ToString("yyyy-MM-dd"), _lastScheduledTime);
+		
+		// Start from the last scheduled time + duration + buffer
+		var startDate = _lastScheduledDate;
+		var startTime = _lastScheduledTime.Add(TimeSpan.FromMinutes(durationMinutes + _bufferMinutes));
+		
+		_logger?.LogInformation("[SCHEDULING] Calculated start - Date: {StartDate}, Time: {StartTime}", 
+			startDate.ToString("yyyy-MM-dd"), startTime);
+		
+		// Handle midnight wrap-around: if startTime is after midnight but we're still on the same date,
+		// and the slot crosses midnight, we need to check if startTime is still within the slot
+		var isWeekendForStartDate = startDate.DayOfWeek == DayOfWeek.Saturday || startDate.DayOfWeek == DayOfWeek.Sunday;
+		var slotsForStartDate = isWeekendForStartDate ? _weekendSlots : _weekdaySlots;
+		
+		// If startTime wrapped past midnight (startTime < _lastScheduledTime) and slot crosses midnight,
+		// startTime is actually on the next day but still part of the current day's slot
+		bool startTimeWrappedPastMidnight = startTime < _lastScheduledTime;
+		_logger?.LogInformation("[SCHEDULING] StartDate slots - Start: {Start}, End: {End}, Wrapped: {Wrapped}", 
+			slotsForStartDate.start, slotsForStartDate.end, startTimeWrappedPastMidnight);
+		
+		if (startTimeWrappedPastMidnight && slotsForStartDate.end < slotsForStartDate.start)
+		{
+			// Time wrapped past midnight, but it's still within the slot (00:00 to 03:00)
+			// Keep startDate as is, startTime is correct (e.g., 00:15)
+			_logger?.LogInformation("[SCHEDULING] Time wrapped past midnight, slot crosses midnight - keeping startDate: {StartDate}, startTime: {StartTime}", 
+				startDate.ToString("yyyy-MM-dd"), startTime);
+		}
+		else if (startTimeWrappedPastMidnight)
+		{
+			// Time wrapped past midnight but slot doesn't cross midnight - move to next day
+			startDate = DateTime.SpecifyKind(startDate.AddDays(1), DateTimeKind.Utc);
+			_logger?.LogInformation("[SCHEDULING] Time wrapped past midnight, slot doesn't cross - moved to next day: {StartDate}", 
+				startDate.ToString("yyyy-MM-dd"));
+			// startTime is already correct (it's the wrapped time)
+		}
+		
 		var maxDays = 14; // Look ahead 2 weeks
 
-		for (int dayOffset = 0; dayOffset < maxDays; dayOffset++)
+		// First, check if we should start from today (if current time is within today's slots)
+		// OR if startDate is tomorrow but startTime is still within today's slot (for midnight-crossing slots)
+		var isWeekendForToday = today.DayOfWeek == DayOfWeek.Saturday || today.DayOfWeek == DayOfWeek.Sunday;
+		var slotsForToday = isWeekendForToday ? _weekendSlots : _weekdaySlots;
+		bool startTimeStillInTodaySlot = false;
+		
+		_logger?.LogInformation("[SCHEDULING] Today slots - Start: {Start}, End: {End}, StartDate vs Today: {StartDate} vs {Today}", 
+			slotsForToday.start, slotsForToday.end, startDate.ToString("yyyy-MM-dd"), today.ToString("yyyy-MM-dd"));
+		
+		if (startDate > today && slotsForToday.end < slotsForToday.start)
 		{
-			var date = DateTime.SpecifyKind(startDate.AddDays(dayOffset).Date, DateTimeKind.Utc);
+			// startDate is tomorrow, but check if startTime is still within today's slot (after midnight portion)
+			startTimeStillInTodaySlot = startTime < slotsForToday.end;
+			_logger?.LogInformation("[SCHEDULING] Checking if startTime still in today's slot - startTime: {StartTime}, slotEnd: {SlotEnd}, result: {Result}", 
+				startTime, slotsForToday.end, startTimeStillInTodaySlot);
+		}
+		
+		if (startDate <= today || startTimeStillInTodaySlot)
+		{
+			_logger?.LogInformation("[SCHEDULING] Entering TODAY branch - startDate <= today: {Condition1}, startTimeStillInTodaySlot: {Condition2}", 
+				startDate <= today, startTimeStillInTodaySlot);
+			var isWeekend = today.DayOfWeek == DayOfWeek.Saturday || today.DayOfWeek == DayOfWeek.Sunday;
+			var slots = isWeekend ? _weekendSlots : _weekdaySlots;
+			
+			// Determine the earliest time we can start today
+			TimeSpan todayStartTime;
+			bool isCurrentTimeInSlot = false;
+			if (slots.end > slots.start)
+			{
+				// Normal slot: start < end (e.g., 12:00 to 21:00)
+				isCurrentTimeInSlot = currentTime >= slots.start && currentTime < slots.end;
+			}
+			else
+			{
+				// Slot crosses midnight: start > end (e.g., 18:00 to 03:00)
+				// Time is in slot if it's >= start OR < end
+				isCurrentTimeInSlot = currentTime >= slots.start || currentTime < slots.end;
+			}
+			
+			if (isCurrentTimeInSlot)
+			{
+				// Current time is within today's slots - start from now
+				todayStartTime = currentTime;
+			}
+			else if (slots.end > slots.start && currentTime < slots.start)
+			{
+				// Normal slot: current time is before slot start - start from slot start
+				todayStartTime = slots.start;
+			}
+			else if (slots.end < slots.start && currentTime < slots.end)
+			{
+				// Slot crosses midnight: current time is in early morning part (before end) - start from now
+				todayStartTime = currentTime;
+			}
+			else if (slots.end < slots.start && currentTime >= slots.end && currentTime < slots.start)
+			{
+				// Slot crosses midnight: current time is between end and start (invalid zone) - start from slot start
+				todayStartTime = slots.start;
+			}
+			else
+			{
+				// Current time is after today's slots end - skip to tomorrow
+				todayStartTime = TimeSpan.Zero; // Will be skipped
+			}
+			
+			// If we can schedule today, try to find a slot starting from todayStartTime
+			if (todayStartTime != TimeSpan.Zero)
+			{
+				// Check if todayStartTime is within the slot window
+				bool isWithinSlot = false;
+				if (slots.end > slots.start)
+				{
+					// Normal slot: start < end (e.g., 12:00 to 21:00)
+					isWithinSlot = todayStartTime >= slots.start && todayStartTime < slots.end;
+				}
+				else
+				{
+					// Slot crosses midnight: start > end (e.g., 18:00 to 03:00)
+					// Time is within slot if it's >= start OR < end
+					isWithinSlot = todayStartTime >= slots.start || todayStartTime < slots.end;
+				}
+				
+				if (isWithinSlot)
+				{
+					// Determine the search start time
+					TimeSpan searchStartTime;
+					if (startDate == today || startTimeStillInTodaySlot)
+					{
+						// We're continuing from a previous task on the same day, OR
+						// startDate is tomorrow but startTime is still within today's slot
+						// Check if startTime wrapped past midnight
+						bool startTimeWrapped = startTime < _lastScheduledTime;
+						
+						_logger?.LogInformation("[SCHEDULING] Determining searchStartTime - startDate==today: {Cond1}, startTimeStillInTodaySlot: {Cond2}, startTimeWrapped: {Cond3}", 
+							startDate == today, startTimeStillInTodaySlot, startTimeWrapped);
+						_logger?.LogInformation("[SCHEDULING] Values - startTime: {StartTime}, todayStartTime: {TodayStartTime}, lastScheduledTime: {LastTime}", 
+							startTime, todayStartTime, _lastScheduledTime);
+						
+						if (startTimeWrapped && slots.end < slots.start)
+						{
+							// startTime wrapped past midnight (e.g., 23:30 + 45 min = 00:15)
+							// and slot crosses midnight - use startTime (e.g., 00:15)
+							// This time is still part of today's slot (extends to 03:00 UTC next day)
+							searchStartTime = startTime;
+							_logger?.LogInformation("[SCHEDULING] Using startTime (wrapped, slot crosses midnight): {SearchStartTime}", searchStartTime);
+						}
+						else if (startTimeStillInTodaySlot)
+						{
+							// startDate is tomorrow but startTime is still in today's slot (e.g., 01:00 UTC on Jan 1st, but still in Dec 31st's slot)
+							searchStartTime = startTime;
+							_logger?.LogInformation("[SCHEDULING] Using startTime (still in today's slot): {SearchStartTime}", searchStartTime);
+						}
+						else if (!startTimeWrapped && startTime > todayStartTime)
+						{
+							// startTime didn't wrap and is later than todayStartTime, use it
+							searchStartTime = startTime;
+							_logger?.LogInformation("[SCHEDULING] Using startTime (didn't wrap, later than todayStartTime): {SearchStartTime}", searchStartTime);
+						}
+						else
+						{
+							// Use todayStartTime (either it's later, or startTime wrapped but slot doesn't cross midnight)
+							searchStartTime = todayStartTime;
+							_logger?.LogInformation("[SCHEDULING] Using todayStartTime: {SearchStartTime}", searchStartTime);
+						}
+					}
+					else
+					{
+						// We're starting fresh today
+						searchStartTime = todayStartTime;
+						_logger?.LogInformation("[SCHEDULING] Starting fresh today, using todayStartTime: {SearchStartTime}", searchStartTime);
+					}
+					
+					// Ensure searchStartTime is at least at the slot start (for normal slots)
+					// For midnight-crossing slots, we handle this in FindAvailableTimeInDayFromTime
+					if (slots.end > slots.start && searchStartTime < slots.start)
+					{
+						searchStartTime = slots.start;
+					}
+					
+					// Check if searchStartTime is still within slot (handle midnight crossing)
+					bool searchTimeInSlot = false;
+					if (slots.end > slots.start)
+					{
+						// Normal slot
+						searchTimeInSlot = searchStartTime >= slots.start && searchStartTime < slots.end;
+					}
+					else
+					{
+						// Slot crosses midnight: time is in slot if it's >= start OR < end
+						searchTimeInSlot = searchStartTime >= slots.start || searchStartTime < slots.end;
+					}
+					
+					if (searchTimeInSlot)
+					{
+						_logger.LogInformation("[SCHEDULING] searchTimeInSlot is true, calling FindAvailableTimeInDayFromTime - date: {Date}, slots: {Start}-{End}, searchStartTime: {SearchStart}, duration: {Duration}", 
+							today.ToString("yyyy-MM-dd"), slots.start, slots.end, searchStartTime, durationMinutes);
+						var availableTime = FindAvailableTimeInDayFromTime(today, slots, searchStartTime, durationMinutes);
+						_logger.LogInformation("[SCHEDULING] FindAvailableTimeInDayFromTime returned: {AvailableTime}", availableTime);
+						
+						if (availableTime != TimeSpan.Zero)
+						{
+							// For midnight-crossing slots, if the available time is after midnight (before slot end),
+							// it should be on the next day
+							DateTime resultDate = today;
+							if (slots.end < slots.start && availableTime < slots.end)
+							{
+								// Time is after midnight, use next day
+								resultDate = DateTime.SpecifyKind(today.AddDays(1), DateTimeKind.Utc);
+								_logger.LogInformation("[SCHEDULING] Available time is after midnight, using next day: {ResultDate}", resultDate.ToString("yyyy-MM-dd"));
+							}
+							_logger.LogInformation("[SCHEDULING] Returning slot - Date: {Date}, Time: {Time}", resultDate.ToString("yyyy-MM-dd"), availableTime);
+							return (resultDate, availableTime);
+						}
+						else
+						{
+							_logger.LogWarning("[SCHEDULING] No available time found in today's slot!");
+						}
+					}
+					else if (slots.end > slots.start && searchStartTime < slots.start)
+					{
+						// For normal slots, if searchStartTime is before slot start, try from slot start
+						var availableTime = FindAvailableTimeInDayFromTime(today, slots, slots.start, durationMinutes);
+						if (availableTime != TimeSpan.Zero)
+						{
+							return (today, availableTime);
+						}
+					}
+                    else
+                    {
+                        _logger.LogWarning("[SCHEDULING] searchTimeInSlot is false - searchStartTime: {SearchStart}, slots: {Start}-{End}",
+                            searchStartTime, slots.start, slots.end);
+                    }
+                }
+			}
+			
+			// No time available today, move to tomorrow
+			_logger?.LogInformation("[SCHEDULING] No time available today, moving to tomorrow");
+			startDate = DateTime.SpecifyKind(today.AddDays(1), DateTimeKind.Utc);
+			var tomorrowIsWeekend = startDate.DayOfWeek == DayOfWeek.Saturday || startDate.DayOfWeek == DayOfWeek.Sunday;
+			startTime = tomorrowIsWeekend ? _weekendSlots.start : _weekdaySlots.start;
+			_logger?.LogInformation("[SCHEDULING] Tomorrow - Date: {Date}, Time: {Time}", startDate.ToString("yyyy-MM-dd"), startTime);
+		}
+		else
+		{
+			// We're already scheduling in the future, check if there's time on the same day
+			_logger?.LogInformation("[SCHEDULING] Entering ELSE branch - startDate is in the future: {StartDate}", startDate.ToString("yyyy-MM-dd"));
+			var isWeekend = startDate.DayOfWeek == DayOfWeek.Saturday || startDate.DayOfWeek == DayOfWeek.Sunday;
+			var slots = isWeekend ? _weekendSlots : _weekdaySlots;
+			
+			// Check if startTime is still within the same day's slot window (handle midnight crossing)
+			bool isStartTimeInSlot = false;
+			if (slots.end > slots.start)
+			{
+				// Normal slot: start < end
+				isStartTimeInSlot = startTime >= slots.start && startTime < slots.end;
+			}
+			else
+			{
+				// Slot crosses midnight: start > end
+				// Time is in slot if it's >= start OR < end
+				isStartTimeInSlot = startTime >= slots.start || startTime < slots.end;
+			}
+			
+			if (isStartTimeInSlot)
+			{
+				var availableTime = FindAvailableTimeInDayFromTime(startDate, slots, startTime, durationMinutes);
+				if (availableTime != TimeSpan.Zero)
+				{
+					// For midnight-crossing slots, if the available time is after midnight (before slot end),
+					// it should be on the next day
+					DateTime resultDate = startDate;
+					if (slots.end < slots.start && availableTime < slots.end)
+					{
+						// Time is after midnight, use next day
+						resultDate = DateTime.SpecifyKind(startDate.AddDays(1), DateTimeKind.Utc);
+					}
+					return (resultDate, availableTime);
+				}
+			}
+			
+			// No time available on same day, move to next day
+			startDate = startDate.AddDays(1);
+			var nextDayIsWeekend = startDate.DayOfWeek == DayOfWeek.Saturday || startDate.DayOfWeek == DayOfWeek.Sunday;
+			startTime = nextDayIsWeekend ? _weekendSlots.start : _weekdaySlots.start;
+		}
+
+		// Search from the calculated start date
+		var dayOffset = (int)(startDate.Date - today.AddDays(1)).TotalDays;
+		for (int i = dayOffset; i < maxDays; i++)
+		{
+			var date = DateTime.SpecifyKind(today.AddDays(1 + i), DateTimeKind.Utc);
 			var isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
 			var slots = isWeekend ? _weekendSlots : _weekdaySlots;
 
@@ -2611,12 +3825,20 @@ public class TimeSlotManager
 			var availableTime = FindAvailableTimeInDay(date, slots, durationMinutes);
 			if (availableTime != TimeSpan.Zero)
 			{
-				return (date, availableTime);
+				// For midnight-crossing slots, if the available time is after midnight (before slot end),
+				// it should be on the next day
+				DateTime resultDate = date;
+				if (slots.end < slots.start && availableTime < slots.end)
+				{
+					// Time is after midnight, use next day
+					resultDate = DateTime.SpecifyKind(date.AddDays(1), DateTimeKind.Utc);
+				}
+				return (resultDate, availableTime);
 			}
 		}
 
         // Fallback: return tomorrow at start of available slots (UTC)
-        var fallbackDate = DateTime.SpecifyKind(DateTime.UtcNow.Date.AddDays(1), DateTimeKind.Utc);
+        var fallbackDate = DateTime.SpecifyKind(today.AddDays(1), DateTimeKind.Utc);
 		var fallbackIsWeekend = fallbackDate.DayOfWeek == DayOfWeek.Saturday || fallbackDate.DayOfWeek == DayOfWeek.Sunday;
 		var fallbackSlots = fallbackIsWeekend ? _weekendSlots : _weekdaySlots;
 		return (fallbackDate, fallbackSlots.start);
@@ -2659,57 +3881,201 @@ public class TimeSlotManager
 
 		var endTime = time.Add(TimeSpan.FromMinutes(durationMinutes + _bufferMinutes));
         _reservedSlots[dateKey].Add((time, endTime));
+		
+		_logger?.LogInformation("[RESERVE] Reserving slot - Date: {Date}, Time: {Time}, Duration: {Duration}min, EndTime: {EndTime}", 
+			dateKey.ToString("yyyy-MM-dd"), time, durationMinutes, endTime);
+		
+		// Log all currently reserved slots for this date
+		if (_reservedSlots.ContainsKey(dateKey))
+		{
+			_logger?.LogInformation("[RESERVE] Current reserved slots for {Date}: {Count} slots", 
+				dateKey.ToString("yyyy-MM-dd"), _reservedSlots[dateKey].Count);
+			foreach (var slot in _reservedSlots[dateKey])
+			{
+				_logger?.LogInformation("[RESERVE]   - {Start} to {End}", slot.start, slot.end);
+			}
+		}
+		
+		// Update last scheduled date and time to track where we are
+		if (dateKey > _lastScheduledDate || (dateKey == _lastScheduledDate && time > _lastScheduledTime))
+		{
+			var oldDate = _lastScheduledDate;
+			var oldTime = _lastScheduledTime;
+			_lastScheduledDate = dateKey;
+			_lastScheduledTime = time;
+			_logger?.LogInformation("[RESERVE] Updated last scheduled - Old: {OldDate} {OldTime}, New: {NewDate} {NewTime}", 
+				oldDate.ToString("yyyy-MM-dd"), oldTime, dateKey.ToString("yyyy-MM-dd"), time);
+		}
 	}
 
 	private TimeSpan FindAvailableTimeInDay(DateTime date, (TimeSpan start, TimeSpan end) slots, int durationMinutes)
 	{
-		// Handle windows that may cross midnight (e.g., 22:00 -> 01:00)
+		return FindAvailableTimeInDayFromTime(date, slots, slots.start, durationMinutes);
+	}
+
+	private TimeSpan FindAvailableTimeInDayFromTime(DateTime date, (TimeSpan start, TimeSpan end) slots, TimeSpan startFromTime, int durationMinutes)
+	{
+		// Handle windows that may cross midnight (e.g., 18:00 -> 03:00)
 		var start = slots.start;
 		var end = slots.end;
-
-		TimeSpan Scan(TimeSpan segStart, TimeSpan segEnd)
+		
+		// Determine the actual scan start time based on slot type
+		TimeSpan scanStart;
+		if (end > start)
 		{
-			var t = segStart;
-			while (t.Add(TimeSpan.FromMinutes(durationMinutes)) <= segEnd)
+			// Normal slot: start < end (e.g., 12:00 to 21:00)
+			// Use the later of slot start or the requested start time, but ensure it's within the slot
+			if (startFromTime >= start && startFromTime < end)
 			{
-				if (IsTimeSlotAvailable(date, t, durationMinutes))
+				scanStart = startFromTime;
+			}
+			else if (startFromTime < start)
+			{
+				// Requested time is before slot start, use slot start
+				scanStart = start;
+			}
+			else
+			{
+				// Requested time is after slot end, no time available
+				return TimeSpan.Zero;
+			}
+		}
+		else
+		{
+			// Slot crosses midnight: start > end (e.g., 18:00 to 03:00)
+			// Time is in slot if it's >= start OR < end
+			if (startFromTime >= start || startFromTime < end)
+			{
+				// Requested time is within the slot
+				scanStart = startFromTime;
+			}
+			else if (startFromTime >= end && startFromTime < start)
+			{
+				// Requested time is between end and start (invalid zone), use slot start
+				scanStart = start;
+			}
+			else
+			{
+				// This shouldn't happen, but handle it
+				scanStart = start;
+			}
+		}
+
+		TimeSpan Scan(TimeSpan segStart, TimeSpan segEnd, bool isAfterMidnight = false)
+		{
+			_logger?.LogInformation("[FIND_SLOT] Scan called - segStart: {SegStart}, segEnd: {SegEnd}, isAfterMidnight: {AfterMidnight}, baseDate: {BaseDate}", 
+				segStart, segEnd, isAfterMidnight, date.ToString("yyyy-MM-dd"));
+			
+			var t = segStart;
+			// Ensure we don't exceed the segment end
+			var maxTime = segEnd;
+			if (segEnd < segStart)
+			{
+				// Segment crosses midnight, use 24:00 as max
+				maxTime = new TimeSpan(24, 0, 0);
+			}
+			
+			// For after-midnight times, we need to check the next day
+			var checkDate = isAfterMidnight ? date.AddDays(1) : date;
+			_logger?.LogInformation("[FIND_SLOT] Scanning from {T} to {MaxTime}, checking date: {CheckDate} (isAfterMidnight: {AfterMidnight})", 
+				t, maxTime, checkDate.ToString("yyyy-MM-dd"), isAfterMidnight);
+			
+			int attempts = 0;
+			int checkedCount = 0;
+			while (t.Add(TimeSpan.FromMinutes(durationMinutes)) <= maxTime && attempts < 100)
+			{
+				checkedCount++;
+				var isAvailable = IsTimeSlotAvailable(checkDate, t, durationMinutes);
+				_logger?.LogInformation("[FIND_SLOT] Attempt {Attempt}: Checking time {Time} on {Date} - Available: {Available}", 
+					checkedCount, t, checkDate.ToString("yyyy-MM-dd"), isAvailable);
+				
+				if (isAvailable)
 				{
+					_logger?.LogInformation("[FIND_SLOT] Found available time: {Time} on {Date}", t, checkDate.ToString("yyyy-MM-dd"));
 					return t;
 				}
 				t = t.Add(TimeSpan.FromMinutes(30));
+				attempts++;
+				
+				// Prevent infinite loop if we somehow exceed 24 hours
+				if (t.TotalMinutes >= 24 * 60)
+				{
+					_logger?.LogWarning("[FIND_SLOT] Time exceeded 24 hours, breaking loop");
+					break;
+				}
 			}
+			_logger?.LogWarning("[FIND_SLOT] No available time found in segment {SegStart}-{SegEnd} after {CheckedCount} attempts", 
+				segStart, segEnd, checkedCount);
 			return TimeSpan.Zero;
 		}
 
 		if (end > start)
 		{
-			return Scan(start, end);
+			// Normal case: start < end (e.g., 12:00 to 21:00)
+			return Scan(scanStart, end);
 		}
 
-		var first = Scan(start, new TimeSpan(24, 0, 0));
-		if (first != TimeSpan.Zero) return first;
-
-		return Scan(TimeSpan.Zero, end);
+		// Handle case where end < start (crosses midnight, e.g., 18:00 to 03:00)
+		if (scanStart >= start)
+		{
+			// Scan from scanStart to end of day (midnight) - these times are on the current date
+			_logger?.LogInformation("[FIND_SLOT] scanStart >= start, scanning first segment from {ScanStart} to 24:00 on {Date}", 
+				scanStart, date.ToString("yyyy-MM-dd"));
+			var first = Scan(scanStart, new TimeSpan(24, 0, 0), isAfterMidnight: false);
+			if (first != TimeSpan.Zero)
+			{
+				_logger?.LogInformation("[FIND_SLOT] Found time in first segment: {Time}", first);
+				return first;
+			}
+			// Then scan from start of day (00:00) to end (03:00) - these times are on the next day
+			_logger?.LogInformation("[FIND_SLOT] No time found in first segment, scanning second segment from 00:00 to {End} on next day", end);
+			return Scan(TimeSpan.Zero, end, isAfterMidnight: true);
+		}
+		else if (scanStart < end)
+		{
+			// scanStart is in the early morning part (before end, e.g., 01:00) - these times are on the next day
+			_logger?.LogInformation("[FIND_SLOT] scanStart < end, scanning from {ScanStart} to {End} on next day", scanStart, end);
+			return Scan(scanStart, end, isAfterMidnight: true);
+		}
+		else
+		{
+			// scanStart is between end and start (invalid zone), scan from start
+			_logger?.LogInformation("[FIND_SLOT] scanStart is in invalid zone, scanning from start {Start} to 24:00, then 00:00 to {End}", start, end);
+			var first = Scan(start, new TimeSpan(24, 0, 0), isAfterMidnight: false);
+			if (first != TimeSpan.Zero) return first;
+			return Scan(TimeSpan.Zero, end, isAfterMidnight: true);
+		}
 	}
 
     private bool IsTimeSlotAvailable(DateTime date, TimeSpan time, int durationMinutes)
 	{
         var dateKey = date.Date; // normalize to date-only key (UTC date)
         if (!_reservedSlots.ContainsKey(dateKey))
+		{
+			_logger?.LogDebug("[IS_AVAILABLE] No reserved slots for date {Date}, returning true", dateKey.ToString("yyyy-MM-dd"));
 			return true;
+		}
 
 		var requestedStart = time;
 		var requestedEnd = time.Add(TimeSpan.FromMinutes(durationMinutes + _bufferMinutes));
+		
+		_logger?.LogDebug("[IS_AVAILABLE] Checking date {Date}, time {Time}, duration {Duration}min - requested range: {Start} to {End}", 
+			dateKey.ToString("yyyy-MM-dd"), time, durationMinutes, requestedStart, requestedEnd);
+		_logger?.LogDebug("[IS_AVAILABLE] Reserved slots for this date: {Count}", _reservedSlots[dateKey].Count);
 
         foreach (var reservedSlot in _reservedSlots[dateKey])
 		{
+			_logger?.LogDebug("[IS_AVAILABLE] Checking against reserved slot: {Start} to {End}", reservedSlot.start, reservedSlot.end);
 			// Check for overlap
 			if (requestedStart < reservedSlot.end && requestedEnd > reservedSlot.start)
 			{
+				_logger?.LogWarning("[IS_AVAILABLE] CONFLICT FOUND - Requested {Start}-{End} overlaps with reserved {ReservedStart}-{ReservedEnd}", 
+					requestedStart, requestedEnd, reservedSlot.start, reservedSlot.end);
 				return false;
 			}
 		}
 
+		_logger?.LogDebug("[IS_AVAILABLE] No conflicts found, slot is available");
 		return true;
 	}
 }

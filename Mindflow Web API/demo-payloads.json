@@ -1,0 +1,278 @@
+{
+  "description": "Demo payloads for Mindflow AI API - Use these for testing and development",
+  "version": "1.0.0",
+  "lastUpdated": "2024-01-15",
+  
+  "brainDump": {
+    "description": "Brain dump request payloads - POST /brain-dump/suggestions",
+    "examples": [
+      {
+        "name": "Morning Reflection - Positive",
+        "description": "A positive morning reflection with good mood scores",
+        "payload": {
+          "text": "Woke up feeling grateful today. Had a great conversation with my mom yesterday and finally finished that project I've been working on. Feeling energized and ready to tackle the day. Planning to go for a run this evening and maybe cook a nice dinner.",
+          "context": "Morning routine, feeling motivated",
+          "mood": 8,
+          "stress": 2,
+          "purpose": 7
+        }
+      },
+      {
+        "name": "Work Stress - Overwhelmed",
+        "description": "Someone feeling overwhelmed with work and life",
+        "payload": {
+          "text": "I'm so overwhelmed right now. Work is piling up, I have three deadlines this week, and I haven't had time to exercise or see friends. I feel like I'm constantly behind and can't catch up. Need to figure out how to manage my time better and maybe talk to my manager about the workload.",
+          "context": "Work stress, time management issues",
+          "mood": 4,
+          "stress": 9,
+          "purpose": 5
+        }
+      },
+      {
+        "name": "Relationship Concerns",
+        "description": "Personal relationship and self-care focus",
+        "payload": {
+          "text": "Had a difficult conversation with my partner last night. We've been arguing more lately and I'm not sure what's going wrong. I want to work on our communication but I also need to take better care of myself. Haven't been sleeping well and I think that's affecting everything.",
+          "context": "Relationship issues, self-care needed",
+          "mood": 5,
+          "stress": 7,
+          "purpose": 6
+        }
+      },
+      {
+        "name": "Health and Wellness Goals",
+        "description": "Focus on health and wellness improvements",
+        "payload": {
+          "text": "I want to start taking better care of my health. Need to schedule a doctor's appointment, start meal planning, and get back into a regular exercise routine. Also want to reduce my screen time before bed to improve sleep quality.",
+          "context": "Health goals, lifestyle changes",
+          "mood": 6,
+          "stress": 4,
+          "purpose": 8
+        }
+      },
+      {
+        "name": "Minimal Payload",
+        "description": "Minimal brain dump with just text (no optional fields)",
+        "payload": {
+          "text": "Feeling anxious about the presentation tomorrow. Need to practice more and review my notes."
+        }
+      },
+      {
+        "name": "Long Form Entry",
+        "description": "A longer, more detailed brain dump entry",
+        "payload": {
+          "text": "Today has been a rollercoaster. Started the morning feeling really anxious about my job interview next week. Spent hours preparing answers to common questions and researching the company. Then I had lunch with Sarah and we talked about her recent trip to Japan - that was really nice and helped me relax a bit. In the afternoon, I got some good news about a freelance project I applied for, which boosted my confidence. But now I'm feeling tired and a bit overwhelmed thinking about everything I need to do: finish the presentation, prepare for the interview, call my dentist to reschedule, and figure out my budget for next month. I know I need to prioritize but it's hard to know where to start.",
+          "context": "Mixed emotions, multiple tasks, life planning",
+          "mood": 6,
+          "stress": 7,
+          "purpose": 7
+        }
+      }
+    ]
+  },
+  
+  "wellnessCheckIn": {
+    "description": "Wellness check-in payloads - PATCH /api/wellness/check-in",
+    "createExamples": [
+      {
+        "name": "Initial Wellness Setup - Young Professional",
+        "description": "Complete initial wellness check-in for a young professional",
+        "payload": {
+          "moodLevel": "Stressed",
+          "reminderEnabled": true,
+          "reminderTime": "09:00",
+          "ageRange": "25-34",
+          "focusAreas": ["Finances"],
+          "weekdayStartTime": "09:00",
+          "weekdayStartShift": "AM",
+          "weekdayEndTime": "18:00",
+          "weekdayEndShift": "PM",
+          "weekendStartTime": "10:00",
+          "weekendStartShift": "AM",
+          "weekendEndTime": "20:00",
+          "weekendEndShift": "PM",
+          "timezoneId": "America/New_York",
+          "questions": {
+            "stressNotes": "Work deadlines are overwhelming me",
+            "copingMechanisms": ["meditation", "exercise", "talking to friends"],
+            "supportNeeds": ["time management", "stress reduction"],
+            "toughDayMessage": "When I'm having a tough day, I need someone to remind me that it's okay to take breaks"
+          }
+        }
+      },
+      {
+        "name": "Initial Wellness Setup - Student",
+        "description": "Complete initial wellness check-in for a student",
+        "payload": {
+          "moodLevel": "Anxious",
+          "reminderEnabled": false,
+          "ageRange": "18-24",
+          "focusAreas": ["academic performance", "anxiety management"],
+          "weekdayStartTime": "08:00",
+          "weekdayStartShift": "AM",
+          "weekdayEndTime": "22:00",
+          "weekdayEndShift": "PM",
+          "weekendStartTime": "10:00",
+          "weekendStartShift": "AM",
+          "weekendEndTime": "23:00",
+          "weekendEndShift": "PM",
+          "timezoneId": "America/Los_Angeles",
+          "questions": {
+            "stressNotes": "Exams are coming up and I'm worried about my grades",
+            "copingMechanisms": ["deep breathing", "study groups"],
+            "supportNeeds": ["study strategies", "anxiety support"]
+          }
+        }
+      },
+      {
+        "name": "Minimal Wellness Setup",
+        "description": "Minimal wellness check-in with only required fields",
+        "payload": {
+          "moodLevel": "Neutral",
+          "reminderEnabled": false
+        }
+      }
+    ],
+    "updateExamples": [
+      {
+        "name": "Update Mood and Stress Notes",
+        "description": "Update only mood level and add stress notes",
+        "payload": {
+          "moodLevel": "Overwhelmed",
+          "questions": {
+            "stressNotes": "Had a difficult meeting with my manager today. Feeling uncertain about my role."
+          }
+        }
+      },
+      {
+        "name": "Update Time Availability",
+        "description": "Update weekday and weekend time slots",
+        "payload": {
+          "weekdayStartTime": "08:30",
+          "weekdayStartShift": "AM",
+          "weekdayEndTime": "17:30",
+          "weekdayEndShift": "PM",
+          "weekendStartTime": "09:00",
+          "weekendStartShift": "AM",
+          "weekendEndTime": "19:00",
+          "weekendEndShift": "PM",
+          "timezoneId": "America/Chicago"
+        }
+      },
+      {
+        "name": "Update Focus Areas and Questions",
+        "description": "Change focus areas and update related questions",
+        "payload": {
+          "focusAreas": ["spirituality", "mindfulness", "relationships"],
+          "questions": {
+            "spiritualPractices": "Daily meditation and gratitude journaling",
+            "relationshipGoals": "Improve communication with partner",
+            "mindfulnessFrequency": "daily"
+          }
+        }
+      },
+      {
+        "name": "Enable Reminders",
+        "description": "Enable daily reminders with specific time",
+        "payload": {
+          "reminderEnabled": true,
+          "reminderTime": "08:00"
+        }
+      },
+      {
+        "name": "Update Multiple Fields",
+        "description": "Update mood, focus areas, and questions together",
+        "payload": {
+          "moodLevel": "Grateful",
+          "focusAreas": ["gratitude", "self-care"],
+          "questions": {
+            "gratitudePractice": "Writing three things I'm grateful for each morning",
+            "selfCareActivities": ["yoga", "reading", "nature walks"],
+            "toughDayMessage": "On tough days, I remind myself of my progress and practice self-compassion"
+          }
+        }
+      }
+    ]
+  },
+  
+  "addToCalendar": {
+    "description": "Add task to calendar payloads - POST /brain-dump/add-to-calendar",
+    "examples": [
+      {
+        "name": "Single Task with Date and Time",
+        "description": "Add a specific task with scheduling details",
+        "payload": {
+          "task": "Call insurance company about claim",
+          "frequency": "once",
+          "duration": "30 minutes",
+          "notes": "Need to follow up on the claim I submitted last week",
+          "date": "2024-01-20T00:00:00Z",
+          "time": "14:00:00",
+          "reminderEnabled": true,
+          "brainDumpEntryId": "00000000-0000-0000-0000-000000000001"
+        }
+      },
+      {
+        "name": "Recurring Daily Task",
+        "description": "Add a daily recurring task",
+        "payload": {
+          "task": "Morning meditation",
+          "frequency": "daily",
+          "duration": "15 minutes",
+          "notes": "Start my day with 15 minutes of mindfulness",
+          "reminderEnabled": true
+        }
+      },
+      {
+        "name": "Weekly Task",
+        "description": "Add a weekly recurring task",
+        "payload": {
+          "task": "Meal prep for the week",
+          "frequency": "weekly",
+          "duration": "2 hours",
+          "notes": "Prepare healthy meals for the upcoming week",
+          "reminderEnabled": true
+        }
+      },
+      {
+        "name": "Minimal Task",
+        "description": "Add a task with only required fields",
+        "payload": {
+          "task": "Review project proposal",
+          "frequency": "once",
+          "duration": "1 hour"
+        }
+      }
+    ]
+  },
+  
+  "notes": {
+    "brainDump": [
+      "All brain dump requests require 'text' field (minimum 3 characters)",
+      "Optional fields: context, mood (0-10), stress (0-10), purpose (0-10)",
+      "Endpoint: POST /brain-dump/suggestions",
+      "Response includes: userProfile, keyThemes, aiSummary, suggestedActivities, and more"
+    ],
+    "wellnessCheckIn": [
+      "Wellness check-in uses PATCH method - only send fields you want to update",
+      "Required for initial creation: moodLevel",
+      "Optional fields: reminderEnabled, reminderTime, ageRange, focusAreas, time slots, questions",
+      "Questions dictionary can contain any dynamic questions based on focus areas",
+      "TimezoneId should be IANA timezone (e.g., 'America/New_York', 'Europe/London')",
+      "Endpoint: PATCH /api/wellness/check-in"
+    ],
+    "addToCalendar": [
+      "Required fields: task, frequency, duration",
+      "Frequency options: 'once', 'daily', 'weekly', 'bi-weekly', 'monthly', 'weekdays'",
+      "Optional: notes, date, time, reminderEnabled, brainDumpEntryId",
+      "Endpoint: POST /brain-dump/add-to-calendar"
+    ],
+    "general": [
+      "All endpoints require authentication (Bearer token)",
+      "Replace placeholder GUIDs with actual values from your system",
+      "Date/time formats should be ISO 8601 (e.g., '2024-01-20T14:00:00Z')",
+      "TimeSpan format: 'HH:mm:ss' (e.g., '14:00:00')"
+    ]
+  }
+}
+

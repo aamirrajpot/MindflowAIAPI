@@ -256,6 +256,8 @@ namespace Mindflow_Web_API.Models
             if (!FocusAreasHelper.IsValidFocusAreasList(focusAreas))
                 throw new ArgumentException($"Focus areas must be valid and cannot exceed {FocusAreasHelper.MaxFocusAreas} selections.", nameof(focusAreas));
 
+
+
             // Validate time fields
             ValidateTimeField(weekdayStartTime, weekdayStartShift, weekdayEndTime, weekdayEndShift, "Weekday");
             ValidateTimeField(weekendStartTime, weekendStartShift, weekendEndTime, weekendEndShift, "Weekend");

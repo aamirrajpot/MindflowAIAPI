@@ -1,6 +1,7 @@
 using Mindflow_Web_API.Services;
 using Mindflow_Web_API.Models;
 using Mindflow_Web_API.Exceptions;
+using Mindflow_Web_API.DTOs;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Mindflow_Web_API.EndPoints
@@ -210,6 +211,48 @@ namespace Mindflow_Web_API.EndPoints
             {
                 op.Summary = "Get personalized task suggestions";
                 op.Description = "Generates personalized task suggestions based on wellness check-in data using RunPod AI";
+                return op;
+            });
+
+            // TinyLlama text prediction endpoint (simple generic completion)
+            runpodApi.MapPost("/tinyllama/predict", async (
+                ITinyLlamaService tinyLlamaService,
+                [FromBody] TextPredictionRequest request,
+                [FromQuery] int maxTokens = 64,
+                [FromQuery] double temperature = 0.7) =>
+            {
+                if (string.IsNullOrWhiteSpace(request.Prompt))
+                    throw ApiExceptions.BadRequest("Prompt is required");
+
+                var result = await tinyLlamaService.PredictAsync(request.Prompt, maxTokens, temperature);
+                return Results.Ok(new { prediction = result });
+            })
+            .RequireAuthorization()
+            .WithOpenApi(op =>
+            {
+                op.Summary = "TinyLlama text prediction (RunPod)";
+                op.Description = "Uses the TinyLlama model on RunPod to generate a short continuation of the provided prompt.";
+                return op;
+            });
+
+            // Llama2 text prediction endpoint (uses the main RunPod Llama 2 chat model)
+            runpodApi.MapPost("/llama2/predict", async (
+                ITinyLlamaService tinyLlamaService,
+                [FromBody] TextPredictionRequest request,
+                [FromQuery] int maxTokens = 256,
+                [FromQuery] double temperature = 0.7) =>
+            {
+                if (string.IsNullOrWhiteSpace(request.Prompt))
+                    throw ApiExceptions.BadRequest("Prompt is required");
+
+                var result = await tinyLlamaService.PredictWithLlama2Async(request.Prompt, maxTokens, temperature);
+                return Results.Ok(new { prediction = result });
+            })
+            .RequireAuthorization()
+            .WithOpenApi(op =>
+            {
+                op.Summary = "Llama 2 text prediction (RunPod main model)";
+                op.Description = "Uses the main Llama 2 chat model on RunPod to generate a higher-quality continuation of the provided prompt.";
                 return op;
             });
 

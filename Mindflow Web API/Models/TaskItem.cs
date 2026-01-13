@@ -35,6 +35,17 @@ namespace Mindflow_Web_API.Models
         public string? LifeArea { get; set; } // Life area: "Work", "Family", "Health", "Relationships", "Personal", etc.
         [MaxLength(50)]
         public string? EmotionTag { get; set; } // Emotion tag: "Anxious", "Grateful", "Overwhelmed", etc.
+        
+        // Micro-step breakdown (stored as JSON array string)
+        [MaxLength(2000)]
+        public string? SubSteps { get; set; } // JSON array of sub-steps: ["Step 1", "Step 2", "Step 3"]
+
+        // Prioritization fields (urgency/importance/combined score)
+        [MaxLength(20)]
+        public string? Urgency { get; set; } // Low | Medium | High
+        [MaxLength(20)]
+        public string? Importance { get; set; } // Low | Medium | High
+        public int? PriorityScore { get; set; } // 1-10 combined score
     }
 
     public enum TaskStatus

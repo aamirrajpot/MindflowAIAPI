@@ -45,7 +45,11 @@ namespace Mindflow_Web_API.Services
                 NextOccurrence = dto.NextOccurrence,
                 MaxOccurrences = dto.MaxOccurrences,
                 EndDate = dto.EndDate,
-                IsActive = dto.IsActive
+                IsActive = dto.IsActive,
+                // Prioritization (optional for manual tasks)
+                Urgency = dto.Urgency,
+                Importance = dto.Importance,
+                PriorityScore = dto.PriorityScore
             };
 
             await _dbContext.Tasks.AddAsync(task);
@@ -174,6 +178,10 @@ namespace Mindflow_Web_API.Services
             if (dto.MaxOccurrences.HasValue) task.MaxOccurrences = dto.MaxOccurrences.Value;
             if (dto.EndDate.HasValue) task.EndDate = dto.EndDate.Value;
             if (dto.IsActive.HasValue) task.IsActive = dto.IsActive.Value;
+            // Prioritization
+            if (dto.Urgency != null) task.Urgency = dto.Urgency;
+            if (dto.Importance != null) task.Importance = dto.Importance;
+            if (dto.PriorityScore.HasValue) task.PriorityScore = dto.PriorityScore.Value;
 
             await _dbContext.SaveChangesAsync();
             return ToDto(task);
@@ -188,6 +196,23 @@ namespace Mindflow_Web_API.Services
             return true;
         }
 
+        public async Task<int> DeleteAllAsync(Guid userId)
+        {
+            var tasks = await _dbContext.Tasks
+                .Where(t => t.UserId == userId)
+                .ToListAsync();
+            
+            if (!tasks.Any())
+                return 0;
+            
+            var count = tasks.Count;
+            _dbContext.Tasks.RemoveRange(tasks);
+            await _dbContext.SaveChangesAsync();
+            
+            _logger.LogInformation("Deleted {Count} tasks for user {UserId}", count, userId);
+            return count;
+        }
+
         public async Task<TaskItemDto?> UpdateStatusAsync(Guid userId, Guid taskId, Mindflow_Web_API.Models.TaskStatus status)
         {
             var task = await _dbContext.Tasks.FirstOrDefaultAsync(t => t.Id == taskId && t.UserId == userId);
@@ -199,6 +224,21 @@ namespace Mindflow_Web_API.Services
 
         private static TaskItemDto ToDto(TaskItem task)
         {
+            // Parse SubSteps from JSON string to List<string>
+            List<string>? subSteps = null;
+            if (!string.IsNullOrWhiteSpace(task.SubSteps))
+            {
+                try
+                {
+                    subSteps = System.Text.Json.JsonSerializer.Deserialize<List<string>>(task.SubSteps);
+                }
+                catch
+                {
+                    // If parsing fails, leave as null
+                    subSteps = null;
+                }
+            }
+            
             return new TaskItemDto(
                 task.Id,
                 task.UserId,
@@ -220,7 +260,15 @@ namespace Mindflow_Web_API.Services
                 task.NextOccurrence,
                 task.MaxOccurrences,
                 task.EndDate,
-                task.IsActive
+                task.IsActive,
+                // Micro-step breakdown
+                subSteps,
+                // Prioritization
+                task.Urgency,
+                task.Importance,
+                task.PriorityScore,
+                // Source indicator (AI-generated tasks)
+                Source: "AI"
             );
         }
 
@@ -315,7 +363,9 @@ namespace Mindflow_Web_API.Services
 				// Recurring task fields
 				ParentTaskId = templateId,
 				IsTemplate = false,
-				IsActive = true
+				IsActive = true,
+				// Copy sub-steps from template
+				SubSteps = template.SubSteps
 			};
 
 			_dbContext.Tasks.Add(instance);

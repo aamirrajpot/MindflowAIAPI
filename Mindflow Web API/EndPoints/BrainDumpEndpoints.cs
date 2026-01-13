@@ -106,31 +106,125 @@ namespace Mindflow_Web_API.EndPoints
 				if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
 					return Results.Unauthorized();
 
-				try
+			try
+			{
+				// Get database context to query TaskSuggestionRecords
+				var dbContext = ctx.RequestServices.GetRequiredService<MindflowDbContext>();
+				
+				// Extract suggestion IDs from the request (assuming only IDs are provided)
+				var suggestionIds = request.Suggestions
+					.Where(s => s.Id.HasValue)
+					.Select(s => s.Id!.Value)
+					.Distinct()
+					.ToList();
+				
+				if (suggestionIds.Count == 0)
 				{
-					var taskItems = await service.AddMultipleTasksToCalendarAsync(userId, request.Suggestions, null, request.BrainDumpEntryId);
+					return Results.BadRequest(new { message = "No valid suggestion IDs provided" });
+				}
 
-					return Results.Ok(new
+				// Fetch task suggestion records from database based on IDs
+				var suggestionRecords = await dbContext.TaskSuggestionRecords
+					.Where(r => suggestionIds.Contains(r.Id) && r.UserId == userId)
+					.ToListAsync();
+
+				if (suggestionRecords.Count == 0)
+				{
+					return Results.NotFound(new { message = "No task suggestions found for the provided IDs" });
+				}
+
+				// Check if all IDs were found
+				if (suggestionRecords.Count != suggestionIds.Count)
+				{
+					var foundIds = suggestionRecords.Select(r => r.Id).ToList();
+					var missingIds = suggestionIds.Except(foundIds).ToList();
+					// Log warning but continue with found records
+					var logger = ctx.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("BrainDumpEndpoints");
+					logger.LogWarning("Some suggestion IDs were not found: {MissingIds}", string.Join(", ", missingIds));
+				}
+
+				var taskItems = new List<TaskItem>();
+				var errors = new List<string>();
+
+				// Process tasks in parallel for better performance
+				await Parallel.ForEachAsync(
+					suggestionRecords,
+					new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount },
+					async (suggestionRecord, ct) =>
 					{
-						message = $"Successfully added {taskItems.Count} tasks to calendar",
-						taskCount = taskItems.Count,
-						tasks = taskItems.Select(t => new
+						try
 						{
-							Id = t.Id,
-							Title = t.Title,
-							Description = t.Description,
-							Category = t.Category,
-							Date = t.Date,
-							Time = t.Time,
-							DurationMinutes = t.DurationMinutes,
-							RepeatType = t.RepeatType,
-							SourceBrainDumpEntryId = t.SourceBrainDumpEntryId,
-							SourceTextExcerpt = t.SourceTextExcerpt,
-							LifeArea = t.LifeArea,
-							EmotionTag = t.EmotionTag
-						}).ToList()
+							// Convert TaskSuggestionRecord to AddToCalendarRequest
+							var addRequest = new AddToCalendarRequest
+							{
+								Task = suggestionRecord.Task,
+								Frequency = suggestionRecord.Frequency ?? "once",
+								Duration = suggestionRecord.Duration ?? "30 minutes",
+								Notes = suggestionRecord.Notes,
+								BrainDumpEntryId = request.BrainDumpEntryId ?? suggestionRecord.BrainDumpEntryId,
+								Urgency = suggestionRecord.Urgency,
+								Importance = suggestionRecord.Importance,
+								PriorityScore = suggestionRecord.PriorityScore,
+								ReminderEnabled = false // Default to false, can be made configurable
+							};
+
+							var taskItem = await service.AddTaskToCalendarAsync(userId, addRequest);
+							
+							// Update the suggestion record to mark it as scheduled
+							suggestionRecord.Status = TaskSuggestionStatus.Scheduled;
+							suggestionRecord.TaskItemId = taskItem.Id;
+							
+							lock (taskItems)
+							{
+								taskItems.Add(taskItem);
+							}
+						}
+						catch (Exception ex)
+						{
+							lock (errors)
+							{
+								errors.Add($"Failed to add task '{suggestionRecord.Task}': {ex.Message}");
+							}
+						}
+					});
+
+				// Save status updates to database
+				if (taskItems.Count > 0)
+				{
+					await dbContext.SaveChangesAsync();
+				}
+
+				if (errors.Count > 0 && taskItems.Count == 0)
+				{
+					return Results.BadRequest(new
+					{
+						message = "Failed to add any tasks to calendar",
+						errors = errors
 					});
 				}
+
+				return Results.Ok(new
+				{
+					message = $"Successfully added {taskItems.Count} of {request.Suggestions.Count} tasks to calendar",
+					taskCount = taskItems.Count,
+					errors = errors.Count > 0 ? errors : null,
+					tasks = taskItems.Select(t => new
+					{
+						Id = t.Id,
+						Title = t.Title,
+						Description = t.Description,
+						Category = t.Category,
+						Date = t.Date,
+						Time = t.Time,
+						DurationMinutes = t.DurationMinutes,
+						RepeatType = t.RepeatType,
+						SourceBrainDumpEntryId = t.SourceBrainDumpEntryId,
+						SourceTextExcerpt = t.SourceTextExcerpt,
+						LifeArea = t.LifeArea,
+						EmotionTag = t.EmotionTag
+					}).ToList()
+				});
+			}
 				catch (ArgumentException ex)
 				{
 					return Results.BadRequest(ex.Message);
@@ -236,6 +330,103 @@ namespace Mindflow_Web_API.EndPoints
 			{
 				op.Summary = "Test the new smart scheduling functionality";
 				op.Description = "Demonstrates how both single and multiple tasks are now scheduled across available time slots from wellness check-ins";
+				return op;
+			});
+
+			api.MapPost("/auto-schedule-all", async (
+				[FromBody] AutoScheduleAllRequest request,
+				IBrainDumpService service,
+				HttpContext ctx) =>
+			{
+				if (!ctx.User.Identity?.IsAuthenticated ?? true)
+					return Results.Unauthorized();
+
+				// Resolve user id
+				var userIdClaim = ctx.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
+				if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+					return Results.Unauthorized();
+
+				try
+				{
+					var taskItems = await service.AutoScheduleAllTasksAsync(userId, request.BrainDumpEntryId, request.SuggestionIds);
+
+					return Results.Ok(new
+					{
+						message = $"Successfully auto-scheduled {taskItems.Count} tasks",
+						taskCount = taskItems.Count,
+						tasks = taskItems.Select(t => new
+						{
+							Id = t.Id,
+							Title = t.Title,
+							Description = t.Description,
+							Category = t.Category,
+							Date = t.Date,
+							Time = t.Time,
+							DurationMinutes = t.DurationMinutes,
+							RepeatType = t.RepeatType,
+							SourceBrainDumpEntryId = t.SourceBrainDumpEntryId,
+							SourceTextExcerpt = t.SourceTextExcerpt,
+							LifeArea = t.LifeArea,
+							EmotionTag = t.EmotionTag,
+							Urgency = t.Urgency,
+							Importance = t.Importance,
+							PriorityScore = t.PriorityScore,
+							SubSteps = t.SubSteps != null ? System.Text.Json.JsonSerializer.Deserialize<List<string>>(t.SubSteps) : null
+						}).ToList()
+					});
+				}
+				catch (ArgumentException ex)
+				{
+					return Results.BadRequest(new { error = ex.Message });
+				}
+				catch (Exception ex)
+				{
+					return Results.BadRequest(new { error = ex.Message });
+				}
+			})
+			.WithOpenApi(op =>
+			{
+				op.Summary = "Auto-schedule all suggested tasks from a brain dump";
+				op.Description = "Automatically schedules all suggested tasks from a brain dump entry using smart scheduling across available time slots. Tasks are saved to the database and scheduled optimally based on user's wellness check-in data.";
+				return op;
+			});
+
+			api.MapPost("/skip-tasks", async (
+				[FromBody] SkipTasksRequest request,
+				IBrainDumpService service,
+				HttpContext ctx) =>
+			{
+				if (!ctx.User.Identity?.IsAuthenticated ?? true)
+					return Results.Unauthorized();
+
+				// Resolve user id
+				var userIdClaim = ctx.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
+				if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+					return Results.Unauthorized();
+
+				try
+				{
+					var success = await service.SkipTasksAsync(userId, request.BrainDumpEntryId, request.SuggestionIds);
+
+					return Results.Ok(new
+					{
+						message = "Tasks skipped successfully",
+						success = success
+					});
+				}
+				catch (ArgumentException ex)
+				{
+					return Results.BadRequest(new { error = ex.Message });
+				}
+				catch (Exception ex)
+				{
+					return Results.BadRequest(new { error = ex.Message });
+				}
+			})
+			.WithOpenApi(op =>
+			{
+				op.Summary = "Skip suggested tasks from a brain dump";
+				op.Description = "Marks task suggestions as skipped. If no suggestionIds are provided, all remaining suggested tasks for the brain dump entry are marked skipped.";
 				return op;
 			});
 

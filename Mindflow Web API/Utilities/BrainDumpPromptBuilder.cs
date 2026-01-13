@@ -172,96 +172,1364 @@ namespace Mindflow_Web_API.Utilities
         //	return sb.ToString();
         //}
 
+        //    public static string BuildTaskSuggestionsPrompt(
+        //BrainDumpRequest request,
+        //DTOs.WellnessCheckInDto? wellnessData = null,
+        //string? userName = null,
+        //bool forceMinimumActivities = false)
+        //    {
+        //        var sb = new StringBuilder();
+
+        //        sb.Append("[INST] You are a warm, expert wellness coach and an accurate extraction engine. ");
+        //        sb.Append("Your job is to read the user's brain dump and extract EVERY actionable item without skipping anything. ");
+        //        sb.Append("This includes tasks, errands, calls, follow-ups, decisions, appointments, and implied obligations.\n\n");
+
+        //        sb.Append("IMPORTANT REQUIREMENT:\n");
+        //        sb.Append("→ You MUST return at least one task for every actionable or implied point mentioned in the brain dump.\n");
+        //        sb.Append("→ If the brain dump contains 14 items, you must return at least 14 tasks. Never fewer.\n");
+        //        sb.Append("→ Never merge multiple tasks into one. Split at every 'and', 'also', or separate verb.\n\n");
+
+        //        sb.AppendLine("SAMPLE OUTPUT FORMAT:");
+        //        sb.AppendLine("Return ONLY a single JSON object:");
+        //        sb.AppendLine("{");
+        //        sb.AppendLine("    \"userProfile\": {");
+        //        sb.AppendLine($"        \"name\": \"{userName ?? "User"}\",");
+        //        sb.AppendLine("        \"currentState\": \"Analyze the user's emotional state based on the brain dump, 1–2 words or a short phrase\",");
+        //        sb.AppendLine("        \"emoji\": \"Select one emoji representing the user's current mood\"");
+        //        sb.AppendLine("    },");
+        //        sb.AppendLine("    \"keyThemes\": [\"Analyze 3 key themes or topics mentioned in the brain dump\"],");
+        //        sb.AppendLine("    \"aiSummary\": \"Generate a 2–3 sentence empathetic summary describing the user's mindset, needs, and emotional tone\"");
+        //        sb.AppendLine("    \"suggestedActivities\": [");
+        //        sb.AppendLine("        {");
+        //        sb.AppendLine("            \"task\": \"Short action title\",");
+        //        sb.AppendLine("            \"frequency\": \"once | daily | weekly | bi-weekly | monthly | weekdays | never\",");
+        //        sb.AppendLine("            \"duration\": \"Concrete duration\",");
+        //        sb.AppendLine("            \"notes\": \"Short reason directly from the user's text\",");
+        //        sb.AppendLine("            \"priority\": \"High | Medium | Low\",");
+        //        sb.AppendLine("            \"suggestedTime\": \"Morning | Afternoon | Evening | specific time\"");
+        //        sb.AppendLine("        }");
+        //        sb.AppendLine("    ]");
+        //        sb.AppendLine("}");
+
+
+        //        sb.Append("Duration Rules:\n");
+        //        sb.Append("- The duration field must contain ONLY a time estimate in minutes or hours.\n");
+        //        sb.Append("- Valid examples: \"10 minutes\", \"20 minutes\", \"45 minutes\", \"1 hour\", \"2 hours\".\n");
+        //        sb.Append("- NEVER include sentences, actions, or extra words.\n\n");
+
+        //        sb.Append("Notes Rules:\n");
+        //        sb.Append("- Notes must be a short, natural explanation referencing the source text.\n");
+        //        sb.Append("- Example: \"You said you need to call the insurance company about a check.\"\n");
+        //        sb.Append("- Do NOT use template phrases like: 'Paraphrased trigger', 'Trigger phrase', 'From brain dump'.\n");
+        //        sb.Append("- Keep it personal, warm, and human.\n\n");
+
+        //        sb.Append("Task Ordering Rules:\n");
+        //        sb.Append("- List tasks in the same order they appear in the brain dump.\n");
+        //        sb.Append("- Priority distribution must vary (not all Medium).\n");
+        //        sb.Append("- Actionable tasks first, optional wellness tasks last (max 2 wellness tasks).\n\n");
+
+        //        if (forceMinimumActivities)
+        //            sb.Append("- Because the user requested a full list, return at least 12 total tasks.\n\n");
+
+        //        sb.Append("=== USER BRAIN DUMP ===\n");
+        //        sb.Append(request.Text.Replace("\r", "").Replace("\n", "\\n"));
+        //        sb.Append("\n\n");
+
+        //        if (!string.IsNullOrWhiteSpace(request.Context))
+        //        {
+        //            sb.Append("Additional Context:\\n");
+        //            sb.Append(request.Context!.Replace("\r", "").Replace("\n", "\\n"));
+        //            sb.Append("\n\n");
+        //        }
+
+        //        if (request.Mood.HasValue || request.Stress.HasValue || request.Purpose.HasValue)
+        //        {
+        //            sb.Append("Self-Reported Scores (0-10): ");
+        //            if (request.Mood.HasValue) sb.Append($"Mood={request.Mood.Value} ");
+        //            if (request.Stress.HasValue) sb.Append($"Stress={request.Stress.Value} ");
+        //            if (request.Purpose.HasValue) sb.Append($"Purpose={request.Purpose.Value} ");
+        //            sb.Append("\n\n");
+        //        }
+
+        //        sb.Append("Return ONLY the JSON array. No description. No commentary. No text outside JSON.\n");
+        //        sb.Append("\nLINKING RULES:\n");
+        //        sb.Append("- Every keyTheme you output MUST have at least one matching task in suggestedActivities that addresses it.\n");
+        //        sb.Append("- If you list 9 themes or obligations, you must return at least 9 actionable tasks (one per theme, plus extra tasks if a theme implies multiple steps).\n");
+        //        sb.Append("- Do not output more themes than tasks. Tasks and themes must correspond 1:1 or 1:many (never fewer tasks than themes).\n");
+        //        sb.Append("\n[/INST]");
+
+        //        return sb.ToString();
+        //    }
+        // Multi-prompt approach: Step 1 - Extract Key Themes
+        public static string BuildExtractThemesPrompt(string summary, List<string> emotions, List<string> topics)
+        {
+            var sb = new StringBuilder();
+            sb.Append("[INST] ");
+            sb.Append("You are analyzing a user's brain dump. Extract exactly 3 key themes or main topics.\n\n");
+            sb.Append("Summary: ");
+            sb.Append(summary);
+            sb.Append("\n\n");
+            sb.Append("Emotions: ");
+            sb.Append(string.Join(", ", emotions));
+            sb.Append("\n\n");
+            sb.Append("Topics: ");
+            sb.Append(string.Join(", ", topics));
+            sb.Append("\n\n");
+            sb.Append("Return ONLY a JSON array with exactly 3 theme strings.\n");
+            sb.Append("Example: [\"Work stress\", \"Family time\", \"Health goals\"]\n");
+            sb.Append("No explanations. Just the JSON array. [/INST]");
+            return sb.ToString();
+        }
+
+        // Multi-prompt approach: Step 2 - Generate User Profile (Enhanced)
+        public static string BuildUserProfilePrompt(string originalText, string summary, List<string> emotions, string? userName = null)
+        {
+            var sb = new StringBuilder();
+            sb.Append("[INST] ");
+            sb.Append("You are analyzing a user's brain dump to determine their current emotional state. Based on the text, emotions, and context, create a personalized profile.\n\n");
+            
+            sb.Append("CRITICAL: You MUST return ONLY valid JSON. No text before or after. No explanations.\n\n");
+            
+            sb.Append("Original Text (for context):\n");
+            sb.Append(originalText.Length > 500 ? originalText.Substring(0, 500) + "..." : originalText);
+            sb.Append("\n\n");
+            
+            sb.Append("Summary: ");
+            sb.Append(summary);
+            sb.Append("\n\n");
+            
+            sb.Append("Detected Emotions: ");
+            sb.Append(string.Join(", ", emotions));
+            sb.Append("\n\n");
+            
+            sb.Append("Return ONLY this exact JSON structure (replace the example values):\n");
+            sb.Append("{\n");
+            sb.Append($"  \"name\": \"{userName ?? "User"}\",\n");
+            sb.Append("  \"currentState\": \"2-3 word emotional state like 'Reflective & Optimistic' or 'Stressed & Overwhelmed' or 'Grateful & Energized'\",\n");
+            sb.Append("  \"emoji\": \"one emoji that matches the emotional state like 😊 or 😔 or 🤔 or 💪\"\n");
+            sb.Append("}\n\n");
+            
+            sb.Append("EXAMPLES:\n");
+            sb.Append("If user is stressed: {\"name\": \"User\", \"currentState\": \"Stressed & Overwhelmed\", \"emoji\": \"😰\"}\n");
+            sb.Append("If user is grateful: {\"name\": \"User\", \"currentState\": \"Grateful & Reflective\", \"emoji\": \"😊\"}\n");
+            sb.Append("If user is anxious: {\"name\": \"User\", \"currentState\": \"Anxious & Uncertain\", \"emoji\": \"😟\"}\n\n");
+            
+            sb.Append("IMPORTANT: Return ONLY the JSON object. No markdown. No code blocks. No explanations. Start with { and end with }. [/INST]");
+            return sb.ToString();
+        }
+
+        // Multi-prompt approach: Step 3 - Generate AI Summary (Enhanced - Therapist-Style with CBT/DBT/Trauma-Informed)
+        public static string BuildAiSummaryPrompt(string originalText, string summary, List<string> emotions, List<string> themes, BrainDumpRequest? request = null)
+        {
+            var sb = new StringBuilder();
+            sb.Append("[INST] ");
+            sb.Append("You are an experienced therapist providing a guided, conversational response to a client's brain dump. ");
+            sb.Append("Your response should feel like a real therapist conversation - warm, reflective, validating, and gently guiding. ");
+            sb.Append("This is NOT a simple summary. This is a back-and-forth therapeutic conversation starter.\n\n");
+            
+            // Determine which therapeutic approach to use
+            var approach = DetermineTherapeuticApproach(originalText, emotions, themes, null);
+            sb.Append($"THERAPEUTIC APPROACH: {approach}\n\n");
+            
+            if (approach == "CBT")
+            {
+                sb.Append("CBT (Cognitive Behavioral Therapy) STYLE:\n");
+                sb.Append("- Focus on the connection between thoughts, feelings, and behaviors\n");
+                sb.Append("- Help identify negative or unhelpful thoughts\n");
+                sb.Append("- Gently guide toward examining evidence for and against thoughts\n");
+                sb.Append("- Use structured, logical, thought-focused language\n");
+                sb.Append("- Example: 'It sounds like you're having the thought that you're failing at everything. ");
+                sb.Append("Let's pause and examine that—what evidence supports this thought, and what evidence might challenge it?'\n\n");
+            }
+            else if (approach == "DBT")
+            {
+                sb.Append("DBT (Dialectical Behavior Therapy) STYLE:\n");
+                sb.Append("- Emotion-first approach - validate feelings FIRST\n");
+                sb.Append("- Focus on emotional regulation and distress tolerance\n");
+                sb.Append("- Use mindfulness language\n");
+                sb.Append("- Validate without judging or dismissing\n");
+                sb.Append("- Example: 'That sounds really overwhelming. Anyone in your situation would feel drained. ");
+                sb.Append("Let's slow down for a moment—can you name what emotion feels strongest right now?'\n\n");
+            }
+            else if (approach == "TraumaInformed")
+            {
+                sb.Append("TRAUMA-INFORMED APPROACH STYLE:\n");
+                sb.Append("- Prioritize emotional and psychological safety\n");
+                sb.Append("- Avoid judgment or triggering language\n");
+                sb.Append("- Empower the user (no 'you should' language)\n");
+                sb.Append("- Give control back to the user\n");
+                sb.Append("- Example: 'Thank you for sharing this. You're not required to fix anything right now. ");
+                sb.Append("We can move at whatever pace feels safe for you.'\n\n");
+            }
+            else
+            {
+                sb.Append("ADAPTIVE THERAPEUTIC STYLE:\n");
+                sb.Append("- Blend validation, reflection, and gentle guidance\n");
+                sb.Append("- Use warm, empathetic language\n");
+                sb.Append("- Include reflective questions that invite deeper exploration\n\n");
+            }
+            
+            sb.Append("CRITICAL RULES:\n");
+            sb.Append("- DO NOT repeat words unnecessarily (avoid saying 'overwhelmed' multiple times)\n");
+            sb.Append("- Focus on the DEEPER MEANING behind what they're expressing\n");
+            sb.Append("- Include SPECIFIC examples from their text (reference actual details they mentioned)\n");
+            sb.Append("- Use therapy-informed language: validate their feelings, acknowledge their experience\n");
+            sb.Append("- Be warm and supportive, not clinical or robotic\n");
+            sb.Append("- Write 3-5 sentences that feel personal and meaningful\n");
+            sb.Append("- Include 1-2 gentle, reflective questions that invite deeper exploration\n");
+            sb.Append("- Avoid generic phrases like 'it seems like' or 'you appear to'\n");
+            sb.Append("- Connect their emotions to their practical concerns when relevant\n");
+            sb.Append("- This is a CONVERSATION STARTER, not just a summary - engage with their experience therapeutically\n");
+            sb.Append("- Do NOT provide generic encouragement - be specific to their situation\n");
+            sb.Append("- Do NOT list tasks - this is about emotional processing, not task management\n\n");
+            
+            sb.Append("Original Text (for context and specific details):\n");
+            sb.Append(originalText);
+            sb.Append("\n\n");
+            
+            sb.Append("Extracted Summary:\n");
+            sb.Append(summary);
+            sb.Append("\n\n");
+            
+            sb.Append("Detected Emotions: ");
+            sb.Append(string.Join(", ", emotions));
+            sb.Append("\n\n");
+            
+            sb.Append("Key Themes: ");
+            sb.Append(string.Join(", ", themes));
+            sb.Append("\n\n");
+            
+            // Add self-reported scores if available for context
+            if (request != null && (request.Mood.HasValue || request.Stress.HasValue || request.Purpose.HasValue))
+            {
+                sb.Append("Self-Reported Well-being Scores:\n");
+                if (request.Mood.HasValue) sb.Append($"- Mood: {request.Mood.Value}/10\n");
+                if (request.Stress.HasValue) sb.Append($"- Stress: {request.Stress.Value}/10\n");
+                if (request.Purpose.HasValue) sb.Append($"- Purpose: {request.Purpose.Value}/10\n");
+                sb.Append("\n");
+            }
+            
+            sb.Append("GOOD EXAMPLE (CBT-style):\n");
+            sb.Append("It sounds like you're having the thought that you're failing at everything and can't focus. ");
+            sb.Append("Let's pause and examine that—what evidence supports this thought, and what evidence might challenge it? ");
+            sb.Append("I notice you mentioned feeling behind on work deadlines. When you think about 'failing at everything,' ");
+            sb.Append("are there areas where you're actually making progress, even if small? ");
+            sb.Append("What would it feel like to acknowledge both the struggle and any steps you've taken, however small?\n\n");
+            
+            sb.Append("GOOD EXAMPLE (DBT-style):\n");
+            sb.Append("That sounds really overwhelming. Anyone in your situation would feel drained trying to balance ");
+            sb.Append("everything you've described. Let's slow down for a moment—can you name what emotion feels strongest ");
+            sb.Append("right now? Is it the anxiety about deadlines, or maybe something deeper like fear of disappointing others? ");
+            sb.Append("Sometimes naming the emotion helps us understand what we actually need in this moment.\n\n");
+            
+            sb.Append("BAD EXAMPLE (avoid this - too generic):\n");
+            sb.Append("You seem overwhelmed and stressed about work. You have deadlines and feel overwhelmed. ");
+            sb.Append("It seems like you need to manage your time better. Here are some tasks to help you.\n\n");
+            
+            sb.Append("CRITICAL OUTPUT RULES:\n");
+            sb.Append("- Return ONLY the summary text itself\n");
+            sb.Append("- DO NOT include any introductory phrases like 'Sure, here is...', 'Here's a summary...', 'Here is a personalized...', etc.\n");
+            sb.Append("- DO NOT include phrases like 'that validates the user's experience' or 'that references specific details'\n");
+            sb.Append("- DO NOT include quotes around the text\n");
+            sb.Append("- DO NOT include JSON formatting\n");
+            sb.Append("- Start DIRECTLY with the summary content (e.g., 'You're navigating...' or 'It sounds like...')\n");
+            sb.Append("- The summary should:\n");
+            sb.Append("  1. Validate their experience without being repetitive\n");
+            sb.Append("  2. Reference specific details they mentioned\n");
+            sb.Append("  3. Show you understand the deeper meaning\n");
+            sb.Append("  4. Use warm, supportive, therapy-informed language\n\n");
+            
+            sb.Append("Return ONLY the summary text. Start directly with the summary content. [/INST]");
+            return sb.ToString();
+        }
+
+        // Multi-prompt approach: Step 4 - Generate Task Suggestions
+        /// <summary>
+        /// Optimized prompt for Llama 2 - condensed from ~170 lines to ~70 lines for better processing.
+        /// Key optimizations:
+        /// - Removed redundant instructions and examples
+        /// - Condensed extraction rules into bullet points
+        /// - Simplified prioritization rules
+        /// - Focuses on thorough analysis rather than forced minimums
+        /// - Removed summary/themes/topics to avoid confusing the model - it should extract directly from original text
+        /// </summary>
         public static string BuildTaskSuggestionsPrompt(
+            string originalText,
+    string summary,
+    List<string> emotions,
+    List<string> topics,
+            List<string> themes,
+    WellnessSummary wellness,
     BrainDumpRequest request,
-    DTOs.WellnessCheckInDto? wellnessData = null,
-    string? userName = null,
     bool forceMinimumActivities = false)
         {
             var sb = new StringBuilder();
+            sb.Append("[INST] Thoroughly analyze the brain dump and extract ALL specific tasks mentioned. Return ONLY a JSON array.\n\n");
 
-            sb.Append("[INST] You are a warm, expert wellness coach and an accurate extraction engine. ");
-            sb.Append("Your job is to read the user's brain dump and extract EVERY actionable item without skipping anything. ");
-            sb.Append("This includes tasks, errands, calls, follow-ups, decisions, appointments, and implied obligations.\n\n");
+            // Core instruction - focus on thoroughness, not minimums
+            sb.Append("INSTRUCTION: Read the ENTIRE text carefully. Extract EVERY task, obligation, responsibility, and action item you find.\n");
+            sb.Append("Be thorough - scan every sentence. Do not miss any tasks. Do not stop early.\n\n");
 
-            sb.Append("IMPORTANT REQUIREMENT:\n");
-            sb.Append("→ You MUST return at least one task for every actionable or implied point mentioned in the brain dump.\n");
-            sb.Append("→ If the brain dump contains 14 items, you must return at least 14 tasks. Never fewer.\n");
-            sb.Append("→ Never merge multiple tasks into one. Split at every 'and', 'also', or separate verb.\n\n");
-
-            sb.AppendLine("SAMPLE OUTPUT FORMAT:");
-            sb.AppendLine("Return ONLY a single JSON object:");
-            sb.AppendLine("{");
-            sb.AppendLine("    \"userProfile\": {");
-            sb.AppendLine($"        \"name\": \"{userName ?? "User"}\",");
-            sb.AppendLine("        \"currentState\": \"Analyze the user's emotional state based on the brain dump, 1–2 words or a short phrase\",");
-            sb.AppendLine("        \"emoji\": \"Select one emoji representing the user's current mood\"");
-            sb.AppendLine("    },");
-            sb.AppendLine("    \"keyThemes\": [\"Analyze 3 key themes or topics mentioned in the brain dump\"],");
-            sb.AppendLine("    \"aiSummary\": \"Generate a 2–3 sentence empathetic summary describing the user's mindset, needs, and emotional tone\"");
-            sb.AppendLine("    \"suggestedActivities\": [");
-            sb.AppendLine("        {");
-            sb.AppendLine("            \"task\": \"Short action title\",");
-            sb.AppendLine("            \"frequency\": \"once | daily | weekly | bi-weekly | monthly | weekdays | never\",");
-            sb.AppendLine("            \"duration\": \"Concrete duration\",");
-            sb.AppendLine("            \"notes\": \"Short reason directly from the user's text\",");
-            sb.AppendLine("            \"priority\": \"High | Medium | Low\",");
-            sb.AppendLine("            \"suggestedTime\": \"Morning | Afternoon | Evening | specific time\"");
-            sb.AppendLine("        }");
-            sb.AppendLine("    ]");
-            sb.AppendLine("}");
-
-
-            sb.Append("Duration Rules:\n");
-            sb.Append("- The duration field must contain ONLY a time estimate in minutes or hours.\n");
-            sb.Append("- Valid examples: \"10 minutes\", \"20 minutes\", \"45 minutes\", \"1 hour\", \"2 hours\".\n");
-            sb.Append("- NEVER include sentences, actions, or extra words.\n\n");
-
-            sb.Append("Notes Rules:\n");
-            sb.Append("- Notes must be a short, natural explanation referencing the source text.\n");
-            sb.Append("- Example: \"You said you need to call the insurance company about a check.\"\n");
-            sb.Append("- Do NOT use template phrases like: 'Paraphrased trigger', 'Trigger phrase', 'From brain dump'.\n");
-            sb.Append("- Keep it personal, warm, and human.\n\n");
-
-            sb.Append("Task Ordering Rules:\n");
-            sb.Append("- List tasks in the same order they appear in the brain dump.\n");
-            sb.Append("- Priority distribution must vary (not all Medium).\n");
-            sb.Append("- Actionable tasks first, optional wellness tasks last (max 2 wellness tasks).\n\n");
-
-            if (forceMinimumActivities)
-                sb.Append("- Because the user requested a full list, return at least 12 total tasks.\n\n");
-
-            sb.Append("=== USER BRAIN DUMP ===\n");
-            sb.Append(request.Text.Replace("\r", "").Replace("\n", "\\n"));
+            // Only provide the original text - no summary, themes, or topics to avoid bias
+            sb.Append("Original Text:\n");
+            sb.Append(originalText);
             sb.Append("\n\n");
 
-            if (!string.IsNullOrWhiteSpace(request.Context))
-            {
-                sb.Append("Additional Context:\\n");
-                sb.Append(request.Context!.Replace("\r", "").Replace("\n", "\\n"));
-                sb.Append("\n\n");
-            }
-
+            // Only include wellness preferences and scores if available
+            //if (wellness.PreferredTimeBlocks.Any())
+                //sb.Append($"Preferred Times: {string.Join(", ", wellness.PreferredTimeBlocks)}\n");
             if (request.Mood.HasValue || request.Stress.HasValue || request.Purpose.HasValue)
             {
-                sb.Append("Self-Reported Scores (0-10): ");
-                if (request.Mood.HasValue) sb.Append($"Mood={request.Mood.Value} ");
-                if (request.Stress.HasValue) sb.Append($"Stress={request.Stress.Value} ");
-                if (request.Purpose.HasValue) sb.Append($"Purpose={request.Purpose.Value} ");
-                sb.Append("\n\n");
+                var scores = new List<string>();
+                if (request.Mood.HasValue) scores.Add($"Mood={request.Mood.Value}");
+                if (request.Stress.HasValue) scores.Add($"Stress={request.Stress.Value}");
+                if (request.Purpose.HasValue) scores.Add($"Purpose={request.Purpose.Value}");
+                sb.Append($"Scores: {string.Join(", ", scores)}\n");
             }
+            //if (wellness.PreferredTimeBlocks.Any() || request.Mood.HasValue || request.Stress.HasValue || request.Purpose.HasValue)
+              //  sb.Append("\n");
 
-            sb.Append("Return ONLY the JSON array. No description. No commentary. No text outside JSON.\n");
-            sb.Append("\nLINKING RULES:\n");
-            sb.Append("- Every keyTheme you output MUST have at least one matching task in suggestedActivities that addresses it.\n");
-            sb.Append("- If you list 9 themes or obligations, you must return at least 9 actionable tasks (one per theme, plus extra tasks if a theme implies multiple steps).\n");
-            sb.Append("- Do not output more themes than tasks. Tasks and themes must correspond 1:1 or 1:many (never fewer tasks than themes).\n");
-            sb.Append("\n[/INST]");
+            // Condensed extraction rules - emphasize thoroughness
+            sb.Append("EXTRACTION (be thorough):\n");
+            sb.Append("1. Read every sentence carefully. Look for action verbs: need to, must, should, have to, want to, plan to, going to.\n");
+            sb.Append("2. Break compound sentences into separate tasks. \"I need X and Y\" = TWO separate tasks.\n");
+            sb.Append("3. Include ALL context from the text: names, places, items, deadlines, dates, times.\n");
+            sb.Append("4. Extract implied tasks: coordinate, prepare, purchase, manage, schedule, call, email, meet.\n");
+            sb.Append("5. Continue scanning until you've reviewed the entire text - extract everything mentioned.\n\n");
+
+            // Prioritization - condensed
+            sb.Append("PRIORITIZATION:\n");
+            sb.Append("Urgency: HIGH=deadline soon/stressed, MEDIUM=soon, LOW=whenever\n");
+            sb.Append("Importance: HIGH=health/job/relationships/major events, MEDIUM=helpful, LOW=optional\n");
+            sb.Append("priorityScore: High+High=9-10, High+Med=7-8, Med+Med=5-6, Med+Low=3-4, Low+Low=1-2\n\n");
+
+            // JSON format - concise
+            sb.Append("JSON FORMAT:\n");
+            sb.Append("[\n");
+            sb.Append("  {\"task\": \"specific task with full context\", \"frequency\": \"once|daily|weekly|bi-weekly|monthly|weekdays|never\", \"duration\": \"10 minutes|1 hour|etc\", \"notes\": \"short reason\", \"priority\": \"High|Medium|Low\", \"suggestedTime\": \"Morning|Afternoon|Evening\", \"urgency\": \"Low|Medium|High\", \"importance\": \"Low|Medium|High\", \"priorityScore\": 1-10}\n");
+            sb.Append("]\n\n");
+
+            sb.Append("CRITICAL:\n");
+            sb.Append("- Extract ALL tasks mentioned in the text - be thorough and complete\n");
+            sb.Append("- Return ONLY JSON array, no other text\n");
+            sb.Append("- Start with [ and end with ]\n");
+            sb.Append("- Break compound sentences into separate tasks\n");
+            sb.Append("- Preserve ALL specific details from original text (names, places, dates, etc.)\n");
+            sb.Append("[/INST]");
 
             return sb.ToString();
         }
 
+        /// <summary>
+        /// Generates wellness-specific task suggestions based on user's wellness profile.
+        /// This is separate from brain dump tasks to focus on self-care and wellness activities.
+        /// </summary>
+        public static string BuildWellnessTaskSuggestionsPrompt(
+            WellnessSummary wellness,
+            BrainDumpRequest? request = null)
+        {
+            var sb = new StringBuilder();
+            sb.Append("[INST] Generate wellness and self-care task suggestions based on the user's wellness profile. Return ONLY a JSON array.\n\n");
 
+            sb.Append("INSTRUCTION: Create actionable wellness tasks that support the user's focus areas, mood, and preferences.\n");
+            sb.Append("Focus on self-care, mental health, physical wellness, and personal growth activities.\n\n");
+
+            // Wellness data
+            sb.Append("Wellness Profile:\n");
+            if (!string.IsNullOrWhiteSpace(wellness.MoodLevel))
+                sb.Append($"Current Mood: {wellness.MoodLevel}\n");
+            
+            if (wellness.FocusAreas.Any())
+                sb.Append($"Focus Areas: {string.Join(", ", wellness.FocusAreas)}\n");
+            
+            if (wellness.PreferredTimeBlocks.Any())
+                sb.Append($"Preferred Times: {string.Join(", ", wellness.PreferredTimeBlocks)}\n");
+            
+            if (wellness.KeyResponses.Any())
+            {
+                sb.Append("Additional Context:\n");
+                foreach (var kvp in wellness.KeyResponses.Take(5)) // Limit to avoid too much data
+                {
+                    sb.Append($"- {kvp.Key}: {kvp.Value}\n");
+                }
+            }
+            
+            if (request != null && (request.Mood.HasValue || request.Stress.HasValue || request.Purpose.HasValue))
+            {
+                var scores = new List<string>();
+                if (request.Mood.HasValue) scores.Add($"Mood={request.Mood.Value}");
+                if (request.Stress.HasValue) scores.Add($"Stress={request.Stress.Value}");
+                if (request.Purpose.HasValue) scores.Add($"Purpose={request.Purpose.Value}");
+                sb.Append($"Self-Reported Scores: {string.Join(", ", scores)}\n");
+            }
+            sb.Append("\n");
+
+            // Wellness task generation rules
+            sb.Append("WELLNESS TASK GENERATION:\n");
+            sb.Append("1. Create tasks aligned with the user's focus areas (e.g., if 'spirituality', suggest meditation/prayer tasks)\n");
+            sb.Append("2. Consider current mood - suggest activities that support or improve mood\n");
+            sb.Append("3. Include self-care activities: exercise, meditation, journaling, rest, social connection\n");
+            sb.Append("4. Respect preferred time blocks when suggesting times\n");
+            sb.Append("5. Make tasks specific and actionable (e.g., \"10-minute morning meditation\" not just \"meditate\")\n");
+            sb.Append("6. Include variety: physical, mental, emotional, and social wellness activities\n");
+            sb.Append("7. Keep tasks realistic and achievable (5-60 minutes typically)\n\n");
+
+            // Prioritization
+            sb.Append("PRIORITIZATION:\n");
+            sb.Append("Urgency: Usually LOW for wellness tasks (self-care can be done flexibly)\n");
+            sb.Append("Importance: MEDIUM to HIGH (wellness supports overall health and productivity)\n");
+            sb.Append("priorityScore: Typically 3-7 for wellness tasks (important but not urgent)\n\n");
+
+            // JSON format
+            sb.Append("JSON FORMAT:\n");
+            sb.Append("[\n");
+            sb.Append("  {\"task\": \"specific wellness activity\", \"frequency\": \"once|daily|weekly|bi-weekly|monthly|weekdays|never\", \"duration\": \"10 minutes|30 minutes|1 hour|etc\", \"notes\": \"why this supports wellness\", \"priority\": \"High|Medium|Low\", \"suggestedTime\": \"Morning|Afternoon|Evening\", \"urgency\": \"Low|Medium|High\", \"importance\": \"Low|Medium|High\", \"priorityScore\": 3-7}\n");
+            sb.Append("]\n\n");
+
+            sb.Append("CRITICAL:\n");
+            sb.Append("- Generate 3-5 wellness tasks that align with focus areas and mood\n");
+            sb.Append("- Return ONLY JSON array, no other text\n");
+            sb.Append("- Start with [ and end with ]\n");
+            sb.Append("- Make tasks specific and actionable\n");
+            sb.Append("- Focus on self-care, wellness, and personal growth\n");
+            sb.Append("[/INST]");
+
+            return sb.ToString();
+        }
+
+        // Legacy method kept for backward compatibility (can be removed later)
+        public static string BuildTaskSuggestionsPrompt(
+    string summary,
+    List<string> emotions,
+    List<string> topics,
+    WellnessSummary wellness,
+    BrainDumpRequest request,
+    string? userName = null,
+    bool forceMinimumActivities = false)
+        {
+            // This is now a wrapper that calls the multi-prompt approach
+            // For backward compatibility, we'll extract themes first, then build the full response
+            // But ideally, callers should use the new multi-prompt methods directly
+            var themes = new List<string> { "General", "Wellness", "Personal" }; // Fallback themes
+            var originalText = request.Text ?? string.Empty; // Use request text as original text
+            return BuildTaskSuggestionsPrompt(originalText, summary, emotions, topics, themes, wellness, request, forceMinimumActivities);
+        }
+
+
+
+        // Parser for Step 1: Extract Themes
+        public static List<string> ParseThemesResponse(string aiResponse, ILogger? logger = null)
+        {
+            try
+            {
+                // Extract text from RunPod response envelope (handles both new and old structures)
+                var extractedText = RunpodResponseHelper.ExtractTextFromRunpodResponse(aiResponse);
+                var cleanText = CleanJsonText(extractedText, logger);
+                
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                };
+                
+                // Try to deserialize as nested array first (handles cases where AI returns array of arrays)
+                try
+                {
+                    var nestedThemes = JsonSerializer.Deserialize<List<List<string>>>(cleanText, options);
+                    if (nestedThemes != null && nestedThemes.Count > 0)
+                    {
+                        // Flatten the nested array into a single list
+                        var flattened = nestedThemes.SelectMany(x => x).Distinct().ToList();
+                        logger?.LogDebug("Parsed nested themes array, flattened to {Count} themes", flattened.Count);
+                        return flattened;
+                    }
+                }
+                catch
+                {
+                    // Not a nested array, try flat array
+                }
+                
+                // Try to deserialize as flat array
+                var themes = JsonSerializer.Deserialize<List<string>>(cleanText, options);
+                
+                return themes ?? new List<string>();
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "Failed to parse themes response: {Error}", ex.Message);
+                return new List<string> { "General", "Wellness", "Personal" };
+            }
+        }
+
+        // Parser for Step 2: User Profile (Enhanced)
+        public static UserProfileSummary ParseUserProfileResponse(string aiResponse, ILogger? logger = null)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(aiResponse))
+                {
+                    logger?.LogWarning("User profile response is null or empty");
+                    return new UserProfileSummary { Name = "User", CurrentState = "Processing", Emoji = "🤔" };
+                }
+                
+                logger?.LogDebug("Parsing user profile response. Raw response length: {Length}", aiResponse.Length);
+                
+                // Extract text from RunPod response envelope (handles both new and old structures)
+                var extractedText = RunpodResponseHelper.ExtractTextFromRunpodResponse(aiResponse);
+                if (string.IsNullOrWhiteSpace(extractedText))
+                {
+                    logger?.LogWarning("Extracted text is null or empty");
+                    return new UserProfileSummary { Name = "User", CurrentState = "Processing", Emoji = "🤔" };
+                }
+                
+                logger?.LogDebug("Extracted text from RunPod response: {Text}", extractedText.Substring(0, Math.Min(200, extractedText.Length)));
+                
+                var cleanText = CleanJsonText(extractedText, logger);
+                if (string.IsNullOrWhiteSpace(cleanText))
+                {
+                    logger?.LogWarning("Cleaned text is null or empty");
+                    return new UserProfileSummary { Name = "User", CurrentState = "Processing", Emoji = "🤔" };
+                }
+                
+                logger?.LogDebug("Cleaned JSON text: {Text}", cleanText.Substring(0, Math.Min(200, cleanText.Length)));
+                
+                // Try to extract JSON object if wrapped in text
+                if (cleanText.Contains('{') && cleanText.Contains('}'))
+                {
+                    var firstBrace = cleanText.IndexOf('{');
+                    var lastBrace = cleanText.LastIndexOf('}');
+                    if (firstBrace >= 0 && lastBrace > firstBrace)
+                    {
+                        cleanText = cleanText.Substring(firstBrace, lastBrace - firstBrace + 1);
+                    }
+                }
+                
+                // Try to repair JSON if needed
+                try
+                {
+                    cleanText = RepairJson(cleanText);
+                }
+                catch
+                {
+                    // If repair fails, continue with original
+                }
+                
+                var profile = JsonSerializer.Deserialize<UserProfileSummary>(cleanText, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    AllowTrailingCommas = true
+                });
+                
+                // Validate the parsed profile
+                if (profile != null && 
+                    !string.IsNullOrWhiteSpace(profile.CurrentState) && 
+                    profile.CurrentState != "Processing" &&
+                    !string.IsNullOrWhiteSpace(profile.Emoji))
+                {
+                    logger?.LogDebug("Successfully parsed user profile: {State}, {Emoji}", profile.CurrentState, profile.Emoji);
+                    return profile;
+                }
+                
+                logger?.LogWarning("Parsed profile is invalid or has default values. Clean text was: {Text}", cleanText);
+                return new UserProfileSummary { Name = "User", CurrentState = "Processing", Emoji = "🤔" };
+            }
+            catch (Exception ex)
+            {
+                logger?.LogError(ex, "Failed to parse user profile response. Response was: {Response}", aiResponse?.Substring(0, Math.Min(500, aiResponse?.Length ?? 0)));
+                return new UserProfileSummary { Name = "User", CurrentState = "Processing", Emoji = "🤔" };
+            }
+        }
+
+        // Parser for Step 3: AI Summary (Enhanced)
+        public static string ParseAiSummaryResponse(string aiResponse, ILogger? logger = null)
+        {
+            try
+            {
+                // Extract text from RunPod response envelope (handles both new and old structures)
+                var extractedText = RunpodResponseHelper.ExtractTextFromRunpodResponse(aiResponse);
+                var cleanText = extractedText.Trim();
+                
+                // Remove any markdown or code blocks
+                if (cleanText.StartsWith("```"))
+                {
+                    var lines = cleanText.Split('\n');
+                    if (lines.Length > 2)
+                        cleanText = string.Join("\n", lines.Skip(1).Take(lines.Length - 2));
+                    else
+                        cleanText = cleanText.Replace("```", "").Trim();
+                }
+                
+                // First, try to extract content from quotes if the entire response is quoted
+                if (cleanText.StartsWith("\"") && cleanText.EndsWith("\""))
+                    cleanText = cleanText.Substring(1, cleanText.Length - 2).Trim();
+                
+                // Remove common prefixes that LLMs sometimes add
+                // Use case-insensitive matching and remove the longest matching prefix
+                var prefixesToRemove = new[]
+                {
+                    "sure, here is a personalized, insightful summary that validates the user's experience and references specific details they mentioned:",
+                    "sure, here's a personalized, insightful summary that validates the user's experience and references specific details they mentioned:",
+                    "here is a personalized, insightful summary that validates the user's experience and references specific details they mentioned:",
+                    "here's a personalized, insightful summary that validates the user's experience and references specific details they mentioned:",
+                    "sure, here is a personalized, insightful summary:",
+                    "sure, here's a personalized, insightful summary:",
+                    "here is a personalized, insightful summary:",
+                    "here's a personalized, insightful summary:",
+                    "sure, here is the summary:",
+                    "sure, here's the summary:",
+                    "here is the summary:",
+                    "here's the summary:",
+                    "summary:",
+                    "the summary is:",
+                    "based on your text,",
+                    "based on what you wrote,",
+                    "looking at your brain dump,",
+                    "from your entry,",
+                    "here's what i understand:",
+                    "here is what i understand:",
+                    "sure, here is",
+                    "sure, here's",
+                    "here is",
+                    "here's"
+                };
+                
+                // Sort by length descending to match longest prefix first
+                var sortedPrefixes = prefixesToRemove.OrderByDescending(p => p.Length).ToArray();
+                var lowerText = cleanText.ToLower().TrimStart();
+                
+                foreach (var prefix in sortedPrefixes)
+                {
+                    if (lowerText.StartsWith(prefix))
+                    {
+                        cleanText = cleanText.Substring(prefix.Length).TrimStart();
+                        // Remove any leading colon, dash, or quote
+                        while (cleanText.Length > 0 && (cleanText[0] == ':' || cleanText[0] == '-' || cleanText[0] == '"' || cleanText[0] == '\''))
+                            cleanText = cleanText.Substring(1).TrimStart();
+                        break;
+                    }
+                }
+                
+                // Additional pattern: Look for introductory phrases ending with colon followed by quoted text
+                // Pattern: "...summary:" or "...summary that..." followed by quote
+                var quotePattern = new System.Text.RegularExpressions.Regex(@"^[^""]*[""'](.+)[""']\s*$", System.Text.RegularExpressions.RegexOptions.Singleline);
+                var quoteMatch = quotePattern.Match(cleanText);
+                if (quoteMatch.Success && quoteMatch.Groups.Count > 1)
+                {
+                    cleanText = quoteMatch.Groups[1].Value.Trim();
+                }
+                
+                // If text still starts with common introductory patterns, try to find where actual summary starts
+                // Look for patterns like "that validates" or "that references" and remove everything before the quote
+                var introPattern = new System.Text.RegularExpressions.Regex(@".*?(?:validates|references|mentioned)[^""]*[""'](.+)[""']", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
+                var introMatch = introPattern.Match(cleanText);
+                if (introMatch.Success && introMatch.Groups.Count > 1)
+                {
+                    cleanText = introMatch.Groups[1].Value.Trim();
+                }
+                
+                // Ensure we have meaningful content (at least 20 characters)
+                if (cleanText.Length < 20)
+                {
+                    logger?.LogWarning("Summary too short, using fallback");
+                    return "Your brain dump has been processed and personalized insights have been generated.";
+                }
+                
+                return cleanText.Trim();
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "Failed to parse AI summary response");
+                return "Your brain dump has been processed and personalized insights have been generated.";
+            }
+        }
+
+        // Multi-prompt approach: Step 5 - Break Down Tasks into Micro-Steps
+        public static string BuildTaskBreakdownPrompt(List<TaskSuggestion> tasks, string originalText)
+        {
+            var sb = new StringBuilder();
+            sb.Append("[INST] ");
+            sb.Append("You are a productivity coach. Break down complex tasks into 2-3 actionable micro-steps.\n\n");
+            
+            sb.Append("CRITICAL RULES:\n");
+            sb.Append("- Only break down tasks that are complex or multi-step\n");
+            sb.Append("- Simple tasks (like 'Take a 10-minute walk') don't need breakdown\n");
+            sb.Append("- Each micro-step should be specific and actionable\n");
+            sb.Append("- Micro-steps should be in logical order\n");
+            sb.Append("- Return sub-steps only for tasks that need them\n\n");
+            
+            sb.Append("Original Brain Dump Context:\n");
+            sb.Append(originalText.Length > 500 ? originalText.Substring(0, 500) + "..." : originalText);
+            sb.Append("\n\n");
+            
+            sb.Append("Tasks to analyze:\n");
+            for (int i = 0; i < tasks.Count; i++)
+            {
+                sb.Append($"{i + 1}. {tasks[i].Task}\n");
+                if (!string.IsNullOrWhiteSpace(tasks[i].Notes))
+                    sb.Append($"   Notes: {tasks[i].Notes}\n");
+            }
+            sb.Append("\n");
+
+            sb.Append("Return ONLY a JSON object where keys are task numbers (1, 2, 3...) and values are arrays of sub-steps.\n");
+            sb.Append("Only include tasks that need breakdown. Skip simple tasks.\n\n");
+            
+            sb.Append("EXAMPLE:\n");
+            sb.Append("{\n");
+            sb.Append("  \"1\": [\"Research moving companies online\", \"Get quotes from 3 companies\", \"Compare prices and services\"],\n");
+            sb.Append("  \"3\": [\"Schedule doctor appointment\", \"Prepare list of symptoms\", \"Write down questions to ask\"]\n");
+            sb.Append("}\n\n");
+            
+            sb.Append("If task 1 is \"Pack kitchen items\" and it's complex, include it.\n");
+            sb.Append("If task 2 is \"Take a 10-minute walk\" and it's simple, skip it.\n\n");
+            
+            sb.Append("Return ONLY the JSON object. No explanations. No markdown. Start with { and end with }. [/INST]");
+            return sb.ToString();
+        }
+
+        // Multi-prompt approach: Step 6 - Generate Emotional Intelligence Layer (Enhanced with CBT/DBT/Trauma-Informed)
+        public static string BuildEmotionalIntelligencePrompt(
+            string originalText,
+            string summary,
+            List<string> emotions,
+            List<string> themes,
+            BrainDumpRequest? request = null)
+        {
+            var sb = new StringBuilder();
+            sb.Append("[INST] ");
+            sb.Append("You are an experienced therapist providing emotional intelligence insights using evidence-based therapeutic approaches. ");
+            sb.Append("Your responses should validate, acknowledge, and support the user using appropriate therapeutic techniques.\n\n");
+            
+            // Determine which therapeutic approach to use
+            var approach = DetermineTherapeuticApproach(originalText, emotions, themes, null);
+            sb.Append($"THERAPEUTIC APPROACH: {approach}\n\n");
+            
+            if (approach == "CBT")
+            {
+                sb.Append("CBT (Cognitive Behavioral Therapy) FOCUS:\n");
+                sb.Append("- emotionalValidation: Focus on identifying the thought-feeling-behavior connection. ");
+                sb.Append("Validate their experience while gently pointing to the thought patterns.\n");
+                sb.Append("- patternInsight: Name cognitive patterns (e.g., 'all-or-nothing thinking', 'catastrophizing'). ");
+                sb.Append("Be specific about how thoughts influence feelings.\n");
+                sb.Append("- copingTools: Provide cognitive restructuring techniques, thought challenging exercises.\n\n");
+            }
+            else if (approach == "DBT")
+            {
+                sb.Append("DBT (Dialectical Behavior Therapy) FOCUS:\n");
+                sb.Append("- emotionalValidation: Validate emotions FIRST. Use phrases like 'It makes sense that...', ");
+                sb.Append("'Anyone would feel...', 'Your feelings are valid.'\n");
+                sb.Append("- patternInsight: Focus on emotional patterns, distress tolerance, emotional regulation challenges.\n");
+                sb.Append("- copingTools: Provide distress tolerance skills, mindfulness exercises, emotion regulation techniques.\n\n");
+            }
+            else if (approach == "TraumaInformed")
+            {
+                sb.Append("TRAUMA-INFORMED APPROACH FOCUS:\n");
+                sb.Append("- emotionalValidation: Prioritize safety and control. Use gentle, non-directive language. ");
+                sb.Append("Avoid 'you should' statements. Empower the user.\n");
+                sb.Append("- patternInsight: Be careful with pattern identification - focus on strengths and resilience, ");
+                sb.Append("not just challenges. Avoid retraumatizing language.\n");
+                sb.Append("- copingTools: Provide grounding techniques, safety-building strategies, self-compassion exercises.\n\n");
+            }
+            else
+            {
+            sb.Append("ADAPTIVE THERAPEUTIC APPROACH:\n");
+            sb.Append("- Blend validation, reflection, and gentle guidance\n");
+            sb.Append("- Use warm, empathetic language appropriate to the situation\n\n");
+            }
+            
+            sb.Append("Original Text (for context):\n");
+            sb.Append(originalText.Length > 600 ? originalText.Substring(0, 600) + "..." : originalText);
+            sb.Append("\n\n");
+            
+            sb.Append("Summary: ");
+            sb.Append(summary);
+            sb.Append("\n\n");
+            
+            sb.Append("Detected Emotions: ");
+            sb.Append(string.Join(", ", emotions));
+            sb.Append("\n\n");
+            
+            sb.Append("Key Themes: ");
+            sb.Append(string.Join(", ", themes));
+            sb.Append("\n\n");
+            
+            // Add self-reported scores if available
+            if (request != null && (request.Mood.HasValue || request.Stress.HasValue || request.Purpose.HasValue))
+            {
+                sb.Append("Self-Reported Scores:\n");
+                if (request.Mood.HasValue) sb.Append($"- Mood: {request.Mood.Value}/10\n");
+                if (request.Stress.HasValue) sb.Append($"- Stress: {request.Stress.Value}/10\n");
+                if (request.Purpose.HasValue) sb.Append($"- Purpose: {request.Purpose.Value}/10\n");
+                sb.Append("\n");
+            }
+            
+            sb.Append("Return ONLY a JSON object with these three fields:\n");
+            sb.Append("{\n");
+            sb.Append("  \"emotionalValidation\": \"2-3 sentences that validate and acknowledge their feelings using the therapeutic approach specified above\",\n");
+            sb.Append("  \"patternInsight\": \"1-2 sentences naming a pattern or theme you notice, using the therapeutic approach specified above\",\n");
+            sb.Append("  \"copingTools\": [\"One quick coping strategy aligned with the therapeutic approach (1-2 sentences)\", \"Another coping strategy (1-2 sentences)\"]\n");
+            sb.Append("}\n\n");
+
+            if (approach == "CBT")
+            {
+                sb.Append("CBT EXAMPLE (Stressed about work):\n");
+                sb.Append("{\n");
+                sb.Append("  \"emotionalValidation\": \"It sounds like you're having the thought that you're failing at everything, and that thought is creating a lot of distress. Let's examine what's really happening here - you mentioned specific deadlines and feeling behind, which suggests this isn't just a vague worry but something concrete you're navigating.\",\n");
+                sb.Append("  \"patternInsight\": \"I notice a pattern of 'all-or-nothing thinking' here - when you say 'failing at everything,' it suggests you might be viewing your situation in black-and-white terms. This cognitive pattern often amplifies feelings of overwhelm.\",\n");
+                sb.Append("  \"copingTools\": [\"Thought record exercise: Write down the thought 'I'm failing at everything.' Then list evidence FOR this thought and evidence AGAINST it. This helps challenge cognitive distortions.\", \"Behavioral experiment: Identify one small task you can complete today. Notice what happens to your 'failing' thought when you complete it.\"]\n");
+                sb.Append("}\n\n");
+            }
+            else if (approach == "DBT")
+            {
+                sb.Append("DBT EXAMPLE (Overwhelmed with emotions):\n");
+                sb.Append("{\n");
+                sb.Append("  \"emotionalValidation\": \"That sounds really overwhelming, and anyone in your situation would feel drained. Your feelings are completely valid - it makes sense that trying to balance everything you've described would leave you feeling this way. Let's slow down for a moment and honor what you're experiencing.\",\n");
+                sb.Append("  \"patternInsight\": \"I notice you're experiencing intense emotions that feel hard to manage right now. This pattern of emotional overwhelm often happens when we're trying to process multiple stressors at once without emotional regulation tools.\",\n");
+                sb.Append("  \"copingTools\": [\"TIPP technique: Try cold water on your face or hold an ice cube. This activates the dive reflex and can help regulate intense emotions quickly.\", \"Mindfulness of current emotion: Name the emotion you're feeling right now (anxiety, sadness, anger?). Just observe it without judgment for 2 minutes.\"]\n");
+                sb.Append("}\n\n");
+            }
+            else if (approach == "TraumaInformed")
+            {
+                sb.Append("TRAUMA-INFORMED EXAMPLE:\n");
+                sb.Append("{\n");
+                sb.Append("  \"emotionalValidation\": \"Thank you for sharing this with me. You're not required to fix anything right now, and it's okay that things feel overwhelming. What you're experiencing makes sense given what you've shared, and you have full control over how we proceed.\",\n");
+                sb.Append("  \"patternInsight\": \"I notice you're showing resilience in even being able to name what's difficult. That takes strength. There's no pressure to identify patterns right now - we can move at whatever pace feels safe.\",\n");
+                sb.Append("  \"copingTools\": [\"Grounding technique: Name 5 things you can see, 4 things you can touch, 3 things you can hear, 2 things you can smell, 1 thing you can taste. This helps anchor you in the present moment.\", \"Self-compassion break: Place a hand on your heart and say 'This is a moment of difficulty. It's okay to feel this way. I'm here with myself.'\"]\n");
+                sb.Append("}\n\n");
+            }
+            else
+            {
+                sb.Append("ADAPTIVE EXAMPLE (Stressed about work):\n");
+                sb.Append("{\n");
+                sb.Append("  \"emotionalValidation\": \"It makes sense that you're feeling overwhelmed with multiple deadlines. The pressure of trying to balance everything can be really taxing, and it's understandable that you're feeling behind.\",\n");
+                sb.Append("  \"patternInsight\": \"I notice you're juggling several priorities at once, which often leads to feeling stretched thin. This pattern suggests you might benefit from clearer boundaries around your workload.\",\n");
+                sb.Append("  \"copingTools\": [\"Take a 5-minute breathing break: Inhale for 4 counts, hold for 4, exhale for 6. This activates your body's relaxation response.\", \"Try the '2-minute rule': If something takes less than 2 minutes, do it now. This can help clear small tasks that add to mental clutter.\"]\n");
+                sb.Append("}\n\n");
+            }
+            
+            sb.Append("RULES:\n");
+            sb.Append("- emotionalValidation: Validate their experience, acknowledge their feelings, use warm language\n");
+            sb.Append("- patternInsight: Name a specific pattern you notice, be insightful not generic\n");
+            sb.Append("- copingTools: Provide 1-2 practical, actionable coping strategies (each as a string)\n");
+            sb.Append("- Keep it warm, supportive, and therapy-informed\n");
+            sb.Append("- Avoid clinical jargon or diagnostic language\n");
+            sb.Append("- Be specific to their situation, not generic advice\n\n");
+            
+            sb.Append("Return ONLY the JSON object. No markdown. No explanations. Start with { and end with }. [/INST]");
+            return sb.ToString();
+        }
+
+        // Step 7: Generate Therapist-Style Response (CBT/DBT/Trauma-Informed)
+        public static string BuildTherapeuticResponsePrompt(
+            string originalText,
+            string summary,
+            List<string> emotions,
+            List<string> themes,
+            BrainDumpRequest? request = null,
+            string? preferredApproach = null)
+        {
+            var sb = new StringBuilder();
+            sb.Append("[INST] ");
+            sb.Append("You are an experienced therapist providing a guided, conversational response to a client's brain dump. ");
+            sb.Append("Your response should feel like a real therapist conversation - warm, reflective, validating, and gently guiding. ");
+            sb.Append("This is NOT a summary. This is a back-and-forth therapeutic conversation starter.\n\n");
+            
+            // Determine which therapeutic approach to use
+            var approach = DetermineTherapeuticApproach(originalText, emotions, themes, preferredApproach);
+            sb.Append($"THERAPEUTIC APPROACH: {approach}\n\n");
+            
+            if (approach == "CBT")
+            {
+                sb.Append("CBT (Cognitive Behavioral Therapy) FOCUS:\n");
+                sb.Append("- Focus on the connection between thoughts, feelings, and behaviors\n");
+                sb.Append("- Help identify negative or unhelpful thoughts\n");
+                sb.Append("- Gently guide toward examining evidence for and against thoughts\n");
+                sb.Append("- Use structured, logical, thought-focused language\n");
+                sb.Append("- Ask reflective questions that help them examine their thinking\n");
+                sb.Append("- Example style: 'It sounds like you're having the thought that you're failing at everything. ");
+                sb.Append("Let's pause and examine that—what evidence supports this thought, and what evidence might challenge it?'\n\n");
+            }
+            else if (approach == "DBT")
+            {
+                sb.Append("DBT (Dialectical Behavior Therapy) FOCUS:\n");
+                sb.Append("- Emotion-first approach - validate feelings FIRST\n");
+                sb.Append("- Focus on emotional regulation and distress tolerance\n");
+                sb.Append("- Use mindfulness language\n");
+                sb.Append("- Validate without judging or dismissing\n");
+                sb.Append("- Be calming and emotion-focused\n");
+                sb.Append("- Example style: 'That sounds really overwhelming. Anyone in your situation would feel drained. ");
+                sb.Append("Let's slow down for a moment—can you name what emotion feels strongest right now?'\n\n");
+            }
+            else // Trauma-Informed
+            {
+                sb.Append("TRAUMA-INFORMED APPROACH FOCUS:\n");
+                sb.Append("- Prioritize emotional and psychological safety\n");
+                sb.Append("- Avoid judgment or triggering language\n");
+                sb.Append("- Empower the user (no 'you should' language)\n");
+                sb.Append("- Give control back to the user\n");
+                sb.Append("- Be very gentle, respectful, and non-directive\n");
+                sb.Append("- Example style: 'Thank you for sharing this. You're not required to fix anything right now. ");
+                sb.Append("We can move at whatever pace feels safe for you.'\n\n");
+            }
+            
+            sb.Append("Original Text (read carefully for specific details):\n");
+            sb.Append(originalText);
+            sb.Append("\n\n");
+            
+            sb.Append("Summary: ");
+            sb.Append(summary);
+            sb.Append("\n\n");
+            
+            sb.Append("Detected Emotions: ");
+            sb.Append(string.Join(", ", emotions));
+            sb.Append("\n\n");
+            
+            sb.Append("Key Themes: ");
+            sb.Append(string.Join(", ", themes));
+            sb.Append("\n\n");
+            
+            if (request != null && (request.Mood.HasValue || request.Stress.HasValue || request.Purpose.HasValue))
+            {
+                sb.Append("Self-Reported Scores:\n");
+                if (request.Mood.HasValue) sb.Append($"- Mood: {request.Mood.Value}/10\n");
+                if (request.Stress.HasValue) sb.Append($"- Stress: {request.Stress.Value}/10\n");
+                if (request.Purpose.HasValue) sb.Append($"- Purpose: {request.Purpose.Value}/10\n");
+                sb.Append("\n");
+            }
+            
+            sb.Append("CRITICAL RESPONSE REQUIREMENTS:\n");
+            sb.Append("1. This is a CONVERSATION, not a summary. Write as if you're a therapist responding to them.\n");
+            sb.Append("2. Include 1-2 reflective questions that invite them to explore deeper\n");
+            sb.Append("3. Reference SPECIFIC details they mentioned (names, situations, feelings)\n");
+            sb.Append("4. Validate their experience authentically\n");
+            sb.Append("5. Use warm, empathetic language - similar to ChatGPT's empathetic responses\n");
+            sb.Append("6. Length: 3-5 sentences + 1-2 questions (aim for 150-250 words)\n");
+            sb.Append("7. Do NOT just summarize what they said - engage with it therapeutically\n");
+            sb.Append("8. Do NOT provide generic encouragement - be specific to their situation\n");
+            sb.Append("9. Do NOT list tasks - this is about emotional processing, not task management\n\n");
+            
+            sb.Append("GOOD EXAMPLE (CBT-style):\n");
+            sb.Append("It sounds like you're having the thought that you're failing at everything and can't focus. ");
+            sb.Append("Let's pause and examine that—what evidence supports this thought, and what evidence might challenge it? ");
+            sb.Append("I notice you mentioned feeling behind on work deadlines. When you think about 'failing at everything,' ");
+            sb.Append("are there areas where you're actually making progress, even if small? ");
+            sb.Append("What would it feel like to acknowledge both the struggle and any steps you've taken, however small?\n\n");
+            
+            sb.Append("GOOD EXAMPLE (DBT-style):\n");
+            sb.Append("That sounds really overwhelming. Anyone in your situation would feel drained trying to balance ");
+            sb.Append("everything you've described. Let's slow down for a moment—can you name what emotion feels strongest ");
+            sb.Append("right now? Is it the anxiety about deadlines, or maybe something deeper like fear of disappointing others? ");
+            sb.Append("Sometimes naming the emotion helps us understand what we actually need in this moment.\n\n");
+            
+            sb.Append("GOOD EXAMPLE (Trauma-Informed):\n");
+            sb.Append("Thank you for sharing this with me. You're not required to fix anything right now, and it's okay ");
+            sb.Append("that things feel overwhelming. We can move at whatever pace feels safe for you. ");
+            sb.Append("I'm curious—when you think about what you shared, what feels most important to you right now? ");
+            sb.Append("There's no right answer, and you have full control over how we proceed.\n\n");
+            
+            sb.Append("BAD EXAMPLE (avoid this - too generic):\n");
+            sb.Append("You seem stressed about work. Here are some tasks to help you manage your time better. ");
+            sb.Append("Remember to stay positive and take breaks.\n\n");
+            
+            sb.Append("OUTPUT FORMAT:\n");
+            sb.Append("Return ONLY a JSON object with two fields:\n");
+            sb.Append("{\n");
+            sb.Append("  \"therapeuticResponse\": \"Your full therapist-style response (3-5 sentences + 1-2 questions)\",\n");
+            sb.Append("  \"therapeuticApproach\": \"").Append(approach).Append("\"\n");
+            sb.Append("}\n\n");
+            
+            sb.Append("CRITICAL: Return ONLY the JSON object. No markdown. No explanations. Start with { and end with }. ");
+            sb.Append("The therapeuticResponse field should start directly with your therapist-style response text. [/INST]");
+            return sb.ToString();
+        }
+
+        // Helper method to determine which therapeutic approach to use
+        private static string DetermineTherapeuticApproach(
+            string originalText, 
+            List<string> emotions, 
+            List<string> themes, 
+            string? preferredApproach)
+        {
+            // If user specified a preference, use it
+            if (!string.IsNullOrWhiteSpace(preferredApproach))
+            {
+                var approach = preferredApproach.Trim().ToLowerInvariant();
+                if (approach == "cbt" || approach == "dbt" || approach == "traumainformed" || approach == "trauma-informed")
+                    return approach == "traumainformed" || approach == "trauma-informed" ? "TraumaInformed" : approach.ToUpperInvariant();
+            }
+            
+            var textLower = originalText.ToLowerInvariant();
+            var emotionsLower = emotions.Select(e => e.ToLowerInvariant()).ToList();
+            var themesLower = themes.Select(t => t.ToLowerInvariant()).ToList();
+            
+            // Trauma indicators: mentions of trauma, abuse, safety concerns, feeling unsafe
+            var traumaKeywords = new[] { "trauma", "abuse", "unsafe", "triggered", "triggering", "violence", "assault", "victim", "survivor", "ptsd", "panic", "flashback" };
+            if (traumaKeywords.Any(k => textLower.Contains(k)) || 
+                emotionsLower.Any(e => traumaKeywords.Any(k => e.Contains(k))))
+            {
+                return "TraumaInformed";
+            }
+            
+            // DBT indicators: strong emotions, emotional dysregulation, relationship issues, self-harm thoughts
+            var dbtKeywords = new[] { "overwhelmed", "dysregulated", "can't control", "emotion", "feeling", "relationship", "conflict", "borderline", "self-harm", "suicidal" };
+            var strongEmotions = new[] { "angry", "rage", "furious", "desperate", "hopeless", "empty", "numb" };
+            if (dbtKeywords.Any(k => textLower.Contains(k)) || 
+                strongEmotions.Any(e => emotionsLower.Any(em => em.Contains(e))) ||
+                themesLower.Any(t => t.Contains("relationship") || t.Contains("emotion")))
+            {
+                return "DBT";
+            }
+            
+            // CBT indicators: negative thoughts, cognitive distortions, anxiety, depression, work stress
+            var cbtKeywords = new[] { "thinking", "thought", "believe", "worry", "anxious", "depressed", "failure", "worthless", "should", "must", "always", "never" };
+            if (cbtKeywords.Any(k => textLower.Contains(k)) ||
+                themesLower.Any(t => t.Contains("work") || t.Contains("stress") || t.Contains("anxiety")))
+            {
+                return "CBT";
+            }
+            
+            // Default to adaptive (mix of approaches)
+            return "Adaptive";
+        }
+
+        // Parser for Step 7: Therapeutic Response
+        public static (string? TherapeuticResponse, string? TherapeuticApproach) ParseTherapeuticResponse(string aiResponse, ILogger? logger = null)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(aiResponse))
+                {
+                    logger?.LogWarning("Therapeutic response is null or empty");
+                    return (null, null);
+                }
+                
+                // Extract text from RunPod response envelope
+                var extractedText = RunpodResponseHelper.ExtractTextFromRunpodResponse(aiResponse);
+                logger?.LogDebug("Extracted therapeutic response text: {Text}", extractedText?.Substring(0, Math.Min(300, extractedText?.Length ?? 0)));
+                
+                var cleanText = extractedText?.Trim() ?? string.Empty;
+                
+                // Remove markdown code blocks
+                if (cleanText.StartsWith("```json"))
+                    cleanText = cleanText.Substring(7);
+                if (cleanText.StartsWith("```"))
+                    cleanText = cleanText.Substring(3);
+                if (cleanText.EndsWith("```"))
+                    cleanText = cleanText.Substring(0, cleanText.Length - 3);
+                cleanText = cleanText.Trim();
+                
+                // Extract JSON object
+                if (cleanText.Contains('{') && cleanText.Contains('}'))
+                {
+                    var firstBrace = cleanText.IndexOf('{');
+                    var lastBrace = cleanText.LastIndexOf('}');
+                    if (firstBrace >= 0 && lastBrace > firstBrace)
+                    {
+                        cleanText = cleanText.Substring(firstBrace, lastBrace - firstBrace + 1);
+                    }
+                }
+                else
+                {
+                    logger?.LogWarning("No JSON object found in therapeutic response");
+                    return (null, null);
+                }
+                
+                // Try to repair JSON
+                try
+                {
+                    cleanText = RepairJson(cleanText);
+                }
+                catch
+                {
+                    // If repair fails, continue with original
+                }
+                
+                // Parse JSON
+                using var doc = JsonDocument.Parse(cleanText);
+                var root = doc.RootElement;
+                
+                var therapeuticResponse = root.TryGetProperty("therapeuticResponse", out var responseEl) 
+                    ? responseEl.GetString() 
+                    : null;
+                
+                var therapeuticApproach = root.TryGetProperty("therapeuticApproach", out var approachEl) 
+                    ? approachEl.GetString() 
+                    : null;
+                
+                logger?.LogDebug("Parsed therapeutic response: Approach={Approach}, HasResponse={HasResponse}", 
+                    therapeuticApproach, 
+                    !string.IsNullOrWhiteSpace(therapeuticResponse));
+                
+                return (therapeuticResponse, therapeuticApproach);
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "Failed to parse therapeutic response");
+                return (null, null);
+            }
+        }
+
+        // Parser for Step 6: Emotional Intelligence
+        public static (string? EmotionalValidation, string? PatternInsight, List<string>? CopingTools) ParseEmotionalIntelligenceResponse(string aiResponse, ILogger? logger = null)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(aiResponse))
+                {
+                    logger?.LogWarning("Emotional intelligence response is null or empty");
+                    return (null, null, null);
+                }
+                
+                // Extract text from RunPod response envelope (handles both new and old structures)
+                var extractedText = RunpodResponseHelper.ExtractTextFromRunpodResponse(aiResponse);
+                logger?.LogDebug("Extracted emotional intelligence text: {Text}", extractedText?.Substring(0, Math.Min(300, extractedText?.Length ?? 0)));
+                
+                var cleanText = extractedText?.Trim() ?? string.Empty;
+                
+                // Remove markdown code blocks
+                if (cleanText.StartsWith("```json"))
+                    cleanText = cleanText.Substring(7);
+                if (cleanText.StartsWith("```"))
+                    cleanText = cleanText.Substring(3);
+                if (cleanText.EndsWith("```"))
+                    cleanText = cleanText.Substring(0, cleanText.Length - 3);
+                cleanText = cleanText.Trim();
+                
+                // Extract JSON object
+                if (cleanText.Contains('{') && cleanText.Contains('}'))
+                {
+                    var firstBrace = cleanText.IndexOf('{');
+                    var lastBrace = cleanText.LastIndexOf('}');
+                    if (firstBrace >= 0 && lastBrace > firstBrace)
+                    {
+                        cleanText = cleanText.Substring(firstBrace, lastBrace - firstBrace + 1);
+                    }
+                }
+                else
+                {
+                    logger?.LogWarning("No JSON object found in emotional intelligence response");
+                    return (null, null, null);
+                }
+                
+                // Try to repair JSON
+                try
+                {
+                    cleanText = RepairJson(cleanText);
+                }
+                catch
+                {
+                    // If repair fails, continue with original
+                }
+                
+                // Parse JSON
+                using var doc = JsonDocument.Parse(cleanText);
+                var root = doc.RootElement;
+                
+                var emotionalValidation = root.TryGetProperty("emotionalValidation", out var validationEl) 
+                    ? validationEl.GetString() 
+                    : null;
+                
+                var patternInsight = root.TryGetProperty("patternInsight", out var patternEl) 
+                    ? patternEl.GetString() 
+                    : null;
+                
+                List<string>? copingTools = null;
+                if (root.TryGetProperty("copingTools", out var toolsEl) && toolsEl.ValueKind == JsonValueKind.Array)
+                {
+                    copingTools = new List<string>();
+                    foreach (var tool in toolsEl.EnumerateArray())
+                    {
+                        if (tool.ValueKind == JsonValueKind.String)
+                        {
+                            var toolText = tool.GetString();
+                            if (!string.IsNullOrWhiteSpace(toolText))
+                                copingTools.Add(toolText);
+                        }
+                    }
+                }
+                
+                logger?.LogDebug("Parsed emotional intelligence: Validation={HasValidation}, Pattern={HasPattern}, Tools={ToolsCount}", 
+                    !string.IsNullOrWhiteSpace(emotionalValidation), 
+                    !string.IsNullOrWhiteSpace(patternInsight), 
+                    copingTools?.Count ?? 0);
+                
+                return (emotionalValidation, patternInsight, copingTools);
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "Failed to parse emotional intelligence response");
+                return (null, null, null);
+            }
+        }
+
+        // Parser for Step 5: Task Breakdown
+        public static Dictionary<int, List<string>> ParseTaskBreakdownResponse(string aiResponse, ILogger? logger = null)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(aiResponse))
+                {
+                    logger?.LogWarning("Task breakdown response is null or empty");
+                    return new Dictionary<int, List<string>>();
+                }
+                
+                // Extract text from RunPod response envelope (handles both new and old structures)
+                var extractedText = RunpodResponseHelper.ExtractTextFromRunpodResponse(aiResponse);
+                logger?.LogDebug("Extracted text before cleaning: {Text}", extractedText?.Substring(0, Math.Min(300, extractedText?.Length ?? 0)));
+                
+                var cleanText = extractedText?.Trim() ?? string.Empty;
+                
+                // Remove markdown code blocks first
+                if (cleanText.StartsWith("```json"))
+                    cleanText = cleanText.Substring(7);
+                if (cleanText.StartsWith("```"))
+                    cleanText = cleanText.Substring(3);
+                if (cleanText.EndsWith("```"))
+                    cleanText = cleanText.Substring(0, cleanText.Length - 3);
+                cleanText = cleanText.Trim();
+                
+                // CRITICAL: Extract JSON OBJECT first (not array) - prioritize { over [
+                // We need the object wrapper, not the inner arrays
+                if (cleanText.Contains('{') && cleanText.Contains('}'))
+                {
+                    var firstBrace = cleanText.IndexOf('{');
+                    var lastBrace = cleanText.LastIndexOf('}');
+                    if (firstBrace >= 0 && lastBrace > firstBrace)
+                    {
+                        cleanText = cleanText.Substring(firstBrace, lastBrace - firstBrace + 1);
+                        logger?.LogDebug("Extracted JSON object: {Text}", cleanText.Substring(0, Math.Min(300, cleanText.Length)));
+                    }
+                }
+                else
+                {
+                    logger?.LogWarning("No JSON object found in response");
+                    return new Dictionary<int, List<string>>();
+                }
+                
+                // Try to repair JSON
+                try
+                {
+                    cleanText = RepairJson(cleanText);
+                }
+                catch
+                {
+                    // If repair fails, continue with original
+                }
+                
+                // Parse as dictionary with string keys (task numbers) and list of strings (sub-steps)
+                var breakdown = JsonSerializer.Deserialize<Dictionary<string, List<string>>>(cleanText, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    AllowTrailingCommas = true
+                });
+                
+                if (breakdown == null)
+                    return new Dictionary<int, List<string>>();
+                
+                // Convert string keys to int keys
+                var result = new Dictionary<int, List<string>>();
+                foreach (var kvp in breakdown)
+                {
+                    if (int.TryParse(kvp.Key, out int taskIndex))
+                    {
+                        // Convert to 0-based index (task 1 = index 0)
+                        result[taskIndex - 1] = kvp.Value ?? new List<string>();
+                    }
+                }
+                
+                logger?.LogDebug("Parsed task breakdown for {Count} tasks", result.Count);
+                return result;
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "Failed to parse task breakdown response");
+                return new Dictionary<int, List<string>>();
+            }
+        }
+
+        // Parser for Step 4: Task Suggestions
+        public static List<TaskSuggestion> ParseTaskSuggestionsResponse(string aiResponse, ILogger? logger = null)
+        {
+            try
+            {
+                // Extract text from RunPod response envelope (handles both new and old structures)
+                var extractedText = RunpodResponseHelper.ExtractTextFromRunpodResponse(aiResponse);
+                var cleanText = CleanJsonText(extractedText, logger);
+                
+                // Ensure we extract only the JSON array part (handles cases where AI adds explanatory text)
+                var jsonStart = cleanText.IndexOf('[');
+                var jsonEnd = cleanText.LastIndexOf(']');
+                
+                if (jsonStart >= 0 && jsonEnd > jsonStart)
+                {
+                    cleanText = cleanText.Substring(jsonStart, jsonEnd - jsonStart + 1);
+                    logger?.LogDebug("Extracted JSON array from response (length: {Length})", cleanText.Length);
+                }
+                else
+                {
+                    logger?.LogWarning("No JSON array found in response. Text: {Text}", cleanText.Substring(0, Math.Min(200, cleanText.Length)));
+                    return new List<TaskSuggestion>();
+                }
+                
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    AllowTrailingCommas = true
+                };
+                
+                var tasks = JsonSerializer.Deserialize<List<TaskSuggestion>>(cleanText, options);
+                
+                return tasks ?? new List<TaskSuggestion>();
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "Failed to parse task suggestions response: {Error}", ex.Message);
+                return new List<TaskSuggestion>();
+            }
+        }
+
+
+        // Helper method to clean JSON text
+        private static string CleanJsonText(string text, ILogger? logger = null)
+        {
+            var cleanText = text.Trim();
+            
+            // Remove markdown code blocks
+            if (cleanText.StartsWith("```json"))
+                cleanText = cleanText.Substring(7);
+            if (cleanText.StartsWith("```"))
+                cleanText = cleanText.Substring(3);
+            if (cleanText.EndsWith("```"))
+                cleanText = cleanText.Substring(0, cleanText.Length - 3);
+            
+            cleanText = cleanText.Trim();
+            
+            // Extract JSON object/array if wrapped in text
+            if (cleanText.Contains('[') && cleanText.Contains(']'))
+            {
+                var first = cleanText.IndexOf('[');
+                var last = cleanText.LastIndexOf(']');
+                if (first >= 0 && last > first)
+                    cleanText = cleanText.Substring(first, last - first + 1);
+            }
+            else if (cleanText.Contains('{') && cleanText.Contains('}'))
+            {
+                var first = cleanText.IndexOf('{');
+                var last = cleanText.LastIndexOf('}');
+                if (first >= 0 && last > first)
+                    cleanText = cleanText.Substring(first, last - first + 1);
+            }
+            
+            // Try to repair JSON
+            try
+            {
+                cleanText = RepairJson(cleanText);
+            }
+            catch
+            {
+                // If repair fails, use original
+            }
+            
+            return cleanText;
+        }
 
         public static BrainDumpResponse? ParseBrainDumpResponse(string aiResponse, ILogger? logger = null)
 		{
@@ -269,22 +1537,17 @@ namespace Mindflow_Web_API.Utilities
 			{
 				logger?.LogInformation("Step 0 - Raw AI Response: {RawResponse}", aiResponse);
 
-				// Step 1: Parse the RunPod envelope and extract text from output -> choices -> tokens
+				// Step 1: Parse the RunPod envelope and extract text (handles both new and old structures)
 				// The incoming aiResponse is the raw JSON returned by RunPod.
 				string extractedText = aiResponse;
 				try
 				{
-					var runpod = JsonSerializer.Deserialize<RunpodResponse>(aiResponse, new JsonSerializerOptions
+					extractedText = RunpodResponseHelper.ExtractTextFromRunpodResponse(aiResponse);
+					
+					// If extraction failed, fallback to raw response
+					if (string.IsNullOrWhiteSpace(extractedText) || extractedText == aiResponse)
 					{
-						PropertyNameCaseInsensitive = true
-					});
-					if (runpod != null && runpod.Output != null && runpod.Output.Count > 0)
-					{
-						var tokens = runpod.Output
-							.SelectMany(o => o.Choices ?? new())
-							.SelectMany(c => c.Tokens ?? new())
-							.ToList();
-						extractedText = tokens.Count > 0 ? string.Join(string.Empty, tokens) : extractedText;
+						extractedText = aiResponse;
 					}
 				}
 				catch
@@ -423,25 +1686,13 @@ namespace Mindflow_Web_API.Utilities
 					cleanResponse = cleanResponse.Substring(3, cleanResponse.Length - 6).Trim();
 				}
 				
-				// Extract text from RunPod response envelope if present
+				// Extract text from RunPod response envelope if present (handles both new and old structures)
 				try
 				{
-					var runpod = JsonSerializer.Deserialize<RunpodResponse>(cleanResponse, new JsonSerializerOptions
+					var extracted = RunpodResponseHelper.ExtractTextFromRunpodResponse(cleanResponse);
+					if (!string.IsNullOrWhiteSpace(extracted) && extracted != cleanResponse)
 					{
-						PropertyNameCaseInsensitive = true
-					});
-					
-					if (runpod?.Output?.Count > 0)
-					{
-						var tokens = runpod.Output
-							.SelectMany(o => o.Choices ?? new())
-							.SelectMany(c => c.Tokens ?? new())
-							.ToList();
-						
-						if (tokens.Count > 0)
-						{
-							cleanResponse = string.Join(string.Empty, tokens);
-						}
+						cleanResponse = extracted;
 					}
 				}
 				catch
@@ -549,25 +1800,13 @@ Example format: anxious,work,planning,morning [/INST]";
 					cleanResponse = cleanResponse.Substring(3, cleanResponse.Length - 6).Trim();
 				}
 				
-				// Extract text from RunPod response envelope if present
+				// Extract text from RunPod response envelope if present (handles both new and old structures)
 				try
 				{
-					var runpod = JsonSerializer.Deserialize<RunpodResponse>(cleanResponse, new JsonSerializerOptions
+					var extracted = RunpodResponseHelper.ExtractTextFromRunpodResponse(cleanResponse);
+					if (!string.IsNullOrWhiteSpace(extracted) && extracted != cleanResponse)
 					{
-						PropertyNameCaseInsensitive = true
-					});
-					
-					if (runpod?.Output?.Count > 0)
-					{
-						var tokens = runpod.Output
-							.SelectMany(o => o.Choices ?? new())
-							.SelectMany(c => c.Tokens ?? new())
-							.ToList();
-						
-						if (tokens.Count > 0)
-						{
-							cleanResponse = string.Join(string.Empty, tokens);
-						}
+						cleanResponse = extracted;
 					}
 				}
 				catch

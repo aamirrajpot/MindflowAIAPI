@@ -35,13 +35,14 @@ namespace Mindflow_Web_API.Services
                 throw ApiExceptions.Conflict("Username or Email already exists.");
             
             // Check for deactivated users with same email/username
-            var deactivatedUser = await _dbContext.Users.FirstOrDefaultAsync(u => 
-                (u.UserName == command.UserName || u.Email == command.Email) && !u.IsActive);
+            var unconfirmedUser = await _dbContext.Users.FirstOrDefaultAsync(u => 
+                (u.UserName == command.UserName || u.Email == command.Email) && !u.IsActive && !u.EmailConfirmed);
             
-            if (deactivatedUser != null)
+            if (unconfirmedUser != null)
             {
-                _logger.LogWarning($"Attempted registration with deactivated user credentials: {command.UserName} / {command.Email}");
-                throw ApiExceptions.Conflict("This account has been deactivated. Please contact support if you believe this is an error.");
+                // Automatically send OTP after registration
+                await SendOtpAsync(unconfirmedUser.Email);
+                return new UserDto(unconfirmedUser.Id, unconfirmedUser.UserName, unconfirmedUser.Email, unconfirmedUser.EmailConfirmed, unconfirmedUser.FirstName, unconfirmedUser.LastName, unconfirmedUser.IsActive, unconfirmedUser.DateOfBirth, unconfirmedUser.ProfilePic, unconfirmedUser.StripeCustomerId, unconfirmedUser.QuestionnaireFilled);
             }
 
             var user = new User
@@ -68,8 +69,11 @@ namespace Mindflow_Web_API.Services
 
         public async Task<SignInResponseDto?> SignInAsync(SignInUserDto command)
         {
+            // Normalize email to lowercase for case-insensitive comparison
+            var normalizedInput = command.UserNameOrEmail?.ToLowerInvariant() ?? string.Empty;
             var user = await _dbContext.Users.FirstOrDefaultAsync(u =>
-                u.UserName == command.UserNameOrEmail || u.Email == command.UserNameOrEmail);
+                (u.UserName != null && u.UserName.ToLower() == normalizedInput) || 
+                (u.Email != null && u.Email.ToLower() == normalizedInput));
             if (user == null || !PasswordHelper.VerifyPassword(command.Password, user.PasswordHash))
             {
                 _logger.LogWarning($"Failed sign-in attempt for: {command.UserNameOrEmail}");
@@ -91,7 +95,9 @@ namespace Mindflow_Web_API.Services
 
         public async Task<SendOtpResponseDto> SendOtpAsync(string email)
         {
-            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == email);
+            // Normalize email to lowercase for case-insensitive comparison
+            var normalizedEmail = email?.ToLowerInvariant() ?? string.Empty;
+            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == normalizedEmail);
             if (user == null)
                 return new SendOtpResponseDto(email, false);
 
@@ -116,6 +122,9 @@ namespace Mindflow_Web_API.Services
             };
             await _dbContext.UserOtps.AddAsync(userOtp);
             await _dbContext.SaveChangesAsync();
+            
+            _logger.LogInformation($"Sending OTP email to {email} for user {user.UserName}");
+            
             var subject = "Your Mindflow AI OTP Code";
             var body = $@"
                     Hi {user.FirstName} {user.LastName},<br/><br/>
@@ -198,7 +207,9 @@ namespace Mindflow_Web_API.Services
 
         public async Task<SendOtpResponseDto> ForgotPasswordAsync(ForgotPasswordDto command)
         {
-            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == command.Email);
+            // Normalize email to lowercase for case-insensitive comparison
+            var normalizedEmail = command.Email?.ToLowerInvariant() ?? string.Empty;
+            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == normalizedEmail);
             if (user == null)
                 return new SendOtpResponseDto(command.Email, false);
 
@@ -240,7 +251,9 @@ namespace Mindflow_Web_API.Services
 
         public async Task<bool> ResetPasswordAsync(ResetPasswordDto command)
         {
-            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == command.Email);
+            // Normalize email to lowercase for case-insensitive comparison
+            var normalizedEmail = command.Email?.ToLowerInvariant() ?? string.Empty;
+            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == normalizedEmail);
             if (user == null)
                 return false;
 

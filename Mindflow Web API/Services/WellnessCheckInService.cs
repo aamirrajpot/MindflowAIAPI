@@ -90,7 +90,7 @@ namespace Mindflow_Web_API.Services
                     checkIn.ReminderEnabled,
                     checkIn.ReminderTime,
                     checkIn.AgeRange,
-                    null,
+                    checkIn.FocusAreas,
                     checkIn.WeekdayStartTime,
                     checkIn.WeekdayStartShift,
                     checkIn.WeekdayEndTime,
@@ -593,6 +593,9 @@ namespace Mindflow_Web_API.Services
                 // Extract primary focus from focus areas
                 var primaryFocus = wellnessData.FocusAreas?.FirstOrDefault() ?? "general wellness";
                 
+
+
+
                 // Get top support needs
                 var topSupportNeeds = analysis.SupportNeeds.Take(2).ToList();
                 
@@ -1079,28 +1082,17 @@ Keep responses concise and practical. Focus on actionable items. [/INST]";
                 
                 try
                 {
-                    var runpod = JsonSerializer.Deserialize<RunpodResponse>(cleanResponse, new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true
-                    });
+                    // Extract text from RunPod response (handles both new and old structures)
+                    extractedText = RunpodResponseHelper.ExtractTextFromRunpodResponse(cleanResponse);
                     
-                    if (runpod != null && runpod.Output != null && runpod.Output.Count > 0)
+                    if (!string.IsNullOrWhiteSpace(extractedText) && extractedText != cleanResponse)
                     {
-                        _logger.LogDebug("RunPod response parsed successfully. Output count: {OutputCount}", runpod.Output.Count);
-                        
-                        var tokens = runpod.Output
-                            .SelectMany(o => o.Choices ?? new())
-                            .SelectMany(c => c.Tokens ?? new())
-                            .ToList();
-                        
-                        _logger.LogDebug("Extracted {TokenCount} tokens from RunPod response", tokens.Count);
-                        
-                        extractedText = tokens.Count > 0 ? string.Join(string.Empty, tokens) : extractedText;
-                        _logger.LogDebug("Token extraction completed. Extracted text length: {ExtractedLength}", extractedText.Length);
+                        _logger.LogDebug("Extracted text from RunPod response. Extracted text length: {ExtractedLength}", extractedText.Length);
                     }
                     else
                     {
-                        _logger.LogWarning("RunPod response structure is invalid or empty");
+                        _logger.LogWarning("RunPod response structure is invalid or empty, using raw response");
+                        extractedText = cleanResponse;
                     }
                 }
                 catch (Exception ex)

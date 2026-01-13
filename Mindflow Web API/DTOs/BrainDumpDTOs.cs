@@ -44,6 +44,11 @@ namespace Mindflow_Web_API.DTOs
 		
 		// Brain dump linking (Actionable Value feature)
 		public Guid? BrainDumpEntryId { get; set; } // Link to the brain dump entry that created this task
+
+		// Prioritization (optional) - passed through from AI suggestion
+		public string? Urgency { get; set; } // Low | Medium | High
+		public string? Importance { get; set; } // Low | Medium | High
+		public int? PriorityScore { get; set; } // 1-10 combined score
 	}
 
 	public class AddMultipleTasksRequest
@@ -81,9 +86,22 @@ namespace Mindflow_Web_API.DTOs
 		// Brain dump entry ID for linking tasks
 		[JsonPropertyName("brainDumpEntryId")]
 		public Guid BrainDumpEntryId { get; set; } // ID of the brain dump entry (for linking tasks back to this dump)
+		// Emotional Intelligence Layer
+		[JsonPropertyName("emotionalValidation")]
+		public string? EmotionalValidation { get; set; } // Validates and acknowledges user's feelings
+		[JsonPropertyName("patternInsight")]
+		public string? PatternInsight { get; set; } // Names emotional patterns or themes
+		[JsonPropertyName("copingTools")]
+		public List<string>? CopingTools { get; set; } // 1-2 quick coping strategies
 	}
-
-	public class UserProfileSummary
+    public class WellnessSummary
+    {
+        public string? MoodLevel { get; set; }
+        public List<string> FocusAreas { get; set; } = new();
+        public List<string> PreferredTimeBlocks { get; set; } = new();  // morning, afternoon, evening
+        public Dictionary<string, object> KeyResponses { get; set; } = new(); // from Questions
+    }
+    public class UserProfileSummary
 	{
 		[JsonPropertyName("name")]
 		public string Name { get; set; } = string.Empty;
@@ -106,6 +124,23 @@ namespace Mindflow_Web_API.DTOs
 		public int MoodScore { get; set; }
 		public int StressScore { get; set; }
 		public DateTime Date { get; set; }
+	}
+
+	public class AutoScheduleAllRequest
+	{
+		[Required]
+		public Guid BrainDumpEntryId { get; set; } // Link to the brain dump entry
+		// Optional: if provided, only schedule these suggestion records
+		public List<Guid>? SuggestionIds { get; set; }
+	}
+
+	public class SkipTasksRequest
+	{
+		[Required]
+		public Guid BrainDumpEntryId { get; set; } // Link to the brain dump entry
+
+		// Optional: if provided, only skip these suggestion records; otherwise skip all remaining suggested
+		public List<Guid>? SuggestionIds { get; set; }
 	}
 }
 
