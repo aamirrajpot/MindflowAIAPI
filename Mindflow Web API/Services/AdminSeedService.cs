@@ -53,6 +53,7 @@ namespace Mindflow_Web_API.Services
 
         public async Task SeedDefaultUsersAsync()
         {
+
             await SeedAdminUserAsync();
 
             var userEmail = "aamirrajpot6@gmail.com";
