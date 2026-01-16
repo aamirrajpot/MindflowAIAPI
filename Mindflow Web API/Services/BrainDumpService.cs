@@ -699,6 +699,8 @@ namespace Mindflow_Web_API.Services
 			var attempts = 0;
 			const int bufferMinutes = 15; // Buffer between tasks
 			const int incrementMinutes = 30; // Time slot increment
+			TimeSpan? lastAttemptedTime = null; // Track last attempted time to detect infinite loops
+			var consecutiveSameTimeAttempts = 0; // Track if we're stuck on the same time
 			
 			_logger.LogDebug("Starting conflict check loop for task. Initial time: {Time}, Slot bounds: {Start} to {End}", 
 				adjustedTime, slotBounds.slotStart, slotBounds.slotEnd);
@@ -711,14 +713,45 @@ namespace Mindflow_Web_API.Services
 				)
 			)
 			{
+				// Detect if we're stuck on the same time
+				if (lastAttemptedTime.HasValue && adjustedTime == lastAttemptedTime.Value)
+				{
+					consecutiveSameTimeAttempts++;
+					if (consecutiveSameTimeAttempts >= 3)
+					{
+						// We're stuck - force advance by increment
+						_logger.LogWarning("Detected infinite loop: stuck on time {Time} for {Attempts} attempts. Forcing advance.", 
+							adjustedTime, consecutiveSameTimeAttempts);
+						adjustedTime = adjustedTime.Add(TimeSpan.FromMinutes(incrementMinutes));
+						consecutiveSameTimeAttempts = 0;
+					}
+				}
+				else
+				{
+					consecutiveSameTimeAttempts = 0;
+				}
+				
+				lastAttemptedTime = adjustedTime;
+				
 				// Find the next available time by checking for conflicting tasks
 				var nextAvailableTime = await CalculateNextAvailableTimeAsync(adjustedDate, adjustedTime, durationMinutes, userId, bufferMinutes, incrementMinutes);
 				
 				if (nextAvailableTime.HasValue)
 				{
-					_logger.LogDebug("Time {Time} is not available. Attempt {Attempt}. Calculated next available time: {NextTime}", 
-						adjustedTime, attempts + 1, nextAvailableTime.Value);
-					adjustedTime = nextAvailableTime.Value;
+					// Ensure we're actually advancing forward
+					if (nextAvailableTime.Value <= adjustedTime)
+					{
+						// Calculated time is not forward - force advance
+						_logger.LogWarning("Calculated next available time {NextTime} is not after current time {CurrentTime}. Forcing advance.", 
+							nextAvailableTime.Value, adjustedTime);
+						adjustedTime = adjustedTime.Add(TimeSpan.FromMinutes(incrementMinutes));
+					}
+					else
+					{
+						_logger.LogDebug("Time {Time} is not available. Attempt {Attempt}. Calculated next available time: {NextTime}", 
+							adjustedTime, attempts + 1, nextAvailableTime.Value);
+						adjustedTime = nextAvailableTime.Value;
+					}
 				}
 				else
 				{
@@ -1642,6 +1675,20 @@ namespace Mindflow_Web_API.Services
 					totalMinutes = totalMinutes + (incrementMinutes - remainder);
 				}
 
+				// Ensure we're advancing forward from the candidate time
+				var candidateTotalMinutes = (int)candidateTime.TotalMinutes;
+				if (totalMinutes <= candidateTotalMinutes)
+				{
+					// The calculated time is not forward - advance by at least one increment
+					totalMinutes = candidateTotalMinutes + incrementMinutes;
+					// Round to next increment
+					remainder = totalMinutes % incrementMinutes;
+					if (remainder > 0)
+					{
+						totalMinutes = totalMinutes + (incrementMinutes - remainder);
+					}
+				}
+
 				// Ensure we don't exceed 24 hours
 				if (totalMinutes >= 24 * 60)
 				{
@@ -1650,8 +1697,8 @@ namespace Mindflow_Web_API.Services
 
 				var nextAvailableTime = TimeSpan.FromMinutes(totalMinutes);
 
-				_logger.LogDebug("Calculated next available time: {NextTime} (after conflict ending at {ConflictEnd})", 
-					nextAvailableTime, latestConflictEnd.Value);
+				_logger.LogDebug("Calculated next available time: {NextTime} (after conflict ending at {ConflictEnd}, candidate was {CandidateTime})", 
+					nextAvailableTime, latestConflictEnd.Value, candidateTime);
 
 				return nextAvailableTime;
 			}

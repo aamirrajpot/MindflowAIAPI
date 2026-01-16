@@ -146,52 +146,42 @@ namespace Mindflow_Web_API.EndPoints
 				var taskItems = new List<TaskItem>();
 				var errors = new List<string>();
 
-				// Process tasks in parallel for better performance
-				await Parallel.ForEachAsync(
-					suggestionRecords,
-					new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount },
-					async (suggestionRecord, ct) =>
-					{
-						try
-						{
-							// Convert TaskSuggestionRecord to AddToCalendarRequest
-							var addRequest = new AddToCalendarRequest
-							{
-								Task = suggestionRecord.Task,
-								Frequency = suggestionRecord.Frequency ?? "once",
-								Duration = suggestionRecord.Duration ?? "30 minutes",
-								Notes = suggestionRecord.Notes,
-								BrainDumpEntryId = request.BrainDumpEntryId ?? suggestionRecord.BrainDumpEntryId,
-								Urgency = suggestionRecord.Urgency,
-								Importance = suggestionRecord.Importance,
-								PriorityScore = suggestionRecord.PriorityScore,
-								ReminderEnabled = false // Default to false, can be made configurable
-							};
-
-							var taskItem = await service.AddTaskToCalendarAsync(userId, addRequest);
-							
-							// Update the suggestion record to mark it as scheduled
-							suggestionRecord.Status = TaskSuggestionStatus.Scheduled;
-							suggestionRecord.TaskItemId = taskItem.Id;
-							
-							lock (taskItems)
-							{
-								taskItems.Add(taskItem);
-							}
-						}
-						catch (Exception ex)
-						{
-							lock (errors)
-							{
-								errors.Add($"Failed to add task '{suggestionRecord.Task}': {ex.Message}");
-							}
-						}
-					});
-
-				// Save status updates to database
-				if (taskItems.Count > 0)
+				// Process tasks sequentially to avoid race conditions in conflict detection
+				// Each task needs to see previously scheduled tasks to avoid conflicts
+				foreach (var suggestionRecord in suggestionRecords)
 				{
-					await dbContext.SaveChangesAsync();
+					try
+					{
+						// Convert TaskSuggestionRecord to AddToCalendarRequest
+						var addRequest = new AddToCalendarRequest
+						{
+							Task = suggestionRecord.Task,
+							Frequency = suggestionRecord.Frequency ?? "once",
+							Duration = suggestionRecord.Duration ?? "30 minutes",
+							Notes = suggestionRecord.Notes,
+							BrainDumpEntryId = request.BrainDumpEntryId ?? suggestionRecord.BrainDumpEntryId,
+							Urgency = suggestionRecord.Urgency,
+							Importance = suggestionRecord.Importance,
+							PriorityScore = suggestionRecord.PriorityScore,
+							ReminderEnabled = false // Default to false, can be made configurable
+						};
+
+						var taskItem = await service.AddTaskToCalendarAsync(userId, addRequest);
+						
+						// Update the suggestion record to mark it as scheduled
+						suggestionRecord.Status = TaskSuggestionStatus.Scheduled;
+						suggestionRecord.TaskItemId = taskItem.Id;
+						
+						taskItems.Add(taskItem);
+						
+						// Save suggestion record status immediately so subsequent tasks can see this one when checking for conflicts
+						// Note: The task itself is already saved by AddTaskToCalendarAsync
+						await dbContext.SaveChangesAsync();
+					}
+					catch (Exception ex)
+					{
+						errors.Add($"Failed to add task '{suggestionRecord.Task}': {ex.Message}");
+					}
 				}
 
 				if (errors.Count > 0 && taskItems.Count == 0)
