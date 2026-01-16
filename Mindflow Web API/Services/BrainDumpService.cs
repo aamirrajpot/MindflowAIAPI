@@ -921,6 +921,9 @@ namespace Mindflow_Web_API.Services
 				PriorityScore = request.PriorityScore
 			};
 
+			_logger.LogInformation("Creating task '{TaskTitle}' scheduled for {TaskDate} at {TaskTime} UTC (Duration: {Duration} minutes)", 
+				request.Task, utcDateTime.Date.ToString("yyyy-MM-dd"), utcDateTime.ToString("HH:mm:ss"), durationMinutes);
+
 			_db.Tasks.Add(taskItem);
 			await _db.SaveChangesAsync();
 
