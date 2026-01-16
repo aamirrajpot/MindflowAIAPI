@@ -581,6 +581,7 @@ namespace Mindflow_Web_API.Services
 
 		public async Task<TaskItem> AddTaskToCalendarAsync(Guid userId, AddToCalendarRequest request)
 		{
+
 			// Parse duration to minutes
 			var durationMinutes = ParseDurationToMinutes(request.Duration);
 			if (durationMinutes <= 0)
