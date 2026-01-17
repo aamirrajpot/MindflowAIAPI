@@ -289,6 +289,11 @@ namespace Mindflow_Web_API.Services
             // 1. Get existing tasks for the date (with timezone-aware filtering)
             var existingTasks = await GetAllAsync(userId, date, timezoneId);
             
+            // TEMPORARILY DISABLED: Recurring task generation
+            // Just return existing tasks for now
+            return existingTasks;
+            
+            /* RECURRING TASK GENERATION - TEMPORARILY DISABLED
             // 2. Get active templates that should have instances for this date
             var templates = await GetActiveTemplatesAsync(userId);
             
@@ -306,6 +311,7 @@ namespace Mindflow_Web_API.Services
             
             // 4. Return all tasks (existing + new instances)
             return existingTasks.Concat(newInstances.Select(ToDto));
+            */
         }
 
         public async Task<IEnumerable<TaskItemDto>> GetActiveTemplatesAsync(Guid userId)
