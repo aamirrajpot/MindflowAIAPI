@@ -108,10 +108,14 @@ namespace Mindflow_Web_API.Services
                         var utcDateEnd = TimeZoneInfo.ConvertTimeToUtc(localDateTimeEnd, timeZone);
 
                         // Filter tasks where Time (UTC) falls within the UTC date range
+                        // Also check Date field as a fallback for tasks that might have been scheduled
+                        // at UTC times that fall outside the local date range but are still meant for that date
+                        // Also filter by IsActive to exclude inactive/deleted tasks
                         tasks = await _dbContext.Tasks
                             .Where(t => t.UserId == userId 
-                                && t.Time >= utcDateStart 
-                                && t.Time <= utcDateEnd)
+                                && t.IsActive
+                                && ((t.Time >= utcDateStart && t.Time <= utcDateEnd)
+                                    || (t.Date.Date == date.Value.Date))) // Include tasks where Date matches, even if Time is outside range
                             .OrderBy(t => t.Time)
                             .ToListAsync();
                     }
@@ -119,31 +123,32 @@ namespace Mindflow_Web_API.Services
                     {
                         _logger.LogWarning(ex, "Failed to convert date using timezone {Timezone}, falling back to UTC date comparison", timezoneId);
                         // Fallback to simple UTC date comparison
+                        // Also filter by IsActive to exclude inactive/deleted tasks
                         tasks = await _dbContext.Tasks
-                            .FromSqlRaw(@"
-                                SELECT * FROM Tasks 
-                                WHERE UserId = {0} 
-                                AND DATE(Date) = DATE({1})
-                                ORDER BY Time ASC", userId, date.Value)
+                            .Where(t => t.UserId == userId 
+                                && t.IsActive
+                                && t.Date.Date == date.Value.Date)
+                            .OrderBy(t => t.Time)
                             .ToListAsync();
                     }
                 }
                 else
                 {
                     // No timezone provided, use simple UTC date comparison
+                    // Also filter by IsActive to exclude inactive/deleted tasks
                     tasks = await _dbContext.Tasks
-                        .FromSqlRaw(@"
-                            SELECT * FROM Tasks 
-                            WHERE UserId = {0} 
-                            AND DATE(Date) = DATE({1})
-                            ORDER BY Time ASC", userId, date.Value)
+                        .Where(t => t.UserId == userId 
+                            && t.IsActive
+                            && t.Date.Date == date.Value.Date)
+                        .OrderBy(t => t.Time)
                         .ToListAsync();
                 }
             }
             else
             {
+                // Get all active tasks for the user
                 tasks = await _dbContext.Tasks
-                    .Where(t => t.UserId == userId)
+                    .Where(t => t.UserId == userId && t.IsActive)
                     .OrderBy(t => t.Time)
                     .ToListAsync();
             }
