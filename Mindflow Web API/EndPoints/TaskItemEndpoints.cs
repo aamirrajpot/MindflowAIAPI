@@ -327,15 +327,13 @@ namespace Mindflow_Web_API.EndPoints
                         }
                     }
 
-                    // Convert task times from UTC to user's timezone and extract unique dates
+                    // Extract unique dates based on the logical task date stored in the database.
+                    // We intentionally use the TaskItem.Date field here instead of converting the
+                    // UTC Time into local time. This ensures that tasks scheduled for a given
+                    // calendar day (e.g. 2026-01-24) are associated with that day even if their
+                    // UTC time falls just outside the local day's 00:00–23:59 range.
                     var uniqueDates = tasksInMonth
-                        .Select(t =>
-                        {
-                            // Convert UTC time to user's local timezone
-                            var localTime = TimeZoneInfo.ConvertTimeFromUtc(
-                                DateTime.SpecifyKind(t.Time, DateTimeKind.Utc), timeZone);
-                            return localTime.Date;
-                        })
+                        .Select(t => t.Date.Date)
                         .Where(d => d >= monthStart && d <= monthEnd) // Ensure date is within the month
                         .Distinct()
                         .OrderBy(d => d)
