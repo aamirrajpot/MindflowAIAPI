@@ -12,6 +12,8 @@ using Mindflow_Web_API.Exceptions;
 using Mindflow_Web_API.Models;
 using Mindflow_Web_API.Persistence;
 using Mindflow_Web_API.Services;
+using System.Text;
+using System.Text.Json;
 
 namespace Mindflow_Web_API.EndPoints
 {
@@ -44,6 +46,14 @@ namespace Mindflow_Web_API.EndPoints
                 {
                     op.Summary = "Check Firebase initialization status";
                     op.Description = "Returns whether the Firebase Admin credential has been loaded and FirebaseAdmin is initialized.";
+                    return op;
+                });
+            
+            api.MapGet("/firebase-env", GetFirebaseEnvInfoAsync)
+                .WithOpenApi(op =>
+                {
+                    op.Summary = "Read FIREBASE_ADMIN_JSON env var (sanitized)";
+                    op.Description = "Decodes FIREBASE_ADMIN_JSON (base64 or raw) and returns non-sensitive fields (project_id, client_email) and a flag for private_key presence. Does NOT return the private_key.";
                     return op;
                 });
         }
@@ -178,6 +188,51 @@ namespace Mindflow_Web_API.EndPoints
                 firebaseEnvVarPresent = envVarPresent,
                 firebaseInitialized = initialized
             });
+        }
+
+        private static Task<IResult> GetFirebaseEnvInfoAsync()
+        {
+            var env = Environment.GetEnvironmentVariable("FIREBASE_ADMIN_JSON");
+            if (string.IsNullOrWhiteSpace(env))
+            {
+                return Task.FromResult(Results.Ok(new { present = false }));
+            }
+
+            string json = env;
+            if (!json.TrimStart().StartsWith("{"))
+            {
+                try
+                {
+                    json = Encoding.UTF8.GetString(Convert.FromBase64String(json));
+                }
+                catch (Exception ex)
+                {
+                    return Task.FromResult(Results.BadRequest(new { error = "Invalid base64 in FIREBASE_ADMIN_JSON", details = ex.Message }));
+                }
+            }
+
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+                var clientEmail = root.TryGetProperty("client_email", out var ce) ? ce.GetString() : null;
+                var projectId = root.TryGetProperty("project_id", out var pi) ? pi.GetString() : null;
+                var type = root.TryGetProperty("type", out var t) ? t.GetString() : null;
+                var privateKeyPresent = root.TryGetProperty("private_key", out var pk) && !string.IsNullOrEmpty(pk.GetString());
+
+                return Task.FromResult(Results.Ok(new
+                {
+                    present = true,
+                    type,
+                    projectId,
+                    clientEmail,
+                    privateKeyPresent
+                }));
+            }
+            catch (Exception ex)
+            {
+                return Task.FromResult(Results.BadRequest(new { error = "Invalid JSON in FIREBASE_ADMIN_JSON", details = ex.Message }));
+            }
         }
     }
 }
