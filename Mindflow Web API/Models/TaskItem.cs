@@ -46,6 +46,9 @@ namespace Mindflow_Web_API.Models
         [MaxLength(20)]
         public string? Importance { get; set; } // Low | Medium | High
         public int? PriorityScore { get; set; } // 1-10 combined score
+        
+        // Reminder tracking
+        public DateTime? LastReminderSentAtUtc { get; set; }
     }
 
     public enum TaskStatus

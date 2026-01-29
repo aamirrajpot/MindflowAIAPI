@@ -175,6 +175,8 @@ builder.Services.AddScoped<IWellnessSnapshotService, WellnessSnapshotService>();
 
 // User data cleanup service (runs weekly)
 builder.Services.AddHostedService<UserDataCleanupService>();
+// Task reminder background service (sends FCM reminders ~10 minutes before task time)
+builder.Services.AddHostedService<TaskReminderService>();
 
 // Register SubscriptionService (fully qualify to avoid Stripe.SubscriptionService ambiguity)
 builder.Services.AddScoped<Mindflow_Web_API.Services.ISubscriptionService, Mindflow_Web_API.Services.SubscriptionService>();
