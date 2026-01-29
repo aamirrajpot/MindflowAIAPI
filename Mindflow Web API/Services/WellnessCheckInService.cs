@@ -15,12 +15,18 @@ namespace Mindflow_Web_API.Services
         private readonly MindflowDbContext _dbContext;
         private readonly ILogger<WellnessCheckInService> _logger;
         private readonly IRunPodService _runPodService;
+        private readonly WellnessDataProcessor _wellnessDataProcessor;
 
-        public WellnessCheckInService(MindflowDbContext dbContext, ILogger<WellnessCheckInService> logger, IRunPodService runPodService)
+        public WellnessCheckInService(
+            MindflowDbContext dbContext, 
+            ILogger<WellnessCheckInService> logger, 
+            IRunPodService runPodService,
+            WellnessDataProcessor wellnessDataProcessor)
         {
             _dbContext = dbContext;
             _logger = logger;
             _runPodService = runPodService;
+            _wellnessDataProcessor = wellnessDataProcessor;
         }
 
         public async Task<WellnessCheckInDto?> GetAsync(Guid userId)
@@ -73,6 +79,9 @@ namespace Mindflow_Web_API.Services
                         null,
                         null,
                         null,
+                        null,
+                        null,
+                        null, null,
                         new Dictionary<string, object>()
                     );
                 }
@@ -103,6 +112,10 @@ namespace Mindflow_Web_API.Services
                     checkIn.WeekdayEndTimeUtc,
                     checkIn.WeekendStartTimeUtc,
                     checkIn.WeekendEndTimeUtc,
+                    checkIn.WeekdayStartMinutesUtc,
+                    checkIn.WeekdayEndMinutesUtc,
+                    checkIn.WeekendStartMinutesUtc,
+                    checkIn.WeekendEndMinutesUtc,
                     checkIn.TimezoneId,
                     checkIn.Questions ?? new Dictionary<string, object>()
                 );
@@ -200,9 +213,16 @@ namespace Mindflow_Web_API.Services
                         weekdayEndTimeUtc,
                         weekendStartTimeUtc,
                         weekendEndTimeUtc,
+                        null, // Will be computed by WellnessDataProcessor
+                        null,
+                        null,
+                        null,
                         timezoneIdInput,
                         questions
                     );
+                    
+                    // Compute UTC minute offsets for improved scheduling
+                    _wellnessDataProcessor.ComputeUtcOffsets(checkIn);
                     
                     _logger.LogDebug("Created new wellness check-in for user {UserId}. CheckInId: {CheckInId}, QuestionsCount: {QuestionsCount}", 
                         userId, checkIn.Id, checkIn.Questions?.Count ?? 0);
@@ -293,6 +313,23 @@ namespace Mindflow_Web_API.Services
                         _logger.LogDebug("Merged {Count} questions for user {UserId}", patchDto.Questions.Count, userId);
                     }
                     
+                    // Update timezone if changed
+                    if (timezoneIdInput != null)
+                    {
+                        checkIn.TimezoneId = timezoneIdInput;
+                    }
+                    
+                    // Recompute UTC minute offsets if time fields or timezone changed
+                    if (patchDto.WeekdayStartTime != null || patchDto.WeekdayStartShift != null ||
+                        patchDto.WeekdayEndTime != null || patchDto.WeekdayEndShift != null ||
+                        patchDto.WeekendStartTime != null || patchDto.WeekendStartShift != null ||
+                        patchDto.WeekendEndTime != null || patchDto.WeekendEndShift != null ||
+                        timezoneIdInput != null)
+                    {
+                        _wellnessDataProcessor.ComputeUtcOffsets(checkIn);
+                        fieldsUpdated.Add("UTCMinutes");
+                    }
+                    
                     checkIn.Update(
                         checkIn.MoodLevel,
                         DateTime.UtcNow,
@@ -312,6 +349,10 @@ namespace Mindflow_Web_API.Services
                         checkIn.WeekdayEndTimeUtc,
                         checkIn.WeekendStartTimeUtc,
                         checkIn.WeekendEndTimeUtc,
+                        checkIn.WeekdayStartMinutesUtc,
+                        checkIn.WeekdayEndMinutesUtc,
+                        checkIn.WeekendStartMinutesUtc,
+                        checkIn.WeekendEndMinutesUtc,
                         effectiveTimezoneId,
                         checkIn.Questions);
                     
@@ -360,6 +401,10 @@ namespace Mindflow_Web_API.Services
                     checkIn.WeekdayEndTimeUtc,
                     checkIn.WeekendStartTimeUtc,
                     checkIn.WeekendEndTimeUtc,
+                    checkIn.WeekdayStartMinutesUtc,
+                    checkIn.WeekdayEndMinutesUtc,
+                    checkIn.WeekendStartMinutesUtc,
+                    checkIn.WeekendEndMinutesUtc,
                     checkIn.TimezoneId,
                     checkIn.Questions ?? new Dictionary<string, object>()
                 );
@@ -426,6 +471,10 @@ namespace Mindflow_Web_API.Services
                     weekdayEndTimeUtc,
                     weekendStartTimeUtc,
                     weekendEndTimeUtc,
+                     wellnessData.WeekdayStartMinutesUtc,
+                    wellnessData.WeekdayEndMinutesUtc,
+                    wellnessData.WeekendStartMinutesUtc,
+                    wellnessData.WeekendEndMinutesUtc,
                     wellnessData.TimezoneId,
                     wellnessData.Questions
                 );
@@ -513,6 +562,10 @@ namespace Mindflow_Web_API.Services
                     weekdayEndTimeUtc,
                     weekendStartTimeUtc,
                     weekendEndTimeUtc,
+                    wellnessData.WeekdayStartMinutesUtc,
+                    wellnessData.WeekdayEndMinutesUtc,
+                    wellnessData.WeekendStartMinutesUtc,
+                    wellnessData.WeekendEndMinutesUtc,
                     wellnessData.TimezoneId,
                     wellnessData.Questions
                 );

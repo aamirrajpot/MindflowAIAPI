@@ -16,7 +16,6 @@ namespace Mindflow_Web_API.Services
 	{
 		Task<BrainDumpResponse> GetTaskSuggestionsAsync(Guid userId, BrainDumpRequest request, int maxTokens = 1000, double temperature = 0.7);
 		Task<TaskItem> AddTaskToCalendarAsync(Guid userId, AddToCalendarRequest request);
-		Task<List<TaskItem>> AddMultipleTasksToCalendarAsync(Guid userId, List<TaskSuggestion> suggestions, DTOs.WellnessCheckInDto? wellnessData = null, Guid? brainDumpEntryId = null);
 		Task<string?> GenerateAiInsightAsync(Guid userId, Guid entryId);
 		Task<AnalyticsDto> GetAnalyticsAsync(Guid userId, Guid? brainDumpEntryId = null);
 		Task<List<TaskItem>> AutoScheduleAllTasksAsync(Guid userId, Guid brainDumpEntryId, List<Guid>? suggestionIds = null);
@@ -31,8 +30,9 @@ namespace Mindflow_Web_API.Services
 		private readonly IWellnessCheckInService _wellnessService;
 		private readonly IUserService _userService;
 		private readonly IServiceProvider _serviceProvider;
+		private readonly TimeSlotHelper _timeSlotHelper;
 
-		public BrainDumpService(IRunPodService runPodService, ILogger<BrainDumpService> logger, MindflowDbContext db, IWellnessCheckInService wellnessService, IUserService userService, IServiceProvider serviceProvider)
+		public BrainDumpService(IRunPodService runPodService, ILogger<BrainDumpService> logger, MindflowDbContext db, IWellnessCheckInService wellnessService, IUserService userService, IServiceProvider serviceProvider, TimeSlotHelper timeSlotHelper)
 		{
 			_runPodService = runPodService;
 			_logger = logger;
@@ -40,6 +40,7 @@ namespace Mindflow_Web_API.Services
 			_wellnessService = wellnessService;
 			_userService = userService;
 			_serviceProvider = serviceProvider;
+			_timeSlotHelper = timeSlotHelper;
 		}
 
 		public async Task<BrainDumpResponse> GetTaskSuggestionsAsync(Guid userId, BrainDumpRequest request, int maxTokens = 1200, double temperature = 0.7)
@@ -360,9 +361,9 @@ namespace Mindflow_Web_API.Services
 					var dbContext = scope.ServiceProvider.GetRequiredService<MindflowDbContext>();
 					var runPodService = scope.ServiceProvider.GetRequiredService<IRunPodService>();
 					var logger = scope.ServiceProvider.GetRequiredService<ILogger<BrainDumpService>>();
-					
+					var timeSlotHelper = scope.ServiceProvider.GetRequiredService<TimeSlotHelper>();
 					// Create a temporary service instance for the background task
-					var tempService = new BrainDumpService(runPodService, logger, dbContext, _wellnessService, _userService, _serviceProvider);
+					var tempService = new BrainDumpService(runPodService, logger, dbContext, _wellnessService, _userService, _serviceProvider, timeSlotHelper);
 					
 					var insight = await tempService.GenerateAiInsightAsync(userId, entry.Id);
 					if (!string.IsNullOrEmpty(insight))
@@ -596,271 +597,77 @@ namespace Mindflow_Web_API.Services
 			// Get user's wellness data for available time slots
 			var wellnessData = await _wellnessService.GetAsync(userId);
 			
-		// Use the new smart scheduling logic
-			var (taskDate, taskTime) = await DetermineOptimalScheduleWithTimeSlotsAsync(request, wellnessData, durationMinutes, userId);
+		// Use the improved scheduling logic with TimeSlotHelper
+			var (taskDate, taskTime) = await FindNextAvailableSlotImprovedAsync(wellnessData, durationMinutes, userId);
 
 			// Ensure taskDate is UTC (explicitly mark as UTC)
 			var adjustedDate = DateTime.SpecifyKind(taskDate.Date, DateTimeKind.Utc);
 			var adjustedTime = taskTime;
 			
-			// Get slot boundaries for the adjusted date to ensure we don't exceed them
-			var isWeekend = adjustedDate.DayOfWeek == DayOfWeek.Saturday || adjustedDate.DayOfWeek == DayOfWeek.Sunday;
-			(TimeSpan slotStart, TimeSpan slotEnd) slotBounds;
-			if (wellnessData != null)
-			{
-				// Use UTC fields if available (they're already converted to UTC)
-				if (isWeekend && wellnessData.WeekendStartTimeUtc.HasValue && wellnessData.WeekendEndTimeUtc.HasValue)
-				{
-					slotBounds = (wellnessData.WeekendStartTimeUtc.Value.TimeOfDay, wellnessData.WeekendEndTimeUtc.Value.TimeOfDay);
-				}
-				else if (!isWeekend && wellnessData.WeekdayStartTimeUtc.HasValue && wellnessData.WeekdayEndTimeUtc.HasValue)
-				{
-					slotBounds = (wellnessData.WeekdayStartTimeUtc.Value.TimeOfDay, wellnessData.WeekdayEndTimeUtc.Value.TimeOfDay);
-				}
-				else if (!string.IsNullOrWhiteSpace(wellnessData.TimezoneId))
-				{
-					// Fall back to converting local time fields
-					if (isWeekend)
-					{
-						slotBounds = ParseTimeSlotsForDate(
-							wellnessData.WeekendStartTime,
-							wellnessData.WeekendStartShift,
-							wellnessData.WeekendEndTime,
-							wellnessData.WeekendEndShift,
-							adjustedDate,
-							wellnessData.TimezoneId);
-					}
-					else
-					{
-						slotBounds = ParseTimeSlotsForDate(
-							wellnessData.WeekdayStartTime,
-							wellnessData.WeekdayStartShift,
-							wellnessData.WeekdayEndTime,
-							wellnessData.WeekdayEndShift,
-							adjustedDate,
-							wellnessData.TimezoneId);
-					}
-				}
-				else
-				{
-					// No timezone, use default slots (24 hours)
-					slotBounds = (TimeSpan.Zero, new TimeSpan(24, 0, 0));
-				}
-			}
-			else
-			{
-				// No wellness data, use default slots (24 hours)
-				slotBounds = (TimeSpan.Zero, new TimeSpan(24, 0, 0));
-			}
-			
-			// Helper function to check if time is within slot bounds (handles midnight crossing)
-			bool IsTimeWithinSlot(TimeSpan time, TimeSpan duration, TimeSpan slotStart, TimeSpan slotEnd)
-			{
-				var timeEnd = time.Add(duration);
-				
-				// Case 1: Normal slot (start < end, e.g., 07:00 - 10:00)
-				if (slotEnd > slotStart)
-				{
-					return time >= slotStart && timeEnd <= slotEnd;
-				}
-				
-				// Case 2: Slot crosses midnight (start > end, e.g., 23:00 - 02:30)
-				// Valid times are:
-				// - From slotStart to midnight (23:00 - 24:00)
-				// - From midnight to slotEnd (00:00 - 02:30)
-				if (time >= slotStart)
-				{
-					// Time is after start (before midnight), check if entire duration fits before midnight
-					// If duration would cross midnight, check if it fits within the slot window
-					if (timeEnd.TotalMinutes > 24 * 60)
-					{
-						// Duration crosses midnight, check if it fits within slot window
-						var slotDuration = (24 * 60 - slotStart.TotalMinutes) + slotEnd.TotalMinutes;
-						return duration.TotalMinutes <= slotDuration;
-					}
-					return true; // Fits before midnight
-				}
-				else if (time <= slotEnd)
-				{
-					// Time is before end (after midnight), check if entire duration fits
-					return timeEnd <= slotEnd;
-				}
-				else
-				{
-					// Time is between slotEnd and slotStart (invalid zone for midnight-crossing slots)
-					// This is the "dead zone" (e.g., 02:30 - 23:00 is invalid)
-					return false;
-				}
-			}
-			
-			// Prevent stacking: if chosen time is occupied, calculate next available time
-			// based on conflicting task end + buffer, rounded to 30-minute increments
-			// BUT ensure we stay within slot boundaries
-			var maxAttempts = 1000; // Prevent infinite loops
+			// Simple verification: check if the slot is still available (race condition protection)
+			// The improved scheduling method already found a valid slot, but we verify once more
+			// before saving to handle any concurrent task additions
+			const int maxVerificationAttempts = 10;
 			var attempts = 0;
-			const int bufferMinutes = 15; // Buffer between tasks
-			const int incrementMinutes = 30; // Time slot increment
-			TimeSpan? lastAttemptedTime = null; // Track last attempted time to detect infinite loops
-			var consecutiveSameTimeAttempts = 0; // Track if we're stuck on the same time
+			const int incrementMinutes = 30;
 			
-			_logger.LogDebug("Starting conflict check loop for task. Initial time: {Time}, Slot bounds: {Start} to {End}", 
-				adjustedTime, slotBounds.slotStart, slotBounds.slotEnd);
-			
-			while (
-				attempts < maxAttempts &&
-				(
-					!await IsTimeSlotAvailableAsync(adjustedDate, adjustedTime, durationMinutes, userId)
-					|| !IsTimeWithinSlot(adjustedTime, TimeSpan.FromMinutes(durationMinutes), slotBounds.slotStart, slotBounds.slotEnd)
-				)
-			)
+			while (attempts < maxVerificationAttempts && !await IsTimeSlotAvailableAsync(adjustedDate, adjustedTime, durationMinutes, userId))
 			{
-				// Detect if we're stuck on the same time
-				if (lastAttemptedTime.HasValue && adjustedTime == lastAttemptedTime.Value)
-				{
-					consecutiveSameTimeAttempts++;
-					if (consecutiveSameTimeAttempts >= 3)
-					{
-						// We're stuck - force advance by increment
-						_logger.LogWarning("Detected infinite loop: stuck on time {Time} for {Attempts} attempts. Forcing advance.", 
-							adjustedTime, consecutiveSameTimeAttempts);
-						adjustedTime = adjustedTime.Add(TimeSpan.FromMinutes(incrementMinutes));
-						consecutiveSameTimeAttempts = 0;
-					}
-				}
-				else
-				{
-					consecutiveSameTimeAttempts = 0;
-				}
+				_logger.LogDebug("Slot conflict detected during final verification. Attempt {Attempt}. Adjusting time.", attempts + 1);
 				
-				lastAttemptedTime = adjustedTime;
-				
-				// Find the next available time by checking for conflicting tasks
-				var nextAvailableTime = await CalculateNextAvailableTimeAsync(adjustedDate, adjustedTime, durationMinutes, userId, bufferMinutes, incrementMinutes);
-				
-				if (nextAvailableTime.HasValue)
+				// Get slot for current date to ensure we stay within bounds
+				var slot = _timeSlotHelper.GetUtcSlotForDate(adjustedDate, wellnessData);
+				if (slot == null)
 				{
-					// Ensure we're actually advancing forward
-					if (nextAvailableTime.Value <= adjustedTime)
-					{
-						// Calculated time is not forward - force advance
-						_logger.LogWarning("Calculated next available time {NextTime} is not after current time {CurrentTime}. Forcing advance.", 
-							nextAvailableTime.Value, adjustedTime);
-						adjustedTime = adjustedTime.Add(TimeSpan.FromMinutes(incrementMinutes));
-					}
-					else
-					{
-						_logger.LogDebug("Time {Time} is not available. Attempt {Attempt}. Calculated next available time: {NextTime}", 
-							adjustedTime, attempts + 1, nextAvailableTime.Value);
-						adjustedTime = nextAvailableTime.Value;
-					}
-				}
-				else
-				{
-					// Fallback: move forward by 30 minutes if we can't calculate next available time
-					_logger.LogDebug("Time {Time} is not available. Attempt {Attempt}. Moving forward by 30 minutes (fallback).", 
-						adjustedTime, attempts + 1);
-					adjustedTime = adjustedTime.Add(TimeSpan.FromMinutes(incrementMinutes));
-				}
-				
-				// Check if we've exceeded the slot end time (handle midnight crossing)
-				bool exceededSlot = false;
-				var timeEnd = adjustedTime.Add(TimeSpan.FromMinutes(durationMinutes));
-				
-				if (slotBounds.slotEnd > slotBounds.slotStart)
-				{
-					// Normal slot: check if time exceeds end
-					exceededSlot = timeEnd > slotBounds.slotEnd;
-				}
-				else
-				{
-					// Slot crosses midnight: we've exceeded if:
-					// - We're past the end time (after midnight portion) AND
-					// - We're before the start time (before evening portion) AND  
-					// - The task end would also be past end
-					// This means we're in the "dead zone" between slotEnd and slotStart
-					exceededSlot = adjustedTime > slotBounds.slotEnd && adjustedTime < slotBounds.slotStart;
-				}
-				
-				if (exceededSlot)
-				{
-					// Move to next day and reset to slot start
+					// No slot for this date, move to next day
 					adjustedDate = DateTime.SpecifyKind(adjustedDate.AddDays(1).Date, DateTimeKind.Utc);
-					isWeekend = adjustedDate.DayOfWeek == DayOfWeek.Saturday || adjustedDate.DayOfWeek == DayOfWeek.Sunday;
-					
-					// Recalculate slot bounds for the new date
-					if (wellnessData != null)
+					var nextSlot = _timeSlotHelper.GetUtcSlotForDate(adjustedDate, wellnessData);
+					if (nextSlot != null)
 					{
-						// Use UTC fields if available (they're already converted to UTC)
-						if (isWeekend && wellnessData.WeekendStartTimeUtc.HasValue && wellnessData.WeekendEndTimeUtc.HasValue)
-						{
-							slotBounds = (wellnessData.WeekendStartTimeUtc.Value.TimeOfDay, wellnessData.WeekendEndTimeUtc.Value.TimeOfDay);
-						}
-						else if (!isWeekend && wellnessData.WeekdayStartTimeUtc.HasValue && wellnessData.WeekdayEndTimeUtc.HasValue)
-						{
-							slotBounds = (wellnessData.WeekdayStartTimeUtc.Value.TimeOfDay, wellnessData.WeekdayEndTimeUtc.Value.TimeOfDay);
-						}
-						else if (!string.IsNullOrWhiteSpace(wellnessData.TimezoneId))
-						{
-							// Fall back to converting local time fields
-							if (isWeekend)
-							{
-								slotBounds = ParseTimeSlotsForDate(
-									wellnessData.WeekendStartTime,
-									wellnessData.WeekendStartShift,
-									wellnessData.WeekendEndTime,
-									wellnessData.WeekendEndShift,
-									adjustedDate,
-									wellnessData.TimezoneId);
-							}
-							else
-							{
-								slotBounds = ParseTimeSlotsForDate(
-									wellnessData.WeekdayStartTime,
-									wellnessData.WeekdayStartShift,
-									wellnessData.WeekdayEndTime,
-									wellnessData.WeekdayEndShift,
-									adjustedDate,
-									wellnessData.TimezoneId);
-							}
-						}
-					}
-					
-					adjustedTime = slotBounds.slotStart;
-				}
-				
-				// Handle day boundary crossing (fallback)
-				// Only move to next day if we're not in a midnight-crossing slot
-				// For midnight-crossing slots, times after midnight (00:00-XX:XX) are valid on the same date
-				if (adjustedTime.TotalMinutes >= 24 * 60)
-				{
-					// Check if we're in a midnight-crossing slot
-					if (slotBounds.slotEnd <= slotBounds.slotStart && adjustedTime <= slotBounds.slotEnd)
-					{
-						// We're in the after-midnight portion of a midnight-crossing slot
-						// Wrap time back to the after-midnight portion (already done by TimeSpan arithmetic)
-						adjustedTime = new TimeSpan(0, (int)(adjustedTime.TotalMinutes % (24 * 60)), 0);
+						var (nextSlotStart, _) = nextSlot.GetUtcRangeForDate(adjustedDate);
+						adjustedTime = nextSlotStart.TimeOfDay;
 					}
 					else
 					{
-						// Normal case: move to next day
+						adjustedTime = new TimeSpan(9, 0, 0); // Default fallback
+					}
+				}
+				else
+				{
+					// Move forward within the slot
+					adjustedTime = adjustedTime.Add(TimeSpan.FromMinutes(incrementMinutes));
+					var (slotStart, slotEnd) = slot.GetUtcRangeForDate(adjustedDate);
+					
+					// Check if we've exceeded the slot
+					var candidateEnd = DateTime.SpecifyKind(adjustedDate.Date.Add(adjustedTime).AddMinutes(durationMinutes), DateTimeKind.Utc);
+					if (candidateEnd > slotEnd)
+					{
+						// Move to next day
 						adjustedDate = DateTime.SpecifyKind(adjustedDate.AddDays(1).Date, DateTimeKind.Utc);
-						adjustedTime = TimeSpan.Zero;
+						var nextSlot = _timeSlotHelper.GetUtcSlotForDate(adjustedDate, wellnessData);
+						if (nextSlot != null)
+						{
+							var (nextSlotStart, _) = nextSlot.GetUtcRangeForDate(adjustedDate);
+							adjustedTime = nextSlotStart.TimeOfDay;
+						}
+						else
+						{
+							adjustedTime = new TimeSpan(9, 0, 0);
+						}
 					}
 				}
 				
 				attempts++;
 			}
 			
-			// If we couldn't find a valid slot, throw an exception
-			if (attempts >= maxAttempts)
+			if (attempts >= maxVerificationAttempts)
 			{
-				_logger.LogWarning("Could not find available slot for task '{Task}' after {Attempts} attempts", 
+				_logger.LogWarning("Could not find available slot for task '{Task}' after {Attempts} verification attempts", 
 					request.Task, attempts);
-				throw new InvalidOperationException($"Could not find an available time slot for the task within the user's wellness schedule after {attempts} attempts.");
+				// Don't throw - use the originally scheduled time as fallback
 			}
 
 			// Compose UTC datetime for storage/return
-			// Both date and time are already in UTC format from the scheduling logic
 			var utcDateTime = DateTime.SpecifyKind(adjustedDate.Date.Add(adjustedTime), DateTimeKind.Utc);
 
 			_logger.LogInformation("Creating task '{TaskTitle}' for user {UserId} at {TaskDate} {TaskTime} UTC", 
@@ -930,304 +737,7 @@ namespace Mindflow_Web_API.Services
 			return taskItem;
 		}
 
-		public async Task<List<TaskItem>> AddMultipleTasksToCalendarAsync(Guid userId, List<TaskSuggestion> suggestions, DTOs.WellnessCheckInDto? wellnessData = null, Guid? brainDumpEntryId = null)
-		{
-			var createdTasks = new List<TaskItem>();
-			
-			// Get user's wellness data if not provided
-			if (wellnessData == null)
-				wellnessData = await _wellnessService.GetAsync(userId);
-
-			// Get brain dump entry if provided for linking
-			BrainDumpEntry? brainDumpEntry = null;
-			if (brainDumpEntryId.HasValue)
-			{
-				brainDumpEntry = await _db.BrainDumpEntries
-					.FirstOrDefaultAsync(e => e.Id == brainDumpEntryId.Value && e.UserId == userId);
-			}
-
-			// Sort tasks by priority (High -> Medium -> Low)
-			var sortedSuggestions = suggestions.OrderBy(s => s.Priority switch
-			{
-				"High" => 1,
-				"Medium" => 2,
-				"Low" => 3,
-				_ => 2
-			}).ToList();
-
-			// Schedule tasks across available time slots
-			var scheduledTasks = await ScheduleTasksAcrossTimeSlotsAsync(sortedSuggestions, wellnessData, userId);
-
-			foreach (var scheduledTask in scheduledTasks)
-			{
-				// Ensure tasks in this batch do not stack at the same time; nudge forward in 30-min steps
-				var durationMinutes = ParseDurationToMinutes(scheduledTask.Suggestion.Duration);
-				// Ensure candidateDate is UTC
-				var candidateDate = DateTime.SpecifyKind(scheduledTask.Date.Date, DateTimeKind.Utc);
-				var candidateTime = scheduledTask.Time;
-				
-				// Get slot boundaries for the candidate date to ensure we don't exceed them
-				var isWeekend = candidateDate.DayOfWeek == DayOfWeek.Saturday || candidateDate.DayOfWeek == DayOfWeek.Sunday;
-				(TimeSpan slotStart, TimeSpan slotEnd) slotBounds;
-				if (wellnessData != null)
-				{
-					// Use UTC fields if available (they're already converted to UTC)
-					if (isWeekend && wellnessData.WeekendStartTimeUtc.HasValue && wellnessData.WeekendEndTimeUtc.HasValue)
-					{
-						slotBounds = (wellnessData.WeekendStartTimeUtc.Value.TimeOfDay, wellnessData.WeekendEndTimeUtc.Value.TimeOfDay);
-					}
-					else if (!isWeekend && wellnessData.WeekdayStartTimeUtc.HasValue && wellnessData.WeekdayEndTimeUtc.HasValue)
-					{
-						slotBounds = (wellnessData.WeekdayStartTimeUtc.Value.TimeOfDay, wellnessData.WeekdayEndTimeUtc.Value.TimeOfDay);
-					}
-					else if (!string.IsNullOrWhiteSpace(wellnessData.TimezoneId))
-					{
-						// Fall back to converting local time fields
-						if (isWeekend)
-						{
-							slotBounds = ParseTimeSlotsForDate(
-								wellnessData.WeekendStartTime,
-								wellnessData.WeekendStartShift,
-								wellnessData.WeekendEndTime,
-								wellnessData.WeekendEndShift,
-								candidateDate,
-								wellnessData.TimezoneId);
-						}
-						else
-						{
-							slotBounds = ParseTimeSlotsForDate(
-								wellnessData.WeekdayStartTime,
-								wellnessData.WeekdayStartShift,
-								wellnessData.WeekdayEndTime,
-								wellnessData.WeekdayEndShift,
-								candidateDate,
-								wellnessData.TimezoneId);
-						}
-					}
-					else
-					{
-						// No timezone, use default slots (24 hours)
-						slotBounds = (TimeSpan.Zero, new TimeSpan(24, 0, 0));
-					}
-				}
-				else
-				{
-					// No wellness data, use default slots (24 hours)
-					slotBounds = (TimeSpan.Zero, new TimeSpan(24, 0, 0));
-				}
-				
-				// Helper function to check if time conflicts with created tasks in this batch
-				bool ConflictsWithCreatedTasks(DateTime date, TimeSpan time, int duration)
-				{
-					var taskStart = date.Date.Add(time);
-					var taskEnd = taskStart.AddMinutes(duration);
-					
-					foreach (var existingTask in createdTasks)
-					{
-						if (existingTask.Date.Date == date.Date)
-						{
-							var existingStart = existingTask.Time;
-							var existingEnd = existingStart.AddMinutes(existingTask.DurationMinutes);
-							
-							// Check for overlap with 15-minute buffer
-							var bufferMinutes = 15;
-							var taskStartWithBuffer = taskStart.AddMinutes(-bufferMinutes);
-							var taskEndWithBuffer = taskEnd.AddMinutes(bufferMinutes);
-							var existingStartWithBuffer = existingStart.AddMinutes(-bufferMinutes);
-							var existingEndWithBuffer = existingEnd.AddMinutes(bufferMinutes);
-							
-							// Two tasks conflict if their buffered time ranges overlap
-							if ((taskStartWithBuffer < existingEndWithBuffer) && (taskEndWithBuffer > existingStartWithBuffer))
-							{
-								return true;
-							}
-						}
-					}
-					return false;
-				}
-				
-				// Helper function to check if time is within slot bounds (handles midnight crossing)
-				bool IsTimeWithinSlot(TimeSpan time, TimeSpan duration, TimeSpan slotStart, TimeSpan slotEnd)
-				{
-					var timeEnd = time.Add(duration);
-					
-					// Case 1: Normal slot (start < end, e.g., 07:00 - 10:00)
-					if (slotEnd > slotStart)
-					{
-						return time >= slotStart && timeEnd <= slotEnd;
-					}
-					
-					// Case 2: Slot crosses midnight (start > end, e.g., 23:00 - 02:30)
-					if (time >= slotStart)
-					{
-						// Time is after start (before midnight)
-						if (timeEnd.TotalMinutes > 24 * 60)
-						{
-							// Duration crosses midnight, check if it fits within slot window
-							var slotDuration = (24 * 60 - slotStart.TotalMinutes) + slotEnd.TotalMinutes;
-							return duration.TotalMinutes <= slotDuration;
-						}
-						return true; // Fits before midnight
-					}
-					else if (time <= slotEnd)
-					{
-						// Time is before end (after midnight)
-						return timeEnd <= slotEnd;
-					}
-					else
-					{
-						// Time is between slotEnd and slotStart (invalid zone)
-						return false;
-					}
-				}
-				
-				// TimeSlotManager already scheduled this task avoiding conflicts with existing DB tasks
-				// We only need to check for conflicts with tasks created in this batch and ensure it's within slot boundaries
-				// Skip the database check since TimeSlotManager already handled that
-				var maxAttempts = 1000; // Prevent infinite loops
-				var attempts = 0;
-				while (
-					attempts < maxAttempts &&
-					(
-						ConflictsWithCreatedTasks(candidateDate, candidateTime, durationMinutes)
-						|| !IsTimeWithinSlot(candidateTime, TimeSpan.FromMinutes(durationMinutes), slotBounds.slotStart, slotBounds.slotEnd)
-					)
-				)
-				{
-					candidateTime = candidateTime.Add(TimeSpan.FromMinutes(30));
-					
-					// Check if we've exceeded the slot end time (handle midnight crossing)
-					bool exceededSlot = false;
-					var timeEnd = candidateTime.Add(TimeSpan.FromMinutes(durationMinutes));
-					
-					if (slotBounds.slotEnd > slotBounds.slotStart)
-					{
-						// Normal slot: check if time exceeds end
-						exceededSlot = timeEnd > slotBounds.slotEnd;
-					}
-					else
-					{
-						// Slot crosses midnight: we've exceeded if we're past end and before start
-						exceededSlot = candidateTime > slotBounds.slotEnd && candidateTime < slotBounds.slotStart;
-					}
-					
-					if (exceededSlot)
-					{
-						// Move to next day and reset to slot start
-						candidateDate = DateTime.SpecifyKind(candidateDate.AddDays(1).Date, DateTimeKind.Utc);
-						isWeekend = candidateDate.DayOfWeek == DayOfWeek.Saturday || candidateDate.DayOfWeek == DayOfWeek.Sunday;
-						
-						// Recalculate slot bounds for the new date
-						if (wellnessData != null && !string.IsNullOrWhiteSpace(wellnessData.TimezoneId))
-						{
-							if (isWeekend)
-							{
-								slotBounds = ParseTimeSlotsForDate(
-									wellnessData.WeekendStartTime,
-									wellnessData.WeekendStartShift,
-									wellnessData.WeekendEndTime,
-									wellnessData.WeekendEndShift,
-									candidateDate,
-									wellnessData.TimezoneId);
-							}
-							else
-							{
-								slotBounds = ParseTimeSlotsForDate(
-									wellnessData.WeekdayStartTime,
-									wellnessData.WeekdayStartShift,
-									wellnessData.WeekdayEndTime,
-									wellnessData.WeekdayEndShift,
-									candidateDate,
-									wellnessData.TimezoneId);
-							}
-						}
-						
-						candidateTime = slotBounds.slotStart;
-					}
-					
-					// Handle day boundary crossing (fallback)
-					if (candidateTime.TotalMinutes >= 24 * 60)
-					{
-						candidateDate = DateTime.SpecifyKind(candidateDate.AddDays(1).Date, DateTimeKind.Utc);
-						candidateTime = TimeSpan.Zero;
-					}
-					
-					attempts++;
-				}
-				
-				// Skip this task if we couldn't find a valid slot
-				if (attempts >= maxAttempts)
-				{
-					_logger.LogWarning("Could not find available slot for task '{Task}' after {Attempts} attempts, skipping", 
-						scheduledTask.Suggestion.Task, attempts);
-					continue;
-				}
-
-				// Extract brain dump linking information if available
-				string? sourceTextExcerpt = null;
-				string? lifeArea = null;
-				string? emotionTag = null;
-				
-				if (brainDumpEntry != null)
-				{
-					sourceTextExcerpt = ExtractSourceTextExcerpt(brainDumpEntry.Text, scheduledTask.Suggestion.Task, scheduledTask.Suggestion.Notes);
-					lifeArea = DetermineLifeArea(brainDumpEntry.Text, scheduledTask.Suggestion.Task, scheduledTask.Suggestion.Notes);
-					emotionTag = DetermineEmotionTag(brainDumpEntry.Text, brainDumpEntry.Tags);
-				}
-
-				// Serialize sub-steps to JSON string for storage
-				string? subStepsJson = null;
-				if (scheduledTask.Suggestion.SubSteps != null && scheduledTask.Suggestion.SubSteps.Count > 0)
-				{
-					try
-					{
-						subStepsJson = System.Text.Json.JsonSerializer.Serialize(scheduledTask.Suggestion.SubSteps);
-					}
-					catch (Exception ex)
-					{
-						_logger.LogWarning(ex, "Failed to serialize sub-steps for task: {Task}", scheduledTask.Suggestion.Task);
-					}
-				}
-				
-				var taskItem = new TaskItem
-				{
-					UserId = userId,
-					Title = scheduledTask.Suggestion.Task,
-					Description = scheduledTask.Suggestion.Notes,
-					Category = DetermineTaskCategory(scheduledTask.Suggestion.Task, scheduledTask.Suggestion.Notes),
-					OtherCategoryName = "AI Suggested",
-					Date = DateTime.SpecifyKind(candidateDate.Date.Add(candidateTime), DateTimeKind.Utc).Date,
-					Time = DateTime.SpecifyKind(candidateDate.Date.Add(candidateTime), DateTimeKind.Utc),
-					DurationMinutes = durationMinutes,
-					ReminderEnabled = true,
-					RepeatType = MapFrequencyToRepeatType(scheduledTask.Suggestion.Frequency),
-					CreatedBySuggestionEngine = true,
-					IsApproved = true,
-					Status = Models.TaskStatus.Pending,
-					IsTemplate = false,
-					IsActive = true,
-					// Brain dump linking fields
-					SourceBrainDumpEntryId = brainDumpEntryId,
-					SourceTextExcerpt = sourceTextExcerpt,
-					LifeArea = lifeArea,
-					EmotionTag = emotionTag,
-					// Micro-step breakdown
-					SubSteps = subStepsJson,
-					// Prioritization (from AI suggestion)
-					Urgency = scheduledTask.Suggestion.Urgency,
-					Importance = scheduledTask.Suggestion.Importance,
-					PriorityScore = scheduledTask.Suggestion.PriorityScore
-				};
-
-				_db.Tasks.Add(taskItem);
-				createdTasks.Add(taskItem);
-			}
-
-			await _db.SaveChangesAsync();
-			return createdTasks;
-		}
-
-		public async Task<List<TaskItem>> AutoScheduleAllTasksAsync(Guid userId, Guid brainDumpEntryId, List<Guid>? suggestionIds = null)
+				public async Task<List<TaskItem>> AutoScheduleAllTasksAsync(Guid userId, Guid brainDumpEntryId, List<Guid>? suggestionIds = null)
 		{
 			// Fetch pending suggestions for this brain dump entry
 			var query = _db.TaskSuggestionRecords
@@ -1289,156 +799,72 @@ namespace Mindflow_Web_API.Services
 			return true;
 		}
 
-	private async Task<List<ScheduledTask>> ScheduleTasksAcrossTimeSlotsAsync(List<TaskSuggestion> suggestions, DTOs.WellnessCheckInDto? wellnessData, Guid userId)
-	{
-		var scheduledTasks = new List<ScheduledTask>();
-		
-		_logger.LogInformation("Starting task scheduling for {TaskCount} tasks", suggestions.Count);
-		
-		// Use UTC fields if available (they're already converted to UTC)
-		// Otherwise fall back to converting local time fields
-		(TimeSpan start, TimeSpan end) weekdaySlots;
-		(TimeSpan start, TimeSpan end) weekendSlots;
-		
-		if (wellnessData?.WeekdayStartTimeUtc.HasValue == true && wellnessData?.WeekdayEndTimeUtc.HasValue == true)
-		{
-			// Use UTC fields directly - extract time portion
-			// Note: The UTC DateTime may have a date component, but we only need the time
-			var startTime = wellnessData.WeekdayStartTimeUtc.Value.TimeOfDay;
-			var endTime = wellnessData.WeekdayEndTimeUtc.Value.TimeOfDay;
-			
-			// Log the raw UTC DateTime values for debugging
-			_logger.LogInformation("[SCHEDULING] Raw UTC DateTime values - Start: {StartUtc}, End: {EndUtc}", 
-				wellnessData.WeekdayStartTimeUtc.Value, wellnessData.WeekdayEndTimeUtc.Value);
-			
-			// If end time is earlier than start time, it means the slot crosses midnight
-			// This is correct - e.g., 18:00 to 03:00 means 6 PM to 3 AM next day
-			weekdaySlots = (startTime, endTime);
-			_logger.LogInformation("[SCHEDULING] Using UTC fields for weekday slots: {Start} to {End} (crosses midnight: {CrossesMidnight}, timezone: {Timezone})", 
-				weekdaySlots.start, weekdaySlots.end, endTime < startTime, wellnessData.TimezoneId);
-		}
-		else
-		{
-			// Fall back to converting local time fields
-			var defaultDate = DateTime.UtcNow.Date.AddDays(1);
-			_logger.LogInformation("[DEBUG] Wellness data: WeekdayStartTime='{WeekdayStartTime}' {WeekdayStartShift}, TimezoneId='{TimezoneId}'", 
-				wellnessData?.WeekdayStartTime, wellnessData?.WeekdayStartShift, wellnessData?.TimezoneId);
-			weekdaySlots = ParseTimeSlotsForDate(
-				wellnessData?.WeekdayStartTime,
-				wellnessData?.WeekdayStartShift,
-				wellnessData?.WeekdayEndTime,
-				wellnessData?.WeekdayEndShift,
-				defaultDate,
-				wellnessData?.TimezoneId);
-		}
-		
-		if (wellnessData?.WeekendStartTimeUtc.HasValue == true && wellnessData?.WeekendEndTimeUtc.HasValue == true)
-		{
-			// Use UTC fields directly - extract time portion
-			// Note: The UTC DateTime may have a date component, but we only need the time
-			var startTime = wellnessData.WeekendStartTimeUtc.Value.TimeOfDay;
-			var endTime = wellnessData.WeekendEndTimeUtc.Value.TimeOfDay;
-			
-			// Log the raw UTC DateTime values for debugging
-			_logger.LogInformation("[SCHEDULING] Raw UTC DateTime values - Start: {StartUtc}, End: {EndUtc}", 
-				wellnessData.WeekendStartTimeUtc.Value, wellnessData.WeekendEndTimeUtc.Value);
-			
-			// If end time is earlier than start time, it means the slot crosses midnight
-			// This is correct - e.g., 16:00 to 00:00 means 4 PM to midnight
-			weekendSlots = (startTime, endTime);
-			_logger.LogInformation("[SCHEDULING] Using UTC fields for weekend slots: {Start} to {End} (crosses midnight: {CrossesMidnight}, timezone: {Timezone})", 
-				weekendSlots.start, weekendSlots.end, endTime < startTime, wellnessData.TimezoneId);
-		}
-		else
-		{
-			// Fall back to converting local time fields
-			var defaultDate = DateTime.UtcNow.Date.AddDays(1);
-			_logger.LogInformation("[DEBUG] Wellness data: WeekendStartTime='{WeekendStartTime}' {WeekendStartShift}, TimezoneId='{TimezoneId}'", 
-				wellnessData?.WeekendStartTime, wellnessData?.WeekendStartShift, wellnessData?.TimezoneId);
-			weekendSlots = ParseTimeSlotsForDate(
-				wellnessData?.WeekendStartTime,
-				wellnessData?.WeekendStartShift,
-				wellnessData?.WeekendEndTime,
-				wellnessData?.WeekendEndShift,
-				defaultDate,
-				wellnessData?.TimezoneId);
-		}
 
-		_logger.LogInformation("Weekday slots (UTC): {WeekdayStart} to {WeekdayEnd}", weekdaySlots.start, weekdaySlots.end);
-		_logger.LogInformation("Weekend slots (UTC): {WeekendStart} to {WeekendEnd}", weekendSlots.start, weekendSlots.end);
-
-		// Load existing tasks from database to avoid conflicts
-		var today = DateTime.UtcNow.Date;
-		var lookAheadDays = 14; // Look ahead 2 weeks
-		var existingTasks = await _db.Tasks
-			.Where(t => t.UserId == userId 
-				&& t.IsActive 
-				&& t.Time >= today 
-				&& t.Time < today.AddDays(lookAheadDays))
-			.ToListAsync();
-		
-		_logger.LogInformation("Loaded {Count} existing tasks from database to avoid conflicts", existingTasks.Count);
-
-		// Create a time slot manager to track available slots
-		var slotManager = new TimeSlotManager(weekdaySlots, weekendSlots, _logger);
-		
-		// Pre-populate TimeSlotManager with existing tasks
-		_logger.LogInformation("Pre-populating TimeSlotManager with {Count} existing tasks", existingTasks.Count);
-		foreach (var existingTask in existingTasks)
+		/// <summary>
+		/// Improved scheduling method using TimeSlotHelper for cleaner slot management
+		/// </summary>
+		private async Task<(DateTime date, TimeSpan time)> FindNextAvailableSlotImprovedAsync(DTOs.WellnessCheckInDto? wellnessData, int durationMinutes, Guid userId)
 		{
-			var taskStart = existingTask.Time;
-			if (taskStart.Kind != DateTimeKind.Utc)
+			if (wellnessData == null || string.IsNullOrEmpty(wellnessData.TimezoneId))
 			{
-				taskStart = DateTime.SpecifyKind(taskStart, DateTimeKind.Utc);
+				// No wellness data - use default: tomorrow at 9 AM UTC
+				var fallbackDate = DateTime.SpecifyKind(DateTime.UtcNow.Date.AddDays(1), DateTimeKind.Utc);
+				return (fallbackDate, new TimeSpan(9, 0, 0));
 			}
-			var taskDate = taskStart.Date;
-			var taskTime = taskStart.TimeOfDay;
-			var duration = existingTask.DurationMinutes;
-			
-			_logger.LogInformation("Pre-reserving existing task - Date: {Date}, Time: {Time}, Duration: {Duration}min, TaskId: {TaskId}", 
-				taskDate.ToString("yyyy-MM-dd"), taskTime, duration, existingTask.Id);
-			slotManager.ReserveSlot(taskDate, taskTime, duration);
-		}
-		_logger.LogInformation("Finished pre-populating TimeSlotManager with existing tasks");
-		
-		// Sort tasks by priority and duration for optimal scheduling
-		var sortedSuggestions = suggestions.OrderBy(s => s.Priority switch
-		{
-			"High" => 1,
-			"Medium" => 2,
-			"Low" => 3,
-			_ => 2
-		}).ThenBy(s => ParseDurationToMinutes(s.Duration)).ToList();
 
-		_logger.LogInformation("Task scheduling order: {TaskOrder}", 
-			string.Join(", ", sortedSuggestions.Select(s => $"{s.Task} ({s.Priority})")));
+			var startDate = DateTime.SpecifyKind(DateTime.UtcNow.Date.AddDays(1), DateTimeKind.Utc);
+			const int maxDaysToSearch = 14;
+			const int slotIncrementMinutes = 30;
 
-		foreach (var suggestion in sortedSuggestions)
-		{
-			var duration = ParseDurationToMinutes(suggestion.Duration);
-			
-			_logger.LogDebug("Scheduling task: {Task} (Duration: {Duration}min, Priority: {Priority}, SuggestedTime: {SuggestedTime})", 
-				suggestion.Task, duration, suggestion.Priority, suggestion.SuggestedTime ?? "None");
-			
-			// Find the best available slot for this task
-			var (date, time) = FindBestAvailableSlot(suggestion, duration, slotManager);
-			
-			_logger.LogDebug("Scheduled {Task} for {Date} at {Time}", suggestion.Task, date.ToString("yyyy-MM-dd"), time);
-			
-			scheduledTasks.Add(new ScheduledTask
+			_logger.LogInformation("[IMPROVED_SCHEDULING] Searching for {Duration}min slot starting from {StartDate} UTC", 
+				durationMinutes, startDate);
+
+			for (int dayOffset = 0; dayOffset < maxDaysToSearch; dayOffset++)
 			{
-				Suggestion = suggestion,
-				Date = date,
-				Time = time
-			});
+				var checkDate = startDate.AddDays(dayOffset);
+				var slot = _timeSlotHelper.GetUtcSlotForDate(checkDate, wellnessData);
 
-			// Reserve this time slot
-			slotManager.ReserveSlot(date, time, duration);
+				if (slot == null)
+				{
+					_logger.LogDebug("[IMPROVED_SCHEDULING] No time slot configured for {Date}", checkDate.Date);
+					continue;
+				}
+
+				_logger.LogDebug("[IMPROVED_SCHEDULING] Checking {Date} ({DayOfWeek}): Slot {Start} to {End} (crosses midnight: {Crosses})",
+					checkDate.Date, checkDate.DayOfWeek, slot.StartTime, slot.EndTime, slot.CrossesMidnight);
+
+				// Get the actual UTC range for this slot
+				var (slotStart, slotEnd) = slot.GetUtcRangeForDate(checkDate);
+
+				// Scan in 30-minute increments within the slot
+				var currentTime = slotStart;
+
+				while (currentTime.AddMinutes(durationMinutes) <= slotEnd)
+				{
+					if (await IsTimeSlotAvailableAsync(checkDate, currentTime.TimeOfDay, durationMinutes, userId))
+					{
+						_logger.LogInformation("[IMPROVED_SCHEDULING] Found available slot: {DateTime} UTC", currentTime);
+						return (checkDate, currentTime.TimeOfDay);
+					}
+
+					currentTime = currentTime.AddMinutes(slotIncrementMinutes);
+				}
+			}
+
+			_logger.LogWarning("[IMPROVED_SCHEDULING] No available slot found within {Days} days", maxDaysToSearch);
+
+			// Fallback: return tomorrow at the start of the slot
+			var fallbackStartDate = DateTime.UtcNow.Date.AddDays(1);
+			var fallbackSlot = _timeSlotHelper.GetUtcSlotForDate(fallbackStartDate, wellnessData);
+
+			if (fallbackSlot != null)
+			{
+				var (fallbackStart, _) = fallbackSlot.GetUtcRangeForDate(fallbackStartDate);
+				return (fallbackStartDate, fallbackStart.TimeOfDay);
+			}
+
+			return (fallbackStartDate, new TimeSpan(9, 0, 0)); // 9 AM UTC fallback
 		}
-
-		_logger.LogInformation("Completed scheduling {ScheduledCount} tasks", scheduledTasks.Count);
-		return scheduledTasks;
-	}
 
 		private async Task<(DateTime date, TimeSpan time)> DetermineOptimalScheduleWithTimeSlotsAsync(AddToCalendarRequest request, DTOs.WellnessCheckInDto? wellnessData, int durationMinutes, Guid userId)
 		{

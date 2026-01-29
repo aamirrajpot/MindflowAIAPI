@@ -20,6 +20,7 @@ namespace Mindflow_Web_API.Persistence
         public DbSet<BrainDumpEntry> BrainDumpEntries => Set<BrainDumpEntry>();
         public DbSet<GoogleCalendarConnection> GoogleCalendarConnections => Set<GoogleCalendarConnection>();
         public DbSet<TaskSuggestionRecord> TaskSuggestionRecords => Set<TaskSuggestionRecord>();
+        public DbSet<FcmDeviceToken> FcmDeviceTokens => Set<FcmDeviceToken>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

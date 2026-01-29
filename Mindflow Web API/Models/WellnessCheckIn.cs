@@ -33,6 +33,13 @@ namespace Mindflow_Web_API.Models
         public DateTime? WeekendStartTimeUtc { get; set; }   // Weekend start time in UTC
         public DateTime? WeekendEndTimeUtc { get; set; }     // Weekend end time in UTC
         
+        // IMPROVED: Store UTC offset in minutes from midnight, not DateTime
+        // This properly handles slots that cross midnight
+        public int? WeekdayStartMinutesUtc { get; set; }   // Minutes from UTC midnight (0-1439 for same day, can be > 1440 if crosses to next day)
+        public int? WeekdayEndMinutesUtc { get; set; }     // Minutes from UTC midnight (can be > 1440 if crosses to next day)
+        public int? WeekendStartMinutesUtc { get; set; }   // Minutes from UTC midnight
+        public int? WeekendEndMinutesUtc { get; set; }     // Minutes from UTC midnight (can be > 1440 if crosses to next day)
+        
         // Timezone information (IANA or Windows Id)
         public string? TimezoneId { get; set; }
         
@@ -74,6 +81,10 @@ namespace Mindflow_Web_API.Models
             DateTime? weekdayEndTimeUtc,
             DateTime? weekendStartTimeUtc,
             DateTime? weekendEndTimeUtc,
+            int? weekdayStartMinutesUtc,
+            int? weekdayEndMinutesUtc,
+            int? weekendStartMinutesUtc,
+            int? weekendEndMinutesUtc,
             string? timezoneId,
             Dictionary<string, object> questions)
         {
@@ -96,6 +107,10 @@ namespace Mindflow_Web_API.Models
             WeekdayEndTimeUtc = weekdayEndTimeUtc;
             WeekendStartTimeUtc = weekendStartTimeUtc;
             WeekendEndTimeUtc = weekendEndTimeUtc;
+            WeekdayStartMinutesUtc = weekdayStartMinutesUtc;
+            WeekdayEndMinutesUtc = weekdayEndMinutesUtc;
+            WeekendStartMinutesUtc = weekendStartMinutesUtc;
+            WeekendEndMinutesUtc = weekendEndMinutesUtc;
             TimezoneId = timezoneId;
             Questions = questions ?? new Dictionary<string, object>();
         }
@@ -120,6 +135,10 @@ namespace Mindflow_Web_API.Models
             DateTime? weekdayEndTimeUtc = null,
             DateTime? weekendStartTimeUtc = null,
             DateTime? weekendEndTimeUtc = null,
+            int? weekdayStartMinutesUtc = null,
+            int? weekdayEndMinutesUtc = null,
+            int? weekendStartMinutesUtc = null,
+            int? weekendEndMinutesUtc = null,
             string? timezoneId = null,
             Dictionary<string, object>? questions = null)
         {
@@ -144,6 +163,10 @@ namespace Mindflow_Web_API.Models
                 weekdayEndTimeUtc,
                 weekendStartTimeUtc,
                 weekendEndTimeUtc,
+                weekdayStartMinutesUtc,
+                weekdayEndMinutesUtc,
+                weekendStartMinutesUtc,
+                weekendEndMinutesUtc,
                 timezoneId,
                 questions ?? new Dictionary<string, object>());
         }
@@ -167,6 +190,10 @@ namespace Mindflow_Web_API.Models
             DateTime? weekdayEndTimeUtc,
             DateTime? weekendStartTimeUtc,
             DateTime? weekendEndTimeUtc,
+            int? weekdayStartMinutesUtc,
+            int? weekdayEndMinutesUtc,
+            int? weekendStartMinutesUtc,
+            int? weekendEndMinutesUtc,
             string? timezoneId,
             Dictionary<string, object>? questions)
         {
@@ -190,6 +217,10 @@ namespace Mindflow_Web_API.Models
             WeekdayEndTimeUtc = weekdayEndTimeUtc;
             WeekendStartTimeUtc = weekendStartTimeUtc;
             WeekendEndTimeUtc = weekendEndTimeUtc;
+            WeekdayStartMinutesUtc = weekdayStartMinutesUtc ?? WeekdayStartMinutesUtc;
+            WeekdayEndMinutesUtc = weekdayEndMinutesUtc ?? WeekdayEndMinutesUtc;
+            WeekendStartMinutesUtc = weekendStartMinutesUtc ?? WeekendStartMinutesUtc;
+            WeekendEndMinutesUtc = weekendEndMinutesUtc ?? WeekendEndMinutesUtc;
             TimezoneId = timezoneId ?? TimezoneId;
             
             if (questions != null)

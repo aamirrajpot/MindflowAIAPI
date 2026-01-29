@@ -46,6 +46,10 @@ namespace Mindflow_Web_API.DTOs
         DateTime? WeekdayEndTimeUtc,    // UTC time as DateTime
         DateTime? WeekendStartTimeUtc,  // UTC time as DateTime
         DateTime? WeekendEndTimeUtc,    // UTC time as DateTime
+        int? WeekdayStartMinutesUtc,   // Minutes from UTC midnight (0-1439 for same day, can be > 1440 if crosses to next day)
+        int? WeekdayEndMinutesUtc,     // Minutes from UTC midnight (can be > 1440 if crosses to next day)
+        int? WeekendStartMinutesUtc,   // Minutes from UTC midnight
+        int? WeekendEndMinutesUtc,     // Minutes from UTC midnight (can be > 1440 if crosses to next day)
         string? TimezoneId,
         Dictionary<string, object> Questions  // Dynamic questions
     );

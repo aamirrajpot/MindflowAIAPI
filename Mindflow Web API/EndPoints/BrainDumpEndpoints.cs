@@ -280,41 +280,9 @@ namespace Mindflow_Web_API.EndPoints
 					}
 				};
 
-				try
-				{
-					var taskItems = await service.AddMultipleTasksToCalendarAsync(userId, sampleSuggestions);
-
-					return Results.Ok(new
-					{
-						message = "Test scheduling completed successfully",
-						description = "This demonstrates the new smart scheduling functionality for both single and multiple tasks",
-						improvements = new[]
-						{
-							"✅ Single task API now uses smart scheduling",
-							"✅ Multiple tasks API distributes across available time slots",
-							"✅ Respects weekday vs weekend availability from wellness check-in",
-							"✅ No overlapping schedules with 15-minute buffers",
-							"✅ AI suggestions are considered but not enforced",
-							"✅ Priority-based scheduling (High → Medium → Low)",
-							"✅ User preferences (date/time) are respected when possible"
-						},
-						taskCount = taskItems.Count,
-						scheduledTasks = taskItems.Select(t => new
-						{
-							Title = t.Title,
-							Description = t.Description,
-							Category = t.Category,
-							scheduledDate = t.Date.ToString("yyyy-MM-dd"),
-							scheduledTime = t.Time.ToString("HH:mm"),
-							DurationMinutes = t.DurationMinutes,
-							RepeatType = t.RepeatType
-						}).ToList()
-					});
-				}
-				catch (Exception ex)
-				{
-					return Results.BadRequest(new { error = ex.Message });
-				}
+				// NOTE: The old multi-task scheduling method has been removed to simplify the scheduling model.
+				// This endpoint remains as a placeholder/example and currently does not perform any operations.
+				return Results.BadRequest(new { error = "Bulk task scheduling is currently disabled." });
 			})
 			.WithOpenApi(op =>
 			{

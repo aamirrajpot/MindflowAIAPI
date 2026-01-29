@@ -1,19 +1,21 @@
+using FirebaseAdmin;
+using Google.Apis.Auth.OAuth2;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
-using Serilog;
-using Serilog.Events;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using Mindflow_Web_API.EndPoints;
-using Mindflow_Web_API.Persistence;
-using Mindflow_Web_API.Services;
 using Mindflow_Web_API.Middleware;
 using Mindflow_Web_API.Models;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
-using Microsoft.OpenApi.Models;
+using Mindflow_Web_API.Persistence;
+using Mindflow_Web_API.Services;
+using Serilog;
+using Serilog.Events;
 using Stripe;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -111,6 +113,10 @@ builder.Services.AddScoped<IUserService, UserService>();
 // Register EmailService
 builder.Services.AddTransient<IEmailService, EmailService>();
 
+// Register TimeSlotHelper and WellnessDataProcessor for improved scheduling
+builder.Services.AddScoped<TimeSlotHelper>();
+builder.Services.AddScoped<WellnessDataProcessor>();
+
 // Register WellnessCheckInService
 builder.Services.AddScoped<IWellnessCheckInService, WellnessCheckInService>();
 
@@ -189,6 +195,39 @@ builder.Services.AddScoped<IStripeService, StripeService>();
 // Register SubscriptionSeedService
 builder.Services.AddScoped<SubscriptionSeedService>();
 
+
+
+// Register FCM notification service
+var firebaseSecret = Environment.GetEnvironmentVariable("FIREBASE_ADMIN_JSON");
+if (!string.IsNullOrWhiteSpace(firebaseSecret))
+{
+    // decode if base64
+    if (!firebaseSecret.TrimStart().StartsWith("{"))
+        firebaseSecret = Encoding.UTF8.GetString(Convert.FromBase64String(firebaseSecret));
+
+    var credential = GoogleCredential.FromJson(firebaseSecret);
+
+    try
+    {
+        // Attempt to get the default instance; if it doesn't exist, Create will throw InvalidOperationException
+        var _ = FirebaseApp.DefaultInstance;
+    }
+    catch (InvalidOperationException)
+    {
+        FirebaseApp.Create(new AppOptions { Credential = credential });
+    }
+    catch (Exception ex)
+    {
+        // Log unexpected errors initializing Firebase
+        Log.Error(ex, "Failed to initialize FirebaseAdmin.");
+    }
+}
+else
+{
+    Log.Warning("FIREBASE_ADMIN_JSON environment variable is not set; FCM will be disabled.");
+}
+builder.Services.AddScoped<IFcmNotificationService, FcmNotificationService>();
+
 // Add CORS policy to allow all
 builder.Services.AddCors(options =>
 {
@@ -242,6 +281,7 @@ catch (Exception ex)
 
 //}
 
+
 // Enable Swagger in all environments
 app.UseSwagger();
 app.UseSwaggerUI();
@@ -267,6 +307,7 @@ app.MapGoogleCalendarEndpoints();
 app.MapBrainDumpEndpoints();
 app.MapJournalEndpoints();
 app.MapOpenAIEndpoints();
+app.MapFcmNotificationEndpoints();
 
 app.Run();
 

@@ -73,6 +73,19 @@ namespace Mindflow_Web_API.Persistence.Configurations
             builder.Property(w => w.WeekendEndTimeUtc)
                    .IsRequired(false);
 
+            // Configure UTC minute fields (stored as int - minutes from midnight UTC)
+            builder.Property(w => w.WeekdayStartMinutesUtc)
+                   .IsRequired(false);
+
+            builder.Property(w => w.WeekdayEndMinutesUtc)
+                   .IsRequired(false);
+
+            builder.Property(w => w.WeekendStartMinutesUtc)
+                   .IsRequired(false);
+
+            builder.Property(w => w.WeekendEndMinutesUtc)
+                   .IsRequired(false);
+
             // Configure Questions dictionary as JSON column
             builder.Property(w => w.Questions)
                    .HasConversion(
