@@ -36,6 +36,24 @@ namespace Mindflow_Web_API.Services
             EnsureFirebaseInitialized(configuration);
         }
 
+        public Task<bool> IsFirebaseAvailableAsync()
+        {
+            try
+            {
+                var _ = FirebaseApp.DefaultInstance;
+                return Task.FromResult(true);
+            }
+            catch (InvalidOperationException)
+            {
+                return Task.FromResult(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error checking Firebase initialization state");
+                return Task.FromResult(false);
+            }
+        }
+
         private static void EnsureFirebaseInitialized(IConfiguration configuration)
         {
             if (_firebaseInitialized)

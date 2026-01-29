@@ -38,6 +38,14 @@ namespace Mindflow_Web_API.EndPoints
                     op.Description = "Sends a test notification either to a specific device token or to all devices for a user.";
                     return op;
                 });
+
+            api.MapGet("/firebase-status", CheckFirebaseStatusAsync)
+                .WithOpenApi(op =>
+                {
+                    op.Summary = "Check Firebase initialization status";
+                    op.Description = "Returns whether the Firebase Admin credential has been loaded and FirebaseAdmin is initialized.";
+                    return op;
+                });
         }
 
         private static async Task<IResult> RegisterDeviceAsync(
@@ -155,6 +163,20 @@ namespace Mindflow_Web_API.EndPoints
                 message = "Notification sent to user devices.",
                 userId = targetUserId,
                 successCount
+            });
+        }
+
+        private static async Task<IResult> CheckFirebaseStatusAsync(
+            IFcmNotificationService notificationService)
+        {
+            var envVar = Environment.GetEnvironmentVariable("FIREBASE_ADMIN_JSON");
+            var envVarPresent = !string.IsNullOrWhiteSpace(envVar);
+            var initialized = await notificationService.IsFirebaseAvailableAsync();
+
+            return Results.Ok(new
+            {
+                firebaseEnvVarPresent = envVarPresent,
+                firebaseInitialized = initialized
             });
         }
     }
