@@ -203,17 +203,11 @@ namespace Mindflow_Web_API.EndPoints
             }
 
             var tokens = await dbContext.FcmDeviceTokens
-                .Where(t => t.UserId == userId)
-                .OrderByDescending(t => t.LastModified)
-                .Select(t => new
-                {
-                    t.Id,
-                    t.DeviceToken,
-                    t.Platform,
-                    t.IsActive,
-                    created = t.Created,
-                    lastModified = t.LastModified
-                })
+                .FromSqlRaw(@"
+                    SELECT *
+                    FROM FcmDeviceTokens
+                    WHERE UserId = {0}
+                    ORDER BY LastModified DESC", userId)
                 .ToListAsync();
 
             return Results.Ok(tokens);
