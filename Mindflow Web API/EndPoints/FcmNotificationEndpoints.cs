@@ -206,11 +206,14 @@ namespace Mindflow_Web_API.EndPoints
                 .FromSqlRaw(@"
                     SELECT *
                     FROM FcmDeviceTokens
-                    WHERE UserId = {0}
-                    ORDER BY LastModified DESC", userId)
+                    WHERE UserId = {0}", userId)
                 .ToListAsync();
 
-            return Results.Ok(tokens);
+            var orderedTokens = tokens
+                .OrderByDescending(t => t.LastModified)
+                .ToList();
+
+            return Results.Ok(orderedTokens);
         }
 
         private static async Task<IResult> CheckFirebaseStatusAsync(
