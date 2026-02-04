@@ -41,6 +41,15 @@ namespace Mindflow_Web_API.EndPoints
                     return op;
                 });
 
+            api.MapGet("/device-tokens", GetDeviceTokensAsync)
+                .RequireAuthorization()
+                .WithOpenApi(op =>
+                {
+                    op.Summary = "Get current user's FCM device tokens";
+                    op.Description = "Returns all registered FCM device tokens for the authenticated user.";
+                    return op;
+                });
+
             api.MapGet("/firebase-status", CheckFirebaseStatusAsync)
                 .WithOpenApi(op =>
                 {
@@ -174,6 +183,40 @@ namespace Mindflow_Web_API.EndPoints
                 userId = targetUserId,
                 successCount
             });
+        }
+
+        private static async Task<IResult> GetDeviceTokensAsync(
+            MindflowDbContext dbContext,
+            HttpContext context)
+        {
+            if (!context.User.Identity?.IsAuthenticated ?? true)
+            {
+                throw ApiExceptions.Unauthorized("User is not authenticated");
+            }
+
+            var userIdClaim = context.User.Claims.FirstOrDefault(c =>
+                c.Type == ClaimTypes.NameIdentifier || c.Type == "sub");
+
+            if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+            {
+                throw ApiExceptions.Unauthorized("Invalid user token");
+            }
+
+            var tokens = await dbContext.FcmDeviceTokens
+                .Where(t => t.UserId == userId)
+                .OrderByDescending(t => t.LastModified)
+                .Select(t => new
+                {
+                    t.Id,
+                    t.DeviceToken,
+                    t.Platform,
+                    t.IsActive,
+                    created = t.Created,
+                    lastModified = t.LastModified
+                })
+                .ToListAsync();
+
+            return Results.Ok(tokens);
         }
 
         private static async Task<IResult> CheckFirebaseStatusAsync(
