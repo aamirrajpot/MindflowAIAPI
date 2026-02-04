@@ -65,7 +65,7 @@ namespace Mindflow_Web_API.Services
             var fcm = scope.ServiceProvider.GetRequiredService<IFcmNotificationService>();
 
             var candidates = await db.Tasks
-                .Where(t => t.ReminderEnabled && t.IsActive && t.Date >= dateMin && t.Date <= dateMax)
+                .Where(t => t.IsActive && t.Date >= dateMin && t.Date <= dateMax)
                 .ToListAsync(ct);
 
             // Pre-fetch latest WellnessCheckIn per user to check if reminders are enabled for that user
