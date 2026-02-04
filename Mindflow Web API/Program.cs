@@ -1,5 +1,3 @@
-using FirebaseAdmin;
-using Google.Apis.Auth.OAuth2;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Hybrid;
@@ -201,35 +199,7 @@ builder.Services.AddScoped<SubscriptionSeedService>();
 
 
 
-// Register FCM notification service
-var firebaseSecret = Environment.GetEnvironmentVariable("FIREBASE_ADMIN_JSON");
-if (!string.IsNullOrWhiteSpace(firebaseSecret))
-{
-    // decode if base64
-    if (!firebaseSecret.TrimStart().StartsWith("{"))
-        firebaseSecret = Encoding.UTF8.GetString(Convert.FromBase64String(firebaseSecret));
-
-    var credential = GoogleCredential.FromJson(firebaseSecret);
-
-    try
-    {
-        // Attempt to get the default instance; if it doesn't exist, Create will throw InvalidOperationException
-        var _ = FirebaseApp.DefaultInstance;
-    }
-    catch (InvalidOperationException)
-    {
-        FirebaseApp.Create(new AppOptions { Credential = credential });
-    }
-    catch (Exception ex)
-    {
-        // Log unexpected errors initializing Firebase
-        Log.Error(ex, "Failed to initialize FirebaseAdmin.");
-    }
-}
-else
-{
-    Log.Warning("FIREBASE_ADMIN_JSON environment variable is not set; FCM will be disabled.");
-}
+// Firebase is initialized inside FcmNotificationService on first use (FIREBASE_ADMIN_JSON or secrets/firebase-key.json).
 builder.Services.AddScoped<IFcmNotificationService, FcmNotificationService>();
 
 // Add CORS policy to allow all

@@ -107,7 +107,6 @@ namespace Mindflow_Web_API.EndPoints
                     Platform = platform,
                     IsActive = true
                 };
-
                 await dbContext.FcmDeviceTokens.AddAsync(existing);
             }
             else
@@ -209,11 +208,8 @@ namespace Mindflow_Web_API.EndPoints
                     WHERE UserId = {0}", userId)
                 .ToListAsync();
 
-            var orderedTokens = tokens
-                .OrderByDescending(t => t.LastModified)
-                .ToList();
 
-            return Results.Ok(orderedTokens);
+            return Results.Ok(tokens);
         }
 
         private static async Task<IResult> CheckFirebaseStatusAsync(

@@ -1,13 +1,15 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using FirebaseAdmin;
 using FirebaseAdmin.Messaging;
 using Google.Apis.Auth.OAuth2;
-using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Mindflow_Web_API.Persistence;
 
@@ -15,25 +17,106 @@ namespace Mindflow_Web_API.Services
 {
     /// <summary>
     /// Service responsible for sending FCM push notifications and managing
-    /// device-token-based delivery for users.
+    /// device-token-based delivery for users. Initializes Firebase on first use from
+    /// FIREBASE_ADMIN_JSON (env/config) or secrets/firebase-key.json.
     /// </summary>
     public class FcmNotificationService : IFcmNotificationService
     {
+        private static readonly object InitLock = new();
+        private static bool _initialized;
+
         private readonly MindflowDbContext _dbContext;
         private readonly ILogger<FcmNotificationService> _logger;
-
-        private static bool _firebaseInitialized;
-        private static readonly object InitLock = new();
+        private readonly IConfiguration _configuration;
+        private readonly IHostEnvironment _environment;
 
         public FcmNotificationService(
             MindflowDbContext dbContext,
             IConfiguration configuration,
+            IHostEnvironment environment,
             ILogger<FcmNotificationService> logger)
         {
             _dbContext = dbContext;
+            _configuration = configuration;
+            _environment = environment;
             _logger = logger;
+            EnsureFirebaseInitialized();
+        }
 
-            EnsureFirebaseInitialized(configuration);
+        private void EnsureFirebaseInitialized()
+        {
+            try
+            {
+                var app = FirebaseApp.DefaultInstance;
+                if (app != null)
+                    return;
+            }
+            catch (InvalidOperationException) { /* not initialized */ }
+
+            lock (InitLock)
+            {
+                try
+                {
+                    var app = FirebaseApp.DefaultInstance;
+                    if (app != null)
+                        return;
+                }
+                catch (InvalidOperationException) { /* not initialized */ }
+
+                GoogleCredential? credential = null;
+
+                // 1) FIREBASE_ADMIN_JSON (env then config)
+                var firebaseSecret = Environment.GetEnvironmentVariable("FIREBASE_ADMIN_JSON")
+                    ?? _configuration["FIREBASE_ADMIN_JSON"];
+                if (!string.IsNullOrWhiteSpace(firebaseSecret))
+                {
+                    try
+                    {
+                        if (!firebaseSecret.TrimStart().StartsWith("{"))
+                            firebaseSecret = Encoding.UTF8.GetString(Convert.FromBase64String(firebaseSecret));
+                        credential = GoogleCredential.FromJson(firebaseSecret);
+                        _logger.LogInformation("Firebase credential loaded from FIREBASE_ADMIN_JSON.");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to load Firebase from FIREBASE_ADMIN_JSON.");
+                    }
+                }
+
+                // 2) Fallback: secrets/firebase-key.json
+                if (credential == null)
+                {
+                    var secretsPath = Path.Combine(_environment.ContentRootPath, "secrets", "firebase-key.json");
+                    if (System.IO.File.Exists(secretsPath))
+                    {
+                        try
+                        {
+                            credential = GoogleCredential.FromFile(secretsPath);
+                            _logger.LogInformation("Firebase credential loaded from secrets/firebase-key.json.");
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Failed to load Firebase from secrets/firebase-key.json.");
+                        }
+                    }
+                    else
+                        _logger.LogWarning("Firebase credential not found: FIREBASE_ADMIN_JSON unset and file not found at {Path}. FCM disabled.", secretsPath);
+                }
+
+                if (credential != null)
+                {
+                    try
+                    {
+                        FirebaseApp.Create(new AppOptions { Credential = credential });
+                        _initialized = true;
+                        _logger.LogInformation("Firebase Admin initialized in FcmNotificationService.");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to create Firebase app.");
+                    }
+                }
+            }
         }
 
         public Task<bool> IsFirebaseAvailableAsync()
@@ -54,82 +137,22 @@ namespace Mindflow_Web_API.Services
             }
         }
 
-        private static void EnsureFirebaseInitialized(IConfiguration configuration)
+        /// <summary>
+        /// Gets the Firebase Messaging instance. Ensures Firebase is initialized first, then returns messaging.
+        /// </summary>
+        private FirebaseMessaging GetMessaging()
         {
-            if (_firebaseInitialized)
-            {
-                return;
-            }
-
-            // Quick check: if a FirebaseApp default instance already exists, consider initialized
+            EnsureFirebaseInitialized();
             try
             {
-                var _ = FirebaseApp.DefaultInstance;
-                _firebaseInitialized = true;
-                return;
+                var app = FirebaseApp.DefaultInstance;
+                if (app == null)
+                    throw new InvalidOperationException("Firebase is not initialized. Set FIREBASE_ADMIN_JSON or add secrets/firebase-key.json.");
+                return FirebaseMessaging.GetMessaging(app);
             }
-            catch (InvalidOperationException)
+            catch (InvalidOperationException ex) when (string.IsNullOrEmpty(ex.Message) || ex.Message.Contains("default", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("DefaultInstance", StringComparison.OrdinalIgnoreCase))
             {
-                // not initialized yet
-            }
-
-            lock (InitLock)
-            {
-                if (_firebaseInitialized)
-                {
-                    return;
-                }
-
-                // Another safety check inside the lock
-                try
-                {
-                    var _ = FirebaseApp.DefaultInstance;
-                    _firebaseInitialized = true;
-                    return;
-                }
-                catch (InvalidOperationException)
-                {
-                    // still not initialized
-                }
-
-                // Prefer environment variable (FIREBASE_ADMIN_JSON) so Azure App Settings works.
-                var firebaseJson = Environment.GetEnvironmentVariable("FIREBASE_ADMIN_JSON");
-                AppOptions appOptions;
-
-                if (!string.IsNullOrWhiteSpace(firebaseJson))
-                {
-                    if (!firebaseJson.TrimStart().StartsWith("{"))
-                        firebaseJson = Encoding.UTF8.GetString(Convert.FromBase64String(firebaseJson));
-
-                    appOptions = new AppOptions
-                    {
-                        Credential = GoogleCredential.FromJson(firebaseJson)
-                    };
-                }
-                else
-                {
-                    var section = configuration.GetSection("Firebase");
-                    var credentialsPath = section["CredentialsFilePath"];
-                    var projectId = section["ProjectId"];
-
-                    if (string.IsNullOrWhiteSpace(credentialsPath))
-                    {
-                        throw new InvalidOperationException("Firebase credentials are not configured. Set FIREBASE_ADMIN_JSON app setting or Firebase:CredentialsFilePath.");
-                    }
-
-                    appOptions = new AppOptions
-                    {
-                        Credential = GoogleCredential.FromFile(credentialsPath)
-                    };
-
-                    if (!string.IsNullOrWhiteSpace(projectId))
-                    {
-                        appOptions.ProjectId = projectId;
-                    }
-                }
-
-                FirebaseApp.Create(appOptions);
-                _firebaseInitialized = true;
+                throw new InvalidOperationException("Firebase is not initialized. Set FIREBASE_ADMIN_JSON or add secrets/firebase-key.json.", ex);
             }
         }
 
@@ -152,7 +175,8 @@ namespace Mindflow_Web_API.Services
 
             try
             {
-                var response = await FirebaseMessaging.DefaultInstance.SendAsync(message);
+                var messaging = GetMessaging();
+                var response = await messaging.SendAsync(message);
                 _logger.LogInformation("FCM notification sent successfully. Response: {Response}", response);
                 return response;
             }
@@ -194,9 +218,11 @@ namespace Mindflow_Web_API.Services
 
             try
             {
-                var response = await FirebaseMessaging.DefaultInstance.SendEachForMulticastAsync(message);
-                var successCount = response.Responses.Count(r => r.IsSuccess);
-                var failureCount = response.Responses.Count - successCount;
+                var messaging = GetMessaging();
+                var response = await messaging.SendEachForMulticastAsync(message);
+                var responses = response.Responses ?? Array.Empty<SendResponse>();
+                var successCount = responses.Count(r => r.IsSuccess);
+                var failureCount = responses.Count - successCount;
 
                 _logger.LogInformation(
                     "FCM multicast sent for user {UserId}. Success: {SuccessCount}, Failure: {FailureCount}",
