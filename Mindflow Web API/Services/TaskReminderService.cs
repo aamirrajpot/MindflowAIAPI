@@ -105,7 +105,44 @@ namespace Mindflow_Web_API.Services
                     }
 
                     var title = $"Upcoming task: {task.Title}";
-                    var body = $"Starts at {occurrenceUtc:HH:mm} UTC (in ~10 minutes).";
+
+                    // Convert occurrence time to user's local time using timezone from latest wellness check-in
+                    var localTime = occurrenceUtc;
+                    var timezoneId = latestWellness.TimezoneId;
+                    if (!string.IsNullOrWhiteSpace(timezoneId))
+                    {
+                        try
+                        {
+                            TimeZoneInfo timeZone;
+                            try
+                            {
+                                timeZone = TimeZoneInfo.FindSystemTimeZoneById(timezoneId);
+                            }
+                            catch (TimeZoneNotFoundException)
+                            {
+                                // Map common IANA IDs to Windows IDs
+                                var windowsId = timezoneId switch
+                                {
+                                    "America/Chicago" => "Central Standard Time",
+                                    "America/New_York" => "Eastern Standard Time",
+                                    "America/Denver" => "Mountain Standard Time",
+                                    "America/Los_Angeles" => "Pacific Standard Time",
+                                    "America/Phoenix" => "US Mountain Standard Time",
+                                    _ => timezoneId
+                                };
+                                timeZone = TimeZoneInfo.FindSystemTimeZoneById(windowsId);
+                            }
+
+                            localTime = TimeZoneInfo.ConvertTimeFromUtc(occurrenceUtc, timeZone);
+                        }
+                        catch
+                        {
+                            // Fallback: keep UTC if timezone conversion fails
+                            localTime = occurrenceUtc;
+                        }
+                    }
+
+                    var body = $"Starts at {localTime:HH:mm} (in ~10 minutes).";
 
                     var data = new System.Collections.Generic.Dictionary<string, string>
                     {
