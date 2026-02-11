@@ -37,16 +37,23 @@ namespace Mindflow_Web_API.Services
                 {
                     await CheckAndSendReminders(stoppingToken);
                 }
-                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                catch (OperationCanceledException)
                 {
-                    // graceful shutdown
+                    // Expected when app is stopping or token is canceled; do not log as error
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error in TaskReminderService loop.");
                 }
 
-                await Task.Delay(_checkInterval, stoppingToken);
+                try
+                {
+                    await Task.Delay(_checkInterval, stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break; // App is stopping
+                }
             }
             _logger.LogInformation("TaskReminderService stopping.");
         }
@@ -156,6 +163,10 @@ namespace Mindflow_Web_API.Services
                     await db.SaveChangesAsync(ct);
 
                     _logger.LogInformation("Sent reminder for task {TaskId}. SuccessCount={Count}", task.Id, successCount);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw; // Let outer handler treat shutdown gracefully
                 }
                 catch (Exception ex)
                 {

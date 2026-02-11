@@ -37,16 +37,23 @@ namespace Mindflow_Web_API.Services
                 {
                     await CheckAndSendReminders(stoppingToken);
                 }
-                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                catch (OperationCanceledException)
                 {
-                    // shutdown
+                    // Expected when app is stopping; do not log as error
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error in BrainDumpReminderService loop.");
                 }
 
-                await Task.Delay(_checkInterval, stoppingToken);
+                try
+                {
+                    await Task.Delay(_checkInterval, stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break; // App is stopping
+                }
             }
             _logger.LogInformation("BrainDumpReminderService stopping.");
         }
@@ -115,6 +122,10 @@ namespace Mindflow_Web_API.Services
                     await db.SaveChangesAsync(ct);
 
                     _logger.LogInformation("Sent brain-dump reminder to user {UserId}. DeliveredCount={Count}", user.Id, successCount);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw; // Let outer handler treat shutdown gracefully
                 }
                 catch (Exception ex)
                 {

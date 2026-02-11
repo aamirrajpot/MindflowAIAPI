@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -14,7 +15,6 @@ using Mindflow_Web_API.Persistence;
 using Mindflow_Web_API.Services;
 using System.Text;
 using System.Text.Json;
-
 namespace Mindflow_Web_API.EndPoints
 {
     public static class FcmNotificationEndpoints
@@ -47,6 +47,15 @@ namespace Mindflow_Web_API.EndPoints
                 {
                     op.Summary = "Get current user's FCM device tokens";
                     op.Description = "Returns all registered FCM device tokens for the authenticated user.";
+                    return op;
+                });
+
+            api.MapDelete("/device-tokens", DeleteDeviceTokensAsync)
+                .RequireAuthorization()
+                .WithOpenApi(op =>
+                {
+                    op.Summary = "Delete FCM device token(s) for current user";
+                    op.Description = "Deletes the given device token for the authenticated user (query: deviceToken), or all tokens for the user if deviceToken is omitted.";
                     return op;
                 });
 
@@ -210,6 +219,49 @@ namespace Mindflow_Web_API.EndPoints
 
 
             return Results.Ok(tokens);
+        }
+
+        private static async Task<IResult> DeleteDeviceTokensAsync(
+            [FromQuery] string? deviceToken,
+            [FromServices] MindflowDbContext dbContext,
+            HttpContext context)
+        {
+            if (!context.User.Identity?.IsAuthenticated ?? true)
+            {
+                throw ApiExceptions.Unauthorized("User is not authenticated");
+            }
+
+            var userIdClaim = context.User.Claims.FirstOrDefault(c =>
+                c.Type == ClaimTypes.NameIdentifier || c.Type == "sub");
+
+            if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+            {
+                throw ApiExceptions.Unauthorized("Invalid user token");
+            }
+
+            IQueryable<FcmDeviceToken> query = dbContext.FcmDeviceTokens.Where(t => t.UserId == userId);
+
+            if (!string.IsNullOrWhiteSpace(deviceToken))
+            {
+                query = query.Where(t => t.DeviceToken == deviceToken);
+            }
+
+            var toRemove = await query.ToListAsync();
+            var count = toRemove.Count;
+
+            if (count > 0)
+            {
+                dbContext.FcmDeviceTokens.RemoveRange(toRemove);
+                await dbContext.SaveChangesAsync();
+            }
+
+            return Results.Ok(new
+            {
+                message = count > 0
+                    ? (string.IsNullOrWhiteSpace(deviceToken) ? $"Deleted {count} device token(s)." : "Deleted the specified device token.")
+                    : "No matching device token(s) found.",
+                deletedCount = count
+            });
         }
 
         private static async Task<IResult> CheckFirebaseStatusAsync(

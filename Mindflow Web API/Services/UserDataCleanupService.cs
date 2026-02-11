@@ -25,13 +25,23 @@ namespace Mindflow_Web_API.Services
                 {
                     await PerformCleanupAsync();
                 }
+                catch (OperationCanceledException)
+                {
+                    // Expected when app is stopping; do not log as error
+                }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "❌ Error occurred during user data cleanup");
                 }
 
-                // Wait for 7 days before next cleanup
-                await Task.Delay(_period, stoppingToken);
+                try
+                {
+                    await Task.Delay(_period, stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break; // App is stopping
+                }
             }
         }
 
