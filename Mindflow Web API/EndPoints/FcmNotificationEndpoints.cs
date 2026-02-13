@@ -55,7 +55,16 @@ namespace Mindflow_Web_API.EndPoints
                 .WithOpenApi(op =>
                 {
                     op.Summary = "Delete FCM device token(s) for current user";
-                    op.Description = "Deletes the given device token for the authenticated user (query: deviceToken), or all tokens for the user if deviceToken is omitted.";
+                    op.Description = "Deletes FCM device tokens for the authenticated user. If deviceToken query parameter is provided, deletes only that token. If omitted, deletes all tokens for the user.";
+                    return op;
+                });
+
+            api.MapDelete("/device-tokens/purge-all", PurgeAllDeviceTokensAsync)
+                .RequireAuthorization()
+                .WithOpenApi(op =>
+                {
+                    op.Summary = "Admin: Purge all FCM device tokens";
+                    op.Description = "Deletes all FCM device tokens for all users in the system. Requires Admin role.";
                     return op;
                 });
 
@@ -239,6 +248,7 @@ namespace Mindflow_Web_API.EndPoints
                 throw ApiExceptions.Unauthorized("Invalid user token");
             }
 
+            // If deviceToken is provided, delete only that token; otherwise delete all tokens for the user
             IQueryable<FcmDeviceToken> query = dbContext.FcmDeviceTokens.Where(t => t.UserId == userId);
 
             if (!string.IsNullOrWhiteSpace(deviceToken))
@@ -255,12 +265,51 @@ namespace Mindflow_Web_API.EndPoints
                 await dbContext.SaveChangesAsync();
             }
 
+            var message = string.IsNullOrWhiteSpace(deviceToken)
+                ? (count > 0 ? $"Deleted all {count} device token(s) for the user." : "No device tokens found for the user.")
+                : (count > 0 ? "Deleted the specified device token." : "The specified device token was not found.");
+
             return Results.Ok(new
             {
-                message = count > 0
-                    ? (string.IsNullOrWhiteSpace(deviceToken) ? $"Deleted {count} device token(s)." : "Deleted the specified device token.")
-                    : "No matching device token(s) found.",
+                message,
                 deletedCount = count
+            });
+        }
+
+        private static async Task<IResult> PurgeAllDeviceTokensAsync(
+            [FromServices] MindflowDbContext dbContext,
+            HttpContext context)
+        {
+            if (!context.User.Identity?.IsAuthenticated ?? true)
+            {
+                throw ApiExceptions.Unauthorized("User is not authenticated");
+            }
+
+            // Only allow Admins to purge all tokens
+            var isAdmin = context.User.Claims.Any(c =>
+                c.Type == ClaimTypes.Role && c.Value == "Admin");
+            if (!isAdmin)
+            {
+                throw ApiExceptions.Forbidden("Only administrators can purge all FCM device tokens.");
+            }
+
+            // Get all tokens and count before deletion
+            var allTokens = await dbContext.FcmDeviceTokens.ToListAsync();
+            var totalCount = allTokens.Count;
+
+            if (totalCount > 0)
+            {
+                // Delete all FCM device tokens
+                dbContext.FcmDeviceTokens.RemoveRange(allTokens);
+                await dbContext.SaveChangesAsync();
+            }
+
+            return Results.Ok(new
+            {
+                message = totalCount > 0
+                    ? $"Purged all {totalCount} FCM device token(s) for all users."
+                    : "No FCM device tokens found in the system.",
+                deletedCount = totalCount
             });
         }
 
