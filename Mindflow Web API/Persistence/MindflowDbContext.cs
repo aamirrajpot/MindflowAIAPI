@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Mindflow_Web_API.Models;
 
 namespace Mindflow_Web_API.Persistence
@@ -21,6 +21,7 @@ namespace Mindflow_Web_API.Persistence
         public DbSet<GoogleCalendarConnection> GoogleCalendarConnections => Set<GoogleCalendarConnection>();
         public DbSet<TaskSuggestionRecord> TaskSuggestionRecords => Set<TaskSuggestionRecord>();
         public DbSet<FcmDeviceToken> FcmDeviceTokens => Set<FcmDeviceToken>();
+        public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

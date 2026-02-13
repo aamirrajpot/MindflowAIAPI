@@ -87,10 +87,92 @@ namespace Mindflow_Web_API.Services
             // Generate JWT token
             int expiresInSeconds;
             var tokenString = JwtHelper.GenerateJwtToken(user, _configuration, out expiresInSeconds);
+            
+            // Generate refresh token
+            var refreshToken = GenerateRefreshToken();
+            var refreshTokenExpiresDays = _configuration.GetValue<int>("Jwt:RefreshTokenExpiresInDays", 30);
+            var refreshTokenEntity = new RefreshToken
+            {
+                UserId = user.Id,
+                Token = refreshToken,
+                ExpiresAt = DateTime.UtcNow.AddDays(refreshTokenExpiresDays),
+                IsRevoked = false
+            };
+            
+            // Revoke old refresh tokens for this user (optional: keep last N tokens)
+            var oldTokens = await _dbContext.RefreshTokens
+                .Where(rt => rt.UserId == user.Id && !rt.IsRevoked && rt.ExpiresAt > DateTime.UtcNow)
+                .ToListAsync();
+            foreach (var oldToken in oldTokens)
+            {
+                oldToken.IsRevoked = true;
+                oldToken.RevokedAt = DateTime.UtcNow;
+                oldToken.ReplacedByToken = refreshToken;
+            }
+            
+            await _dbContext.RefreshTokens.AddAsync(refreshTokenEntity);
+            await _dbContext.SaveChangesAsync();
+            
             _logger.LogInformation($"User signed in: {user.UserName}");
             
             var userDto = new UserDto(user.Id, user.UserName, user.Email, user.EmailConfirmed, user.FirstName, user.LastName, user.IsActive, user.DateOfBirth, user.ProfilePic, user.StripeCustomerId, user.QuestionnaireFilled);
-            return new SignInResponseDto(tokenString, "Bearer", expiresInSeconds, userDto);
+            return new SignInResponseDto(tokenString, "Bearer", expiresInSeconds, refreshToken, userDto);
+        }
+        
+        private static string GenerateRefreshToken()
+        {
+            var randomBytes = new byte[64];
+            using (var rng = System.Security.Cryptography.RandomNumberGenerator.Create())
+            {
+                rng.GetBytes(randomBytes);
+            }
+            return Convert.ToBase64String(randomBytes);
+        }
+        
+        public async Task<RefreshTokenResponseDto?> RefreshTokenAsync(string refreshToken)
+        {
+            var tokenEntity = await _dbContext.RefreshTokens
+                .FirstOrDefaultAsync(rt => rt.Token == refreshToken);
+            
+            if (tokenEntity == null || tokenEntity.IsRevoked || tokenEntity.ExpiresAt < DateTime.UtcNow)
+            {
+                _logger.LogWarning("Invalid or expired refresh token attempted.");
+                return null;
+            }
+            
+            var user = await _dbContext.Users.FindAsync(tokenEntity.UserId);
+            if (user == null || !user.IsActive || !user.EmailConfirmed)
+            {
+                _logger.LogWarning("User associated with refresh token is inactive or unconfirmed.");
+                return null;
+            }
+            
+            // Generate new access token
+            int expiresInSeconds;
+            var newAccessToken = JwtHelper.GenerateJwtToken(user, _configuration, out expiresInSeconds);
+            
+            // Generate new refresh token (token rotation)
+            var newRefreshToken = GenerateRefreshToken();
+            var refreshTokenExpiresDays = _configuration.GetValue<int>("Jwt:RefreshTokenExpiresInDays", 30);
+            var newRefreshTokenEntity = new RefreshToken
+            {
+                UserId = user.Id,
+                Token = newRefreshToken,
+                ExpiresAt = DateTime.UtcNow.AddDays(refreshTokenExpiresDays),
+                IsRevoked = false
+            };
+            
+            // Revoke old refresh token
+            tokenEntity.IsRevoked = true;
+            tokenEntity.RevokedAt = DateTime.UtcNow;
+            tokenEntity.ReplacedByToken = newRefreshToken;
+            
+            await _dbContext.RefreshTokens.AddAsync(newRefreshTokenEntity);
+            await _dbContext.SaveChangesAsync();
+            
+            _logger.LogInformation($"Refresh token used for user {user.UserName}. New tokens issued.");
+            
+            return new RefreshTokenResponseDto(newAccessToken, "Bearer", expiresInSeconds, newRefreshToken);
         }
 
         public async Task<SendOtpResponseDto> SendOtpAsync(string email)

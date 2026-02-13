@@ -29,7 +29,23 @@ namespace Mindflow_Web_API.EndPoints
             })
             .WithOpenApi(op => {
                 op.Summary = "Sign in a user";
-                op.Description = "Authenticates a user and returns a JWT token if credentials are valid.";
+                op.Description = "Authenticates a user and returns a JWT access token and refresh token if credentials are valid.";
+                return op;
+            });
+
+            usersApi.MapPost("/refresh-token", async (RefreshTokenRequestDto dto, IUserService userService) =>
+            {
+                if (string.IsNullOrWhiteSpace(dto.refresh_token))
+                    throw ApiExceptions.BadRequest("Refresh token is required.");
+                
+                var refreshResponse = await userService.RefreshTokenAsync(dto.refresh_token);
+                if (refreshResponse == null)
+                    throw ApiExceptions.Unauthorized("Invalid or expired refresh token.");
+                return Results.Ok(refreshResponse);
+            })
+            .WithOpenApi(op => {
+                op.Summary = "Refresh access token";
+                op.Description = "Exchanges a refresh token for a new access token and refresh token pair.";
                 return op;
             });
 
