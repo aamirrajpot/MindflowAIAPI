@@ -110,6 +110,7 @@ namespace Mindflow_Web_API.Services
                 try
                 {
                     var baseCredential = GoogleCredential.FromFile(secretsPath);
+
                     FirebaseApp.Create(new AppOptions
                     {
                         Credential = baseCredential
