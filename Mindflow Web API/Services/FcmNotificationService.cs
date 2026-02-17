@@ -110,12 +110,9 @@ namespace Mindflow_Web_API.Services
                 try
                 {
                     var baseCredential = GoogleCredential.FromFile(secretsPath);
-                    // Scope the credential for Firebase Cloud Messaging
-                    var scopedCredential = baseCredential.CreateScoped("https://www.googleapis.com/auth/firebase.messaging");
-
                     FirebaseApp.Create(new AppOptions
                     {
-                        Credential = scopedCredential
+                        Credential = baseCredential
                     });
 
                     _initialized = true;
