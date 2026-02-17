@@ -43,78 +43,88 @@ namespace Mindflow_Web_API.Services
             EnsureFirebaseInitialized();
         }
 
+        /// <summary>
+        /// Ensures Firebase is initialized. Reads credentials from secrets/firebase-key.json.
+        /// Called on every request that needs FCM; the Firebase app itself is created only once.
+        /// </summary>
         private void EnsureFirebaseInitialized()
         {
-            try
-            {
-                var app = FirebaseApp.DefaultInstance;
-                if (app != null)
-                    return;
-            }
-            catch (InvalidOperationException) { /* not initialized */ }
-
             lock (InitLock)
             {
+                // If a default app already exists, nothing to do (this will be true after first request).
                 try
                 {
-                    var app = FirebaseApp.DefaultInstance;
-                    if (app != null)
+                    var existingApp = FirebaseApp.DefaultInstance;
+                    if (existingApp != null)
                         return;
                 }
-                catch (InvalidOperationException) { /* not initialized */ }
-
-                GoogleCredential? credential = null;
-
-                // 1) FIREBASE_ADMIN_JSON (env then config)
-                var firebaseSecret = Environment.GetEnvironmentVariable("FIREBASE_ADMIN_JSON")
-                    ?? _configuration["FIREBASE_ADMIN_JSON"];
-                if (!string.IsNullOrWhiteSpace(firebaseSecret))
+                catch (InvalidOperationException)
                 {
-                    try
+                    // No default app yet, proceed to create it.
+                }
+
+                // Derive credential path from the DB path in DefaultConnection
+                var connectionString = _configuration.GetConnectionString("DefaultConnection");
+                string? dbPath = null;
+
+                if (!string.IsNullOrWhiteSpace(connectionString))
+                {
+                    var parts = connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries);
+                    var dataSourcePart = parts.FirstOrDefault(p =>
+                        p.TrimStart().StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase) ||
+                        p.TrimStart().StartsWith("DataSource=", StringComparison.OrdinalIgnoreCase));
+
+                    if (dataSourcePart != null)
                     {
-                        if (!firebaseSecret.TrimStart().StartsWith("{"))
-                            firebaseSecret = Encoding.UTF8.GetString(Convert.FromBase64String(firebaseSecret));
-                        credential = GoogleCredential.FromJson(firebaseSecret);
-                        _logger.LogInformation("Firebase credential loaded from FIREBASE_ADMIN_JSON.");
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Failed to load Firebase from FIREBASE_ADMIN_JSON.");
+                        var kv = dataSourcePart.Split('=', 2, StringSplitOptions.RemoveEmptyEntries);
+                        if (kv.Length == 2)
+                            dbPath = kv[1].Trim();
                     }
                 }
 
-                // 2) Fallback: secrets/firebase-key.json
-                if (credential == null)
+                if (!string.IsNullOrEmpty(dbPath))
                 {
-                    var secretsPath = Path.Combine(_environment.ContentRootPath, "secrets", "firebase-key.json");
-                    if (System.IO.File.Exists(secretsPath))
-                    {
-                        try
-                        {
-                            credential = GoogleCredential.FromFile(secretsPath);
-                            _logger.LogInformation("Firebase credential loaded from secrets/firebase-key.json.");
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError(ex, "Failed to load Firebase from secrets/firebase-key.json.");
-                        }
-                    }
-                    else
-                        _logger.LogWarning("Firebase credential not found: FIREBASE_ADMIN_JSON unset and file not found at {Path}. FCM disabled.", secretsPath);
+                    _logger.LogInformation("Firebase initialization: parsed DB path from connection string: {DbPath}", dbPath);
+                }
+                else
+                {
+                    _logger.LogWarning("Firebase initialization: could not parse DB path from DefaultConnection. Falling back to ContentRootPath.");
                 }
 
-                if (credential != null)
+                // If we parsed a DB path, use its directory; otherwise fall back to ContentRootPath
+                var baseDir = !string.IsNullOrEmpty(dbPath)
+                    ? Path.GetDirectoryName(dbPath) ?? _environment.ContentRootPath
+                    : _environment.ContentRootPath;
+
+                // Firebase key will live alongside the DB file, e.g. C:\\home\\data\\firebase-key.json
+                var secretsPath = Path.Combine(baseDir, "firebase-key.json");
+
+                if (!System.IO.File.Exists(secretsPath))
                 {
-                    try
+                    _logger.LogError("Firebase credential file not found at {Path}. Ensure firebase-key.json exists next to the DB.", secretsPath);
+                    throw new InvalidOperationException($"Firebase credential file not found at {secretsPath}.");
+                }
+
+                _logger.LogInformation("Firebase initialization: found firebase-key.json at {Path}", secretsPath);
+
+                try
+                {
+                    var baseCredential = GoogleCredential.FromFile(secretsPath);
+                    // Scope the credential for Firebase Cloud Messaging
+                    var scopedCredential = baseCredential.CreateScoped("https://www.googleapis.com/auth/firebase.messaging");
+
+                    FirebaseApp.Create(new AppOptions
                     {
-                        FirebaseApp.Create(new AppOptions { Credential = credential });
-                        _initialized = true;
-                        _logger.LogInformation("Firebase Admin initialized in FcmNotificationService.");
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Failed to create Firebase app.");
-                    }
+                        Credential = scopedCredential
+                    });
+
+                    _initialized = true;
+                    _logger.LogInformation("Firebase Admin initialized from secrets/firebase-key.json.");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to initialize Firebase Admin from secrets/firebase-key.json.");
+                    throw;
                 }
             }
         }
