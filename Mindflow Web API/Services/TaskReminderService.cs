@@ -107,8 +107,8 @@ namespace Mindflow_Web_API.Services
                     }
 
                     // avoid duplicate sends for the same occurrence
-                    if (task.LastReminderSentAtUtc.HasValue &&
-                        task.LastReminderSentAtUtc.Value >= occurrenceUtc.AddMinutes(-1))
+                    // avoid duplicate sends for the same task
+                    if (task.LastReminderSentAtUtc.HasValue)
                     {
                         continue;
                     }
