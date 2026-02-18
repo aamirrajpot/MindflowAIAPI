@@ -2,9 +2,12 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Mimo.AppStoreServerLibrary;
+using Mimo.AppStoreServerLibrary.Models;
 using Mindflow_Web_API.EndPoints;
 using Mindflow_Web_API.Middleware;
 using Mindflow_Web_API.Models;
@@ -180,6 +183,71 @@ builder.Services.AddHostedService<BrainDumpReminderService>();
 
 // Register SubscriptionService (fully qualify to avoid Stripe.SubscriptionService ambiguity)
 builder.Services.AddScoped<Mindflow_Web_API.Services.ISubscriptionService, Mindflow_Web_API.Services.SubscriptionService>();
+
+// Apple App Store Server Notifications (V2) - SignedDataVerifier using Mimo.AppStoreServerLibrary
+builder.Services.AddSingleton<SignedDataVerifier>(sp =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    var envValue = config["Apple:Environment"];
+    var environment = string.Equals(envValue, "Sandbox", StringComparison.OrdinalIgnoreCase)
+        ? AppStoreEnvironment.Sandbox
+        : AppStoreEnvironment.Production;
+
+    var bundleId = config["Apple:BundleId"];
+    if (string.IsNullOrWhiteSpace(bundleId))
+        throw new InvalidOperationException("Apple:BundleId is not configured.");
+
+    // 2) Derive base directory from DefaultConnection (same as firebase-key.json)
+    var connectionString = config.GetConnectionString("DefaultConnection");
+    string? dbPath = null;
+
+    if (!string.IsNullOrWhiteSpace(connectionString))
+    {
+        var parts = connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries);
+        var dataSourcePart = parts.FirstOrDefault(p =>
+            p.TrimStart().StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase) ||
+            p.TrimStart().StartsWith("DataSource=", StringComparison.OrdinalIgnoreCase));
+
+        if (dataSourcePart != null)
+        {
+            var kv = dataSourcePart.Split('=', 2, StringSplitOptions.RemoveEmptyEntries);
+            if (kv.Length == 2)
+                dbPath = kv[1].Trim();
+        }
+    }
+
+    var baseDir = !string.IsNullOrEmpty(dbPath)
+        ? Path.GetDirectoryName(dbPath) ?? AppContext.BaseDirectory
+        : AppContext.BaseDirectory;
+
+    // 3) Look for cert in data folder first, then in secrets
+    var certPathNextToDb = Path.Combine(baseDir, "AppleRootCA-G3.cer");
+    var certPathInSecrets = Path.Combine(AppContext.BaseDirectory, "Secrets", "AppleRootCA-G3.cer");
+
+    string certPath;
+    if (System.IO.File.Exists(certPathNextToDb))
+    {
+        certPath = certPathNextToDb;
+    }
+    else if (System.IO.File.Exists(certPathInSecrets))
+    {
+        certPath = certPathInSecrets;
+    }
+    else
+    {
+        throw new InvalidOperationException(
+            $"Apple root certificate not found. Tried: {certPathNextToDb}, {certPathInSecrets}");
+    }
+
+    var rootCertificatesBytes = System.IO.File.ReadAllBytes(certPath);
+
+
+    return new SignedDataVerifier(
+        rootCertificatesBytes,
+        true,
+        environment,
+        bundleId);
+});
 
 // Register PaymentService
 builder.Services.AddScoped<IPaymentService, PaymentService>();

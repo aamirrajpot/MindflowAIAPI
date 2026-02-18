@@ -1,10 +1,13 @@
 using Microsoft.EntityFrameworkCore;
+using Mimo.AppStoreServerLibrary;
 using Mindflow_Web_API.DTOs;
 using Mindflow_Web_API.Models;
 using Mindflow_Web_API.Persistence;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace Mindflow_Web_API.Services
@@ -13,11 +16,25 @@ namespace Mindflow_Web_API.Services
     {
         private readonly MindflowDbContext _dbContext;
         private readonly ILogger<SubscriptionService> _logger;
+        private readonly SignedDataVerifier _appleVerifier;
 
-        public SubscriptionService(MindflowDbContext dbContext, ILogger<SubscriptionService> logger)
+        public SubscriptionService(MindflowDbContext dbContext, ILogger<SubscriptionService> logger, SignedDataVerifier appleVerifier)
         {
             _dbContext = dbContext;
             _logger = logger;
+            _appleVerifier = appleVerifier;
+        }
+
+        private static byte[] Base64UrlDecode(string input)
+        {
+            // Replace URL-safe chars and pad with '='
+            var padded = input.Replace('-', '+').Replace('_', '/');
+            switch (padded.Length % 4)
+            {
+                case 2: padded += "=="; break;
+                case 3: padded += "="; break;
+            }
+            return Convert.FromBase64String(padded);
         }
 
         // -----------------------------
@@ -118,15 +135,172 @@ namespace Mindflow_Web_API.Services
             return await ToUserSubscriptionDtoAsync(current);
         }
 
-        // Placeholder for Apple Server Notification processing.
-        // For the current schema, we only adjust EndDate/Status.
-        public Task<bool> ApplyAppleNotificationAsync(AppleNotificationDto notification)
+        // Apple Server Notification processing (ASN v2).
+        // NOTE: This implementation decodes the JWS payloads and updates UserSubscriptions,
+        // but does NOT yet perform full cryptographic signature verification.
+        public async Task<bool> ApplyAppleNotificationAsync(AppleNotificationDto notification)
         {
-            // Implementation placeholder: in the next steps, when provider columns are added,
-            // we will locate the correct subscription by original transaction id.
-            // For now, we log and no-op to keep flow incremental.
-            _logger.LogInformation("Received Apple server notification payload (length {Len})", notification.SignedPayload?.Length ?? 0);
-            return Task.FromResult(true);
+            if (string.IsNullOrWhiteSpace(notification.SignedPayload))
+            {
+                _logger.LogWarning("Apple notification received with empty signed payload.");
+                return false;
+            }
+
+            try
+            {
+                // 0) Cryptographically verify the JWS using Apple's root certificates via Mimo.AppStoreServerLibrary
+                // We ignore the decoded model here and reuse our existing parsing logic below.
+                try
+                {
+                    await _appleVerifier.VerifyAndDecodeNotification(notification.SignedPayload);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Apple signedPayload verification failed.");
+                    return false;
+                }
+
+                // 1) Decode outer JWS payload (header.payload.signature)
+                var outerParts = notification.SignedPayload.Split('.');
+                if (outerParts.Length != 3)
+                {
+                    _logger.LogWarning("Apple notification signedPayload has invalid JWS format.");
+                    return false;
+                }
+
+                var outerPayloadJson = Encoding.UTF8.GetString(Base64UrlDecode(outerParts[1]));
+                using var outerDoc = JsonDocument.Parse(outerPayloadJson);
+                var outerRoot = outerDoc.RootElement;
+
+                var notificationType = outerRoot.GetProperty("notificationType").GetString() ?? string.Empty;
+                var environment = outerRoot.TryGetProperty("environment", out var envEl)
+                    ? envEl.GetString() ?? "production"
+                    : "production";
+
+                if (!outerRoot.TryGetProperty("data", out var dataEl))
+                {
+                    _logger.LogWarning("Apple notification missing 'data' element.");
+                    return false;
+                }
+
+                // 2) Decode signedTransactionInfo JWS to get transaction details
+                if (!dataEl.TryGetProperty("signedTransactionInfo", out var signedTxEl))
+                {
+                    _logger.LogWarning("Apple notification data missing 'signedTransactionInfo'.");
+                    return false;
+                }
+
+                var signedTransactionInfo = signedTxEl.GetString();
+                if (string.IsNullOrWhiteSpace(signedTransactionInfo))
+                {
+                    _logger.LogWarning("Apple notification 'signedTransactionInfo' is empty.");
+                    return false;
+                }
+
+                var txParts = signedTransactionInfo.Split('.');
+                if (txParts.Length != 3)
+                {
+                    _logger.LogWarning("Apple transaction JWS has invalid format.");
+                    return false;
+                }
+
+                var txPayloadJson = Encoding.UTF8.GetString(Base64UrlDecode(txParts[1]));
+                using var txDoc = JsonDocument.Parse(txPayloadJson);
+                var txRoot = txDoc.RootElement;
+
+                var originalTransactionId = txRoot.GetProperty("originalTransactionId").GetString();
+                var transactionId = txRoot.TryGetProperty("transactionId", out var txIdEl)
+                    ? txIdEl.GetString()
+                    : null;
+                var productId = txRoot.TryGetProperty("productId", out var prodEl)
+                    ? prodEl.GetString()
+                    : null;
+
+                DateTime? expiresAtUtc = null;
+                if (txRoot.TryGetProperty("expiresDate", out var expiresEl) && expiresEl.ValueKind == JsonValueKind.Number)
+                {
+                    // Apple uses milliseconds since Unix epoch
+                    if (expiresEl.TryGetInt64(out var ms))
+                    {
+                        expiresAtUtc = DateTimeOffset.FromUnixTimeMilliseconds(ms).UtcDateTime;
+                    }
+                }
+
+                if (string.IsNullOrWhiteSpace(originalTransactionId))
+                {
+                    _logger.LogWarning("Apple transaction payload missing originalTransactionId.");
+                    return false;
+                }
+
+                // 3) Find or create UserSubscription for this originalTransactionId (Apple)
+                var subscription = await _dbContext.UserSubscriptions
+                    .FirstOrDefaultAsync(s =>
+                        s.Provider == SubscriptionProvider.Apple &&
+                        s.OriginalTransactionId == originalTransactionId);
+
+                if (subscription == null)
+                {
+                    subscription = new UserSubscription
+                    {
+                        UserId = Guid.Empty, // To be associated via appAccountToken / client flows
+                        PlanId = Guid.Empty,
+                        Provider = SubscriptionProvider.Apple,
+                        OriginalTransactionId = originalTransactionId,
+                        StartDate = DateTime.UtcNow
+                    };
+                    await _dbContext.UserSubscriptions.AddAsync(subscription);
+                }
+
+                subscription.LatestTransactionId = transactionId ?? subscription.LatestTransactionId;
+                subscription.ProductId = productId ?? subscription.ProductId;
+                subscription.ExpiresAtUtc = expiresAtUtc;
+                subscription.Environment = environment;
+                subscription.RawTransactionPayload = signedTransactionInfo;
+                // Keep existing RawRenewalPayload for now; can be filled by decoding signedRenewalInfo
+
+                // 4) Map notificationType -> subscription status
+                switch (notificationType.ToUpperInvariant())
+                {
+                    case "SUBSCRIBED":
+                    case "DID_RENEW":
+                        subscription.Status = SubscriptionStatus.Active;
+                        subscription.EndDate = expiresAtUtc;
+                        break;
+
+                    case "EXPIRED":
+                        subscription.Status = SubscriptionStatus.Expired;
+                        subscription.EndDate = expiresAtUtc ?? DateTime.UtcNow;
+                        break;
+
+                    case "DID_FAIL_TO_RENEW":
+                        subscription.Status = SubscriptionStatus.BillingRetry;
+                        break;
+
+                    case "REFUND":
+                    case "REVOKE":
+                        subscription.Status = SubscriptionStatus.Cancelled;
+                        break;
+
+                    default:
+                        _logger.LogInformation("Unhandled Apple notification type {Type}", notificationType);
+                        break;
+                }
+
+                await _dbContext.SaveChangesAsync();
+
+                _logger.LogInformation(
+                    "Applied Apple notification {Type} for originalTransactionId {OriginalTransactionId}, product {ProductId}",
+                    notificationType,
+                    originalTransactionId,
+                    productId);
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to process Apple server notification.");
+                return false;
+            }
         }
 
         // Subscription Plans

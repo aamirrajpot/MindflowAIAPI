@@ -97,8 +97,8 @@ namespace Mindflow_Web_API.Services
                     : _environment.ContentRootPath;
 
                 // Firebase key will live alongside the DB file, e.g. C:\\home\\data\\firebase-key.json
-                var secretsPath = Path.Combine(baseDir, "firebase-key.json");
-                //var secretsPath = Path.Combine(_environment.ContentRootPath, "secrets", "firebase-key.json");
+                //var secretsPath = Path.Combine(baseDir, "firebase-key.json");
+                var secretsPath = Path.Combine(_environment.ContentRootPath, "secrets", "firebase-key.json");
 
 
                 if (!System.IO.File.Exists(secretsPath))

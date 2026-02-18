@@ -2,6 +2,7 @@ using Mindflow_Web_API.DTOs;
 using Mindflow_Web_API.Services;
 using Mindflow_Web_API.Exceptions;
 using System.Security.Claims;
+using Microsoft.Extensions.Logging;
 
 namespace Mindflow_Web_API.EndPoints
 {
@@ -317,15 +318,44 @@ namespace Mindflow_Web_API.EndPoints
                 return op;
             });
 
-            subscriptionApi.MapPost("/apple/notifications", async (AppleNotificationDto dto, ISubscriptionService subscriptionService) =>
+            subscriptionApi.MapPost("/apple/notifications", async (AppleNotificationDto dto, ISubscriptionService subscriptionService, ILogger<Program> logger) =>
             {
                 // Apple server notifications do not include user auth; they are signed by Apple.
+                logger.LogInformation("Received Apple server notification at /api/subscriptions/apple/notifications. Payload length={Len}", dto.SignedPayload?.Length ?? 0);
                 var ok = await subscriptionService.ApplyAppleNotificationAsync(dto);
-                return ok ? Results.Ok(new { status = "ok" }) : Results.BadRequest(new { status = "failed" });
+
+                if (!ok)
+                {
+                    logger.LogWarning("Apple server notification processing failed (see SubscriptionService logs for details).");
+                }
+
+                // Always return 200 to Apple to avoid excessive retries; internal logs capture failures.
+                return Results.Ok(new { status = ok ? "ok" : "processed_with_errors" });
             })
             .WithOpenApi(op => {
                 op.Summary = "Apple Server Notifications (ASN v2)";
                 op.Description = "Receives signed notifications from Apple and updates subscription state.";
+                return op;
+            });
+
+            // Minimal API endpoint matching Apple docs: POST /api/apple/webhook with { \"signedPayload\": \"...\" }
+            app.MapPost("/api/apple/webhook", async (AppleNotificationDto dto, ISubscriptionService subscriptionService, ILogger<Program> logger) =>
+            {
+                logger.LogInformation("Received Apple server notification at /api/apple/webhook. Payload length={Len}", dto.SignedPayload?.Length ?? 0);
+                var ok = await subscriptionService.ApplyAppleNotificationAsync(dto);
+
+                if (!ok)
+                {
+                    logger.LogWarning("Apple server notification processing failed (see SubscriptionService logs for details).");
+                }
+
+                // Always return 200 to Apple to avoid excessive retries; internal logs capture failures.
+                return Results.Ok(new { status = ok ? "ok" : "processed_with_errors" });
+            })
+            .WithOpenApi(op =>
+            {
+                op.Summary = "Apple App Store Server Notifications V2 webhook";
+                op.Description = "Receives Apple's signedPayload (JWS) at /api/apple/webhook and updates subscription state after verification.";
                 return op;
             });
         }
