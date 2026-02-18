@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="FirebaseAdmin" Version="2.5.0" />\w
+    <PackageReference Include="FirebaseAdmin" Version="2.5.0" />
     <PackageReference Include="Google.Apis.Auth" Version="1.70.0" />
     <PackageReference Include="Mimo.AppStoreServerLibrary" Version="0.1.0" />
     <PackageReference Include="JsonRepairSharp" Version="*" />
@@ -34,12 +34,6 @@
     <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
     <PackageReference Include="Stripe.net" Version="48.4.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.3" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Update="Secrets\AppleRootCA-G3.cer">
-      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
-    </None>
   </ItemGroup>
 
 </Project>
