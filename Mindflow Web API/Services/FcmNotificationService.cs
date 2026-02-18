@@ -98,6 +98,8 @@ namespace Mindflow_Web_API.Services
 
                 // Firebase key will live alongside the DB file, e.g. C:\\home\\data\\firebase-key.json
                 var secretsPath = Path.Combine(baseDir, "firebase-key.json");
+                //var secretsPath = Path.Combine(_environment.ContentRootPath, "secrets", "firebase-key.json");
+
 
                 if (!System.IO.File.Exists(secretsPath))
                 {
@@ -110,10 +112,18 @@ namespace Mindflow_Web_API.Services
                 try
                 {
                     var baseCredential = GoogleCredential.FromFile(secretsPath);
+                    var projectId = _configuration["Firebase:ProjectId"];
+
+                    if (string.IsNullOrWhiteSpace(projectId))
+                    {
+                        _logger.LogError("Firebase ProjectId is not configured. Set Firebase:ProjectId in appsettings.json.");
+                        throw new InvalidOperationException("Firebase ProjectId is not configured. Set Firebase:ProjectId in appsettings.json.");
+                    }
 
                     FirebaseApp.Create(new AppOptions
                     {
-                        Credential = baseCredential
+                        Credential = baseCredential,
+                        ProjectId = projectId,
                     });
 
                     _initialized = true;
