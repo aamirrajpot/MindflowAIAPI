@@ -61,11 +61,11 @@ namespace Mindflow_Web_API.Services
         private async Task CheckAndSendReminders(CancellationToken ct)
         {
             var now = DateTime.UtcNow;
-            var target = now.AddMinutes(10); // notify for tasks occurring ~10 minutes from now
+            var reminderWindowEnd = now.AddMinutes(10); // notify for tasks occurring within the next 10 minutes
 
             // limit DB scan by date range (yesterday..tomorrow)
-            var dateMin = target.Date.AddDays(-1);
-            var dateMax = target.Date.AddDays(1);
+            var dateMin = reminderWindowEnd.Date.AddDays(-1);
+            var dateMax = reminderWindowEnd.Date.AddDays(1);
 
             using var scope = _scopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<MindflowDbContext>();
@@ -93,8 +93,10 @@ namespace Mindflow_Web_API.Services
                     if (occurrenceUtc.Kind == DateTimeKind.Unspecified)
                         occurrenceUtc = DateTime.SpecifyKind(occurrenceUtc, DateTimeKind.Utc);
 
-                    var secondsDiff = Math.Abs((occurrenceUtc - target).TotalSeconds);
-                    if (secondsDiff > _matchWindow.TotalSeconds)
+                    // Send notification only if task is expiring within the next 10 minutes
+                    // Skip expired tasks (occurrenceUtc < now) and tasks more than 10 minutes away
+                    // This includes tasks expiring in 8 minutes, 5 minutes, etc. if they haven't been notified yet
+                    if (occurrenceUtc < now || occurrenceUtc > reminderWindowEnd)
                         continue;
 
                     // Only send if the user's latest wellness check-in has reminders enabled
