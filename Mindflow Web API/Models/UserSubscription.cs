@@ -31,6 +31,7 @@ namespace Mindflow_Web_API.Models
         // Navigation properties
         public User User { get; set; } = null!;
         public SubscriptionPlan Plan { get; set; } = null!;
+        public string? RawNotificationPayload { get; internal set; }
     }
 
     public enum SubscriptionStatus

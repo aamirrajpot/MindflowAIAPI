@@ -287,6 +287,7 @@ namespace Mindflow_Web_API.Services
                 subscription.ProductId = productId ?? subscription.ProductId;
                 subscription.ExpiresAtUtc = expiresAtUtc;
                 subscription.Environment = environment;
+                subscription.RawNotificationPayload = notification.SignedPayload; // Complete outer signedPayload for debugging
                 subscription.RawTransactionPayload = signedTransactionInfo; // Inner signedTransactionInfo JWS
                 // Keep existing RawRenewalPayload for now; can be filled by decoding signedRenewalInfo
 
