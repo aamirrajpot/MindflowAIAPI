@@ -344,41 +344,89 @@ namespace Mindflow_Web_API.Services
 
                 switch (notificationType.ToUpperInvariant())
                 {
-                    case "SUBSCRIBED":
-                        _logger.LogInformation("Processing SUBSCRIBED notification: Activating subscription.");
+                    // INITIAL_BUY: User's initial purchase of the subscription
+                    case "INITIAL_BUY":
+                    case "SUBSCRIBED": // Legacy support for older notification format
+                        _logger.LogInformation("Processing INITIAL_BUY notification: Activating subscription for initial purchase.");
                         subscription.Status = SubscriptionStatus.Active;
                         subscription.EndDate = expiresAtUtc;
                         break;
 
+                    // DID_RENEW: Successful auto-renewal for a new transaction period
                     case "DID_RENEW":
-                        _logger.LogInformation("Processing DID_RENEW notification: Renewing subscription.");
+                        _logger.LogInformation("Processing DID_RENEW notification: Subscription successfully auto-renewed.");
                         subscription.Status = SubscriptionStatus.Active;
                         subscription.EndDate = expiresAtUtc;
                         break;
 
-                    case "EXPIRED":
-                        _logger.LogInformation("Processing EXPIRED notification: Marking subscription as expired.");
-                        subscription.Status = SubscriptionStatus.Expired;
+                    // INTERACTIVE_RENEWAL: Customer renewed interactively (via app or App Store)
+                    case "INTERACTIVE_RENEWAL":
+                        _logger.LogInformation("Processing INTERACTIVE_RENEWAL notification: Customer renewed subscription interactively.");
+                        subscription.Status = SubscriptionStatus.Active;
+                        subscription.EndDate = expiresAtUtc;
+                        break;
+
+                    // DID_RECOVER: Successful automatic renewal of an expired subscription that failed to renew
+                    case "DID_RECOVER":
+                        _logger.LogInformation("Processing DID_RECOVER notification: Recovered expired subscription that failed to renew.");
+                        subscription.Status = SubscriptionStatus.Active;
+                        subscription.EndDate = expiresAtUtc;
+                        break;
+
+                    // DID_FAIL_TO_RENEW: Subscription failed to renew due to billing issue
+                    case "DID_FAIL_TO_RENEW":
+                        _logger.LogInformation("Processing DID_FAIL_TO_RENEW notification: Subscription failed to renew, checking billing retry status.");
+                        subscription.Status = SubscriptionStatus.BillingRetry;
+                        // Note: Check is_in_billing_retry_period and grace_period_expires_date in the payload if needed
+                        if (expiresAtUtc.HasValue)
+                        {
+                            subscription.EndDate = expiresAtUtc.Value; // May be grace period expiry
+                        }
+                        break;
+
+                    // CANCEL: Apple Support canceled subscription and customer received refund
+                    case "CANCEL":
+                        _logger.LogInformation("Processing CANCEL notification: Apple Support canceled subscription with refund.");
+                        subscription.Status = SubscriptionStatus.Cancelled;
                         subscription.EndDate = expiresAtUtc ?? DateTime.UtcNow;
                         break;
 
-                    case "DID_FAIL_TO_RENEW":
-                        _logger.LogInformation("Processing DID_FAIL_TO_RENEW notification: Marking subscription with billing retry status.");
-                        subscription.Status = SubscriptionStatus.BillingRetry;
-                        break;
-
+                    // REFUND: App Store refunded a transaction
                     case "REFUND":
-                        _logger.LogInformation("Processing REFUND notification: Cancelling subscription due to refund.");
+                        _logger.LogInformation("Processing REFUND notification: Transaction refunded by App Store.");
                         subscription.Status = SubscriptionStatus.Cancelled;
+                        subscription.EndDate = expiresAtUtc ?? DateTime.UtcNow;
                         break;
 
+                    // REVOKE: Family Sharing entitlement revoked
                     case "REVOKE":
-                        _logger.LogInformation("Processing REVOKE notification: Cancelling subscription due to revocation.");
+                        _logger.LogInformation("Processing REVOKE notification: Family Sharing entitlement revoked.");
                         subscription.Status = SubscriptionStatus.Cancelled;
+                        subscription.EndDate = expiresAtUtc ?? DateTime.UtcNow;
                         break;
 
+                    // DID_CHANGE_RENEWAL_PREF: Customer changed subscription plan (takes effect at next renewal)
                     case "DID_CHANGE_RENEWAL_PREF":
-                        _logger.LogInformation("Processing DID_CHANGE_RENEWAL_PREF notification: User changed renewal preferences.");
+                        _logger.LogInformation("Processing DID_CHANGE_RENEWAL_PREF notification: Customer changed subscription plan (effective at next renewal).");
+                        // Note: Check auto_renew_product_id in unified_receipt.Pending_renewal_info for new product
+                        if (autoRenewStatus.HasValue)
+                        {
+                            var previousAutoRenew = subscription.AutoRenewEnabled;
+                            subscription.AutoRenewEnabled = autoRenewStatus.Value;
+                            _logger.LogInformation("Auto-renewal status updated: {PreviousAutoRenew} -> {NewAutoRenew}", previousAutoRenew, autoRenewStatus.Value);
+                        }
+                        // Update EndDate if ExpiresAtUtc is available
+                        if (expiresAtUtc.HasValue)
+                        {
+                            subscription.EndDate = expiresAtUtc.Value;
+                        }
+                        // Status remains unchanged - current plan is still active until renewal
+                        break;
+
+                    // DID_CHANGE_RENEWAL_STATUS: Change in subscription renewal status
+                    case "DID_CHANGE_RENEWAL_STATUS":
+                        _logger.LogInformation("Processing DID_CHANGE_RENEWAL_STATUS notification: Subscription renewal status changed.");
+                        // Note: Check auto_renew_status_change_date_ms and auto_renew_status in payload
                         if (autoRenewStatus.HasValue)
                         {
                             var previousAutoRenew = subscription.AutoRenewEnabled;
@@ -387,14 +435,44 @@ namespace Mindflow_Web_API.Services
                         }
                         else
                         {
-                            _logger.LogWarning("DID_CHANGE_RENEWAL_PREF received but could not extract autoRenewStatus from renewal info.");
+                            _logger.LogWarning("DID_CHANGE_RENEWAL_STATUS received but could not extract autoRenewStatus from renewal info.");
                         }
-                        // Update EndDate if ExpiresAtUtc is available (renewal preference change might come with updated expiry)
-                        if (expiresAtUtc.HasValue)
+                        // Status may change based on renewal status
+                        if (autoRenewStatus.HasValue && !autoRenewStatus.Value)
                         {
-                            subscription.EndDate = expiresAtUtc.Value;
+                            // If auto-renewal is disabled, subscription will expire at EndDate
+                            _logger.LogInformation("Auto-renewal disabled - subscription will expire at {EndDate}", subscription.EndDate);
                         }
-                        // Status remains unchanged for renewal preference changes
+                        break;
+
+                    // PRICE_INCREASE_CONSENT: App Store asking customer to consent to price increase
+                    case "PRICE_INCREASE_CONSENT":
+                        _logger.LogInformation("Processing PRICE_INCREASE_CONSENT notification: Customer being asked to consent to price increase.");
+                        // Note: Check price_consent_status in unified_receipt.Pending_renewal_info (0 = not responded, 1 = consented)
+                        // Status remains unchanged - this is informational
+                        _logger.LogInformation("Price increase consent status: {Status} (0 = not responded, 1 = consented)", "Check pending_renewal_info for details");
+                        break;
+
+                    // CONSUMPTION_REQUEST: Request for consumption data (for consumable in-app purchases)
+                    case "CONSUMPTION_REQUEST":
+                        _logger.LogWarning("Processing CONSUMPTION_REQUEST notification: This is for consumable purchases, not subscriptions. Ignoring.");
+                        // This notification type is for consumables, not subscriptions
+                        // No status change needed
+                        break;
+
+                    // RENEWAL: Deprecated as of March 10, 2021
+                    case "RENEWAL":
+                        _logger.LogWarning("Processing RENEWAL notification: This notification type is deprecated. Use DID_RECOVER instead.");
+                        // Treat as DID_RECOVER for backward compatibility
+                        subscription.Status = SubscriptionStatus.Active;
+                        subscription.EndDate = expiresAtUtc;
+                        break;
+
+                    // EXPIRED: Legacy or custom status (not in Apple's official list, but handle gracefully)
+                    case "EXPIRED":
+                        _logger.LogInformation("Processing EXPIRED notification: Marking subscription as expired.");
+                        subscription.Status = SubscriptionStatus.Expired;
+                        subscription.EndDate = expiresAtUtc ?? DateTime.UtcNow;
                         break;
 
                     default:
