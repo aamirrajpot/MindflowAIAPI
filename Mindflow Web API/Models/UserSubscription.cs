@@ -5,14 +5,14 @@ namespace Mindflow_Web_API.Models
     public class UserSubscription : EntityBase
     {
         public Guid UserId { get; set; }
-        public Guid PlanId { get; set; }
+        public string PlanId { get; set; } = string.Empty; // Store product identifier (e.g., Apple productId or Google productId)
         public DateTime StartDate { get; set; }
         public DateTime? EndDate { get; set; } // null for active subscriptions
         public SubscriptionStatus Status { get; set; } = SubscriptionStatus.Active;
         
         // Provider-aware fields (Apple/Google)
         public SubscriptionProvider Provider { get; set; } = SubscriptionProvider.Apple;
-        public string ProductId { get; set; } = string.Empty; // Store product identifier
+        public string ProductId { get; set; } = string.Empty; // Store product identifier (same as PlanId for Apple/Google)
         public string OriginalTransactionId { get; set; } = string.Empty; // Apple originalTransactionId or Google purchaseToken
         public string LatestTransactionId { get; set; } = string.Empty; // Latest transaction id (or purchaseToken)
         public DateTime? ExpiresAtUtc { get; set; } // Authoritative expiry from store
@@ -20,6 +20,7 @@ namespace Mindflow_Web_API.Models
         public string Environment { get; set; } = "production"; // or sandbox
         
         // Optional raw payloads for support/audit
+        public string? RawNotificationPayload { get; set; } // Complete outer signedPayload from Apple webhook
         public string? RawRenewalPayload { get; set; }
         public string? RawTransactionPayload { get; set; }
         
@@ -30,8 +31,6 @@ namespace Mindflow_Web_API.Models
         
         // Navigation properties
         public User User { get; set; } = null!;
-        public SubscriptionPlan Plan { get; set; } = null!;
-        public string? RawNotificationPayload { get; internal set; }
     }
 
     public enum SubscriptionStatus

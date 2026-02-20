@@ -50,9 +50,6 @@ namespace Mindflow_Web_API.Services
         // and includes the mapped productId and an expiry.
         public async Task<UserSubscriptionDto> ActivateAppleSubscriptionAsync(Guid userId, AppleSubscribeRequest dto)
         {
-            // Map Apple product to an internal plan id
-            var planId = await MapProductToPlanIdAsync(dto.ProductId, provider: SubscriptionProvider.Apple, environment: dto.Environment ?? "production");
-
             // Cancel any existing active subscription (single active at a time)
             var existing = await _dbContext.UserSubscriptions
                 .FirstOrDefaultAsync(us => us.UserId == userId && us.Status == SubscriptionStatus.Active);
@@ -66,7 +63,7 @@ namespace Mindflow_Web_API.Services
             var userSubscription = new UserSubscription
             {
                 UserId = userId,
-                PlanId = planId,
+                PlanId = dto.ProductId, // Use productId directly as PlanId
                 StartDate = now,
                 EndDate = dto.ExpiresAtUtc, // legacy field
                 Status = SubscriptionStatus.Active,
@@ -94,9 +91,6 @@ namespace Mindflow_Web_API.Services
         // Fetches latest state from Apple and mirrors it into our single row model.
         public async Task<UserSubscriptionDto?> RestoreAppleSubscriptionAsync(Guid userId, AppleRestoreRequest dto)
         {
-            // Resolve plan id from product
-            var planId = await MapProductToPlanIdAsync(dto.ProductId, provider: SubscriptionProvider.Apple, environment: dto.Environment ?? "production");
-
             // Find active subscription for this user
             var current = await _dbContext.UserSubscriptions
                 .FirstOrDefaultAsync(us => us.UserId == userId && us.Status == SubscriptionStatus.Active);
@@ -108,10 +102,17 @@ namespace Mindflow_Web_API.Services
                 var created = new UserSubscription
                 {
                     UserId = userId,
-                    PlanId = planId,
+                    PlanId = dto.ProductId, // Use productId directly as PlanId
                     StartDate = now,
                     EndDate = dto.ExpiresAtUtc,
-                    Status = SubscriptionStatus.Active
+                    Status = SubscriptionStatus.Active,
+                    Provider = SubscriptionProvider.Apple,
+                    ProductId = dto.ProductId,
+                    OriginalTransactionId = dto.OriginalTransactionId,
+                    LatestTransactionId = dto.OriginalTransactionId,
+                    ExpiresAtUtc = dto.ExpiresAtUtc,
+                    AutoRenewEnabled = true,
+                    Environment = dto.Environment ?? "production"
                 };
                 await _dbContext.UserSubscriptions.AddAsync(created);
                 await _dbContext.SaveChangesAsync();
@@ -120,7 +121,7 @@ namespace Mindflow_Web_API.Services
             }
 
             // Update existing active row
-            current.PlanId = planId;
+            current.PlanId = dto.ProductId; // Use productId directly as PlanId
             current.EndDate = dto.ExpiresAtUtc; // legacy
             current.Status = SubscriptionStatus.Active;
             current.Provider = SubscriptionProvider.Apple;
@@ -264,10 +265,12 @@ namespace Mindflow_Web_API.Services
                     subscription = new UserSubscription
                     {
                         UserId = Guid.Empty, // To be associated via appAccountToken / client flows
-                        PlanId = Guid.Empty,
+                        PlanId = productId ?? string.Empty, // Use productId from Apple as PlanId
                         Provider = SubscriptionProvider.Apple,
+                        ProductId = productId ?? string.Empty,
                         OriginalTransactionId = originalTransactionId,
-                        StartDate = DateTime.UtcNow
+                        StartDate = DateTime.UtcNow,
+                        Environment = environment
                     };
                     await _dbContext.UserSubscriptions.AddAsync(subscription);
                 }
@@ -285,11 +288,55 @@ namespace Mindflow_Web_API.Services
 
                 subscription.LatestTransactionId = transactionId ?? subscription.LatestTransactionId;
                 subscription.ProductId = productId ?? subscription.ProductId;
+                subscription.PlanId = productId ?? subscription.PlanId; // Keep PlanId in sync with ProductId
                 subscription.ExpiresAtUtc = expiresAtUtc;
                 subscription.Environment = environment;
                 subscription.RawNotificationPayload = notification.SignedPayload; // Complete outer signedPayload for debugging
                 subscription.RawTransactionPayload = signedTransactionInfo; // Inner signedTransactionInfo JWS
-                // Keep existing RawRenewalPayload for now; can be filled by decoding signedRenewalInfo
+
+                // Sync EndDate with ExpiresAtUtc if ExpiresAtUtc is set and EndDate is null (for active subscriptions)
+                if (expiresAtUtc.HasValue && subscription.Status == SubscriptionStatus.Active && !subscription.EndDate.HasValue)
+                {
+                    subscription.EndDate = expiresAtUtc.Value;
+                    _logger.LogInformation("Syncing EndDate with ExpiresAtUtc: {ExpiresAtUtc}", expiresAtUtc.Value);
+                }
+
+                // Extract renewal info if available (needed for DID_CHANGE_RENEWAL_PREF)
+                bool? autoRenewStatus = null;
+                string? signedRenewalInfo = null;
+                if (dataEl.TryGetProperty("signedRenewalInfo", out var signedRenewalEl) && signedRenewalEl.ValueKind == JsonValueKind.String)
+                {
+                    signedRenewalInfo = signedRenewalEl.GetString();
+                    subscription.RawRenewalPayload = signedRenewalInfo;
+
+                    if (!string.IsNullOrWhiteSpace(signedRenewalInfo))
+                    {
+                        try
+                        {
+                            var renewalParts = signedRenewalInfo.Split('.');
+                            if (renewalParts.Length == 3)
+                            {
+                                var renewalPayloadJson = Encoding.UTF8.GetString(Base64UrlDecode(renewalParts[1]));
+                                using var renewalDoc = JsonDocument.Parse(renewalPayloadJson);
+                                var renewalRoot = renewalDoc.RootElement;
+
+                                _logger.LogInformation("Renewal info (signedRenewalInfo) complete JSON: {RenewalInfoJson}", renewalRoot.GetRawText());
+
+                                if (renewalRoot.TryGetProperty("autoRenewStatus", out var autoRenewEl))
+                                {
+                                    var autoRenewValue = autoRenewEl.GetInt32();
+                                    // Apple: 0 = Off, 1 = On
+                                    autoRenewStatus = autoRenewValue == 1;
+                                    _logger.LogInformation("Extracted autoRenewStatus from renewal info: {AutoRenewStatus} (value={Value})", autoRenewStatus, autoRenewValue);
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Failed to decode signedRenewalInfo, continuing without renewal status update.");
+                        }
+                    }
+                }
 
                 // 4) Map notificationType -> subscription status
                 var previousStatus = subscription.Status;
@@ -330,6 +377,26 @@ namespace Mindflow_Web_API.Services
                         subscription.Status = SubscriptionStatus.Cancelled;
                         break;
 
+                    case "DID_CHANGE_RENEWAL_PREF":
+                        _logger.LogInformation("Processing DID_CHANGE_RENEWAL_PREF notification: User changed renewal preferences.");
+                        if (autoRenewStatus.HasValue)
+                        {
+                            var previousAutoRenew = subscription.AutoRenewEnabled;
+                            subscription.AutoRenewEnabled = autoRenewStatus.Value;
+                            _logger.LogInformation("Auto-renewal status updated: {PreviousAutoRenew} -> {NewAutoRenew}", previousAutoRenew, autoRenewStatus.Value);
+                        }
+                        else
+                        {
+                            _logger.LogWarning("DID_CHANGE_RENEWAL_PREF received but could not extract autoRenewStatus from renewal info.");
+                        }
+                        // Update EndDate if ExpiresAtUtc is available (renewal preference change might come with updated expiry)
+                        if (expiresAtUtc.HasValue)
+                        {
+                            subscription.EndDate = expiresAtUtc.Value;
+                        }
+                        // Status remains unchanged for renewal preference changes
+                        break;
+
                     default:
                         _logger.LogWarning("Unhandled Apple notification type: {Type}. Subscription status unchanged.", notificationType);
                         break;
@@ -342,12 +409,13 @@ namespace Mindflow_Web_API.Services
                 _logger.LogInformation("Subscription saved successfully.");
 
                 _logger.LogInformation(
-                    "✅ Successfully processed Apple notification: Type={Type}, OriginalTransactionId={OriginalTransactionId}, ProductId={ProductId}, Status={Status}, ExpiresAtUtc={ExpiresAtUtc}",
+                    "✅ Successfully processed Apple notification: Type={Type}, OriginalTransactionId={OriginalTransactionId}, ProductId={ProductId}, Status={Status}, ExpiresAtUtc={ExpiresAtUtc}, AutoRenewEnabled={AutoRenewEnabled}",
                     notificationType,
                     originalTransactionId,
                     productId ?? "null",
                     subscription.Status,
-                    subscription.ExpiresAtUtc?.ToString("yyyy-MM-dd HH:mm:ss UTC") ?? "null");
+                    subscription.ExpiresAtUtc?.ToString("yyyy-MM-dd HH:mm:ss UTC") ?? "null",
+                    subscription.AutoRenewEnabled);
 
                 return true;
             }
@@ -570,9 +638,6 @@ namespace Mindflow_Web_API.Services
         public async Task<UserSubscriptionDto?> GetUserSubscriptionAsync(Guid userId)
         {
             var userSubscription = await _dbContext.UserSubscriptions
-                .Include(us => us.Plan)
-                .ThenInclude(p => p.PlanFeatures)
-                .ThenInclude(pf => pf.Feature)
                 .FirstOrDefaultAsync(us => us.UserId == userId && us.Status == SubscriptionStatus.Active);
 
             return userSubscription == null ? null : await ToUserSubscriptionDtoAsync(userSubscription);
@@ -585,7 +650,7 @@ namespace Mindflow_Web_API.Services
 
             if (userSubscription == null) return null;
 
-            if (dto.PlanId.HasValue) userSubscription.PlanId = dto.PlanId.Value;
+            if (!string.IsNullOrWhiteSpace(dto.PlanId)) userSubscription.PlanId = dto.PlanId;
             if (dto.EndDate.HasValue) userSubscription.EndDate = dto.EndDate.Value;
             if (dto.Status.HasValue) userSubscription.Status = dto.Status.Value;
 
@@ -625,15 +690,37 @@ namespace Mindflow_Web_API.Services
         public async Task<bool> HasFeatureAsync(Guid userId, string featureName)
         {
             var userSubscription = await _dbContext.UserSubscriptions
-                .Include(us => us.Plan)
-                .ThenInclude(p => p.PlanFeatures)
-                .ThenInclude(pf => pf.Feature)
                 .FirstOrDefaultAsync(us => us.UserId == userId && us.Status == SubscriptionStatus.Active);
 
             if (userSubscription == null) return false;
 
-            return userSubscription.Plan.PlanFeatures
-                .Any(pf => pf.IsIncluded && pf.Feature.Name == featureName);
+            // Resolve plan via StoreProduct mapping since PlanId is now a productId string
+            try
+            {
+                var storeProduct = await _dbContext.Set<StoreProduct>()
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(sp => sp.ProductId == userSubscription.PlanId && sp.Provider == userSubscription.Provider);
+
+                if (storeProduct != null)
+                {
+                    var plan = await _dbContext.SubscriptionPlans
+                        .Include(p => p.PlanFeatures)
+                        .ThenInclude(pf => pf.Feature)
+                        .FirstOrDefaultAsync(p => p.Id == storeProduct.PlanId);
+
+                    if (plan != null)
+                    {
+                        return plan.PlanFeatures
+                            .Any(pf => pf.IsIncluded && pf.Feature.Name == featureName);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not resolve plan for HasFeatureAsync check. PlanId={PlanId}", userSubscription.PlanId);
+            }
+
+            return false;
         }
 
         public async Task<bool> IsSubscriptionActiveAsync(Guid userId)
@@ -690,51 +777,52 @@ namespace Mindflow_Web_API.Services
 
         private async Task<UserSubscriptionDto> ToUserSubscriptionDtoAsync(UserSubscription userSubscription)
         {
-            // Ensure the Plan entity is loaded
-            SubscriptionPlan? planEntity = userSubscription.Plan;
-            if (planEntity == null)
+            // PlanId is now a string (productId), not a Guid reference to SubscriptionPlan
+            // Try to find a matching SubscriptionPlan by matching PlanId with StoreProduct mapping
+            SubscriptionPlanDto? planDto = null;
+            
+            try
             {
-                planEntity = await _dbContext.SubscriptionPlans
-                    .FirstOrDefaultAsync(p => p.Id == userSubscription.PlanId);
+                // Try to find StoreProduct mapping to get internal plan
+                var storeProduct = await _dbContext.Set<StoreProduct>()
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(sp => sp.ProductId == userSubscription.PlanId && sp.Provider == userSubscription.Provider);
+                
+                if (storeProduct != null)
+                {
+                    var planEntity = await _dbContext.SubscriptionPlans
+                        .Include(p => p.PlanFeatures)
+                        .ThenInclude(pf => pf.Feature)
+                        .FirstOrDefaultAsync(p => p.Id == storeProduct.PlanId);
+                    
+                    if (planEntity != null)
+                    {
+                        planDto = await ToPlanDtoAsync(planEntity);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not resolve SubscriptionPlan for PlanId={PlanId}, returning null Plan in DTO.", userSubscription.PlanId);
             }
 
-            // Fallback in extremely rare case plan is missing (should not happen)
-            if (planEntity == null)
-            {
-                var emptyPlanDto = new SubscriptionPlanDto(
-                    userSubscription.PlanId,
-                    string.Empty,
-                    string.Empty,
-                    0,
-                    string.Empty,
-                    false,
-                    0,
-                    null,
-                    false,
-                    new List<SubscriptionFeatureDto>()
-                );
-
-                return new UserSubscriptionDto(
-                    userSubscription.Id,
-                    userSubscription.UserId,
-                    userSubscription.PlanId,
-                    userSubscription.StartDate,
-                    userSubscription.EndDate,
-                    userSubscription.Status,
-                    emptyPlanDto
-                );
-            }
-
-            var plan = await ToPlanDtoAsync(planEntity);
+            // Use ExpiresAtUtc as fallback if EndDate is null (for Apple/Google subscriptions)
+            var endDate = userSubscription.EndDate ?? userSubscription.ExpiresAtUtc;
 
             return new UserSubscriptionDto(
                 userSubscription.Id,
                 userSubscription.UserId,
-                userSubscription.PlanId,
+                userSubscription.PlanId, // String productId
                 userSubscription.StartDate,
-                userSubscription.EndDate,
+                endDate,
                 userSubscription.Status,
-                plan
+                planDto, // May be null if no mapping exists
+                // Additional subscription details
+                userSubscription.Provider, // Apple or Google
+                userSubscription.ProductId, // Product identifier
+                userSubscription.ExpiresAtUtc, // Authoritative expiry from store
+                userSubscription.AutoRenewEnabled, // Auto-renewal status
+                userSubscription.Environment // "production" or "sandbox"
             );
         }
 

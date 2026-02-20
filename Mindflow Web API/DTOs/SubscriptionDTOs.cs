@@ -114,19 +114,25 @@ namespace Mindflow_Web_API.DTOs
     public record UserSubscriptionDto(
         Guid Id,
         Guid UserId,
-        Guid PlanId,
+        string PlanId, // Store product identifier (e.g., Apple productId)
         DateTime StartDate,
         DateTime? EndDate,
         SubscriptionStatus Status,
-        SubscriptionPlanDto Plan
+        SubscriptionPlanDto? Plan, // Optional, may be null if PlanId is just a productId string
+        // Additional subscription details
+        SubscriptionProvider Provider, // Apple or Google
+        string ProductId, // Same as PlanId, but explicit for clarity
+        DateTime? ExpiresAtUtc, // Authoritative expiry date from store
+        bool AutoRenewEnabled, // Whether auto-renewal is enabled
+        string Environment // "production" or "sandbox"
     );
 
     public record CreateUserSubscriptionDto(
-        Guid PlanId
+        string PlanId // Store product identifier
     );
 
     public record UpdateUserSubscriptionDto(
-        Guid? PlanId,
+        string? PlanId,
         DateTime? EndDate,
         SubscriptionStatus? Status
     );

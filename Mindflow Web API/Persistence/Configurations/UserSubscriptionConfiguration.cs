@@ -45,17 +45,16 @@ namespace Mindflow_Web_API.Persistence.Configurations
                    .HasForeignKey(us => us.UserId)
                    .OnDelete(DeleteBehavior.Cascade);
 
-            builder.HasOne(us => us.Plan)
-                   .WithMany()
-                   .HasForeignKey(us => us.PlanId)
-                   .OnDelete(DeleteBehavior.Restrict);
+            // Note: No foreign key to SubscriptionPlan - PlanId is now a string (productId from Apple/Google)
 
             // Indexes for performance
             builder.HasIndex(us => us.UserId);
-            builder.HasIndex(us => us.PlanId);
             builder.HasIndex(us => us.Status);
             builder.HasIndex(us => us.StartDate);
             builder.HasIndex(us => us.EndDate);
+            builder.HasIndex(us => us.PlanId); // Index on PlanId (string productId) for lookups
+            builder.HasIndex(us => new { us.Provider, us.OriginalTransactionId }); // Composite index for Apple/Google webhook lookups
+            builder.HasIndex(us => us.ProductId); // Index on ProductId for queries
         }
     }
 }
