@@ -6,6 +6,8 @@ using Mindflow_Web_API.Services;
 using Mindflow_Web_API.Persistence;
 using Mindflow_Web_API.Models;
 using Mindflow_Web_API.Utilities;
+using Mindflow_Web_API.Exceptions;
+using System.Security.Claims;
 
 namespace Mindflow_Web_API.EndPoints
 {
@@ -18,6 +20,7 @@ namespace Mindflow_Web_API.EndPoints
 			api.MapPost("/suggestions", async (
 				[FromBody] BrainDumpRequest request,
 				IBrainDumpService service,
+				ISubscriptionService subscriptionService,
 				HttpContext ctx,
 				MindflowDbContext db,
 				[FromQuery] int maxTokens = 1200,
@@ -27,9 +30,16 @@ namespace Mindflow_Web_API.EndPoints
 					return Results.Unauthorized();
 
 				// Resolve user id
-				var userIdClaim = ctx.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
+				var userIdClaim = ctx.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier || c.Type == "sub");
 				if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
 					return Results.Unauthorized();
+
+				// Check if user has an active subscription (not free user and not expired)
+				var hasActiveSubscription = await subscriptionService.IsSubscriptionActiveAsync(userId);
+				if (!hasActiveSubscription)
+				{
+					throw ApiExceptions.Forbidden("An active subscription is required to use brain dump features. Please subscribe to continue.");
+				}
 
 				// Generate comprehensive brain dump analysis
 				var brainDumpResponse = await service.GetTaskSuggestionsAsync(userId, request, maxTokens, temperature);

@@ -728,7 +728,22 @@ namespace Mindflow_Web_API.Services
             var userSubscription = await _dbContext.UserSubscriptions
                 .FirstOrDefaultAsync(us => us.UserId == userId && us.Status == SubscriptionStatus.Active);
 
-            return userSubscription != null;
+            if (userSubscription == null)
+                return false;
+
+            // Check if subscription has expired
+            var now = DateTime.UtcNow;
+            var expiryDate = userSubscription.EndDate ?? userSubscription.ExpiresAtUtc;
+            
+            if (expiryDate.HasValue && expiryDate.Value < now)
+            {
+                // Subscription has expired, update status
+                userSubscription.Status = SubscriptionStatus.Expired;
+                await _dbContext.SaveChangesAsync();
+                return false;
+            }
+
+            return true;
         }
 
         // Private helper methods
