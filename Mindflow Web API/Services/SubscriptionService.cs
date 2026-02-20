@@ -146,13 +146,18 @@ namespace Mindflow_Web_API.Services
                 return false;
             }
 
+            // Log complete payload for local debugging
+            _logger.LogInformation("Apple notification complete signedPayload: {SignedPayload}", notification.SignedPayload);
+
             try
             {
                 // 0) Cryptographically verify the JWS using Apple's root certificates via Mimo.AppStoreServerLibrary
                 // We ignore the decoded model here and reuse our existing parsing logic below.
+                _logger.LogInformation("Verifying Apple notification signature...");
                 try
                 {
                     await _appleVerifier.VerifyAndDecodeNotification(notification.SignedPayload);
+                    _logger.LogInformation("Apple notification signature verification succeeded.");
                 }
                 catch (Exception ex)
                 {
@@ -161,10 +166,11 @@ namespace Mindflow_Web_API.Services
                 }
 
                 // 1) Decode outer JWS payload (header.payload.signature)
+                _logger.LogInformation("Decoding outer JWS payload...");
                 var outerParts = notification.SignedPayload.Split('.');
                 if (outerParts.Length != 3)
                 {
-                    _logger.LogWarning("Apple notification signedPayload has invalid JWS format.");
+                    _logger.LogWarning("Apple notification signedPayload has invalid JWS format (expected 3 parts, got {Count}).", outerParts.Length);
                     return false;
                 }
 
@@ -174,8 +180,10 @@ namespace Mindflow_Web_API.Services
 
                 var notificationType = outerRoot.GetProperty("notificationType").GetString() ?? string.Empty;
                 var environment = outerRoot.TryGetProperty("environment", out var envEl)
-                    ? envEl.GetString() ?? "production"
-                    : "production";
+                    ? envEl.GetString() ?? "sandbox"
+                    : "sandbox";
+
+                _logger.LogInformation("Processing Apple notification: Type={NotificationType}, Environment={Environment}", notificationType, environment);
 
                 if (!outerRoot.TryGetProperty("data", out var dataEl))
                 {
@@ -204,9 +212,13 @@ namespace Mindflow_Web_API.Services
                     return false;
                 }
 
+                _logger.LogInformation("Decoding signedTransactionInfo JWS...");
                 var txPayloadJson = Encoding.UTF8.GetString(Base64UrlDecode(txParts[1]));
                 using var txDoc = JsonDocument.Parse(txPayloadJson);
                 var txRoot = txDoc.RootElement;
+
+                // Log complete transaction root JSON for debugging
+                _logger.LogInformation("Transaction root (txRoot) complete JSON: {TxRootJson}", txRoot.GetRawText());
 
                 var originalTransactionId = txRoot.GetProperty("originalTransactionId").GetString();
                 var transactionId = txRoot.TryGetProperty("transactionId", out var txIdEl)
@@ -226,6 +238,13 @@ namespace Mindflow_Web_API.Services
                     }
                 }
 
+                _logger.LogInformation(
+                    "Extracted transaction details: OriginalTransactionId={OriginalTransactionId}, TransactionId={TransactionId}, ProductId={ProductId}, ExpiresAtUtc={ExpiresAtUtc}",
+                    originalTransactionId,
+                    transactionId ?? "null",
+                    productId ?? "null",
+                    expiresAtUtc?.ToString("yyyy-MM-dd HH:mm:ss UTC") ?? "null");
+
                 if (string.IsNullOrWhiteSpace(originalTransactionId))
                 {
                     _logger.LogWarning("Apple transaction payload missing originalTransactionId.");
@@ -233,6 +252,7 @@ namespace Mindflow_Web_API.Services
                 }
 
                 // 3) Find or create UserSubscription for this originalTransactionId (Apple)
+                _logger.LogInformation("Looking up UserSubscription for OriginalTransactionId={OriginalTransactionId}...", originalTransactionId);
                 var subscription = await _dbContext.UserSubscriptions
                     .FirstOrDefaultAsync(s =>
                         s.Provider == SubscriptionProvider.Apple &&
@@ -240,6 +260,7 @@ namespace Mindflow_Web_API.Services
 
                 if (subscription == null)
                 {
+                    _logger.LogInformation("No existing subscription found. Creating new UserSubscription for OriginalTransactionId={OriginalTransactionId}.", originalTransactionId);
                     subscription = new UserSubscription
                     {
                         UserId = Guid.Empty, // To be associated via appAccountToken / client flows
@@ -250,49 +271,82 @@ namespace Mindflow_Web_API.Services
                     };
                     await _dbContext.UserSubscriptions.AddAsync(subscription);
                 }
+                else
+                {
+                    _logger.LogInformation("Found existing subscription: SubscriptionId={SubscriptionId}, CurrentStatus={Status}, CurrentProductId={ProductId}",
+                        subscription.Id, subscription.Status, subscription.ProductId);
+                }
+
+                _logger.LogInformation("Updating subscription fields: LatestTransactionId={LatestTransactionId}, ProductId={ProductId}, ExpiresAtUtc={ExpiresAtUtc}, Environment={Environment}",
+                    transactionId ?? subscription.LatestTransactionId ?? "null",
+                    productId ?? subscription.ProductId ?? "null",
+                    expiresAtUtc?.ToString("yyyy-MM-dd HH:mm:ss UTC") ?? "null",
+                    environment);
 
                 subscription.LatestTransactionId = transactionId ?? subscription.LatestTransactionId;
                 subscription.ProductId = productId ?? subscription.ProductId;
                 subscription.ExpiresAtUtc = expiresAtUtc;
                 subscription.Environment = environment;
-                subscription.RawTransactionPayload = signedTransactionInfo;
+                subscription.RawTransactionPayload = signedTransactionInfo; // Inner signedTransactionInfo JWS
                 // Keep existing RawRenewalPayload for now; can be filled by decoding signedRenewalInfo
 
                 // 4) Map notificationType -> subscription status
+                var previousStatus = subscription.Status;
+                _logger.LogInformation("Processing notification type: {NotificationType} (previous status: {PreviousStatus})", notificationType, previousStatus);
+
                 switch (notificationType.ToUpperInvariant())
                 {
                     case "SUBSCRIBED":
+                        _logger.LogInformation("Processing SUBSCRIBED notification: Activating subscription.");
+                        subscription.Status = SubscriptionStatus.Active;
+                        subscription.EndDate = expiresAtUtc;
+                        break;
+
                     case "DID_RENEW":
+                        _logger.LogInformation("Processing DID_RENEW notification: Renewing subscription.");
                         subscription.Status = SubscriptionStatus.Active;
                         subscription.EndDate = expiresAtUtc;
                         break;
 
                     case "EXPIRED":
+                        _logger.LogInformation("Processing EXPIRED notification: Marking subscription as expired.");
                         subscription.Status = SubscriptionStatus.Expired;
                         subscription.EndDate = expiresAtUtc ?? DateTime.UtcNow;
                         break;
 
                     case "DID_FAIL_TO_RENEW":
+                        _logger.LogInformation("Processing DID_FAIL_TO_RENEW notification: Marking subscription with billing retry status.");
                         subscription.Status = SubscriptionStatus.BillingRetry;
                         break;
 
                     case "REFUND":
+                        _logger.LogInformation("Processing REFUND notification: Cancelling subscription due to refund.");
+                        subscription.Status = SubscriptionStatus.Cancelled;
+                        break;
+
                     case "REVOKE":
+                        _logger.LogInformation("Processing REVOKE notification: Cancelling subscription due to revocation.");
                         subscription.Status = SubscriptionStatus.Cancelled;
                         break;
 
                     default:
-                        _logger.LogInformation("Unhandled Apple notification type {Type}", notificationType);
+                        _logger.LogWarning("Unhandled Apple notification type: {Type}. Subscription status unchanged.", notificationType);
                         break;
                 }
 
+                _logger.LogInformation("Status updated: {PreviousStatus} -> {NewStatus}", previousStatus, subscription.Status);
+
+                _logger.LogInformation("Saving subscription changes to database...");
                 await _dbContext.SaveChangesAsync();
+                _logger.LogInformation("Subscription saved successfully.");
 
                 _logger.LogInformation(
-                    "Applied Apple notification {Type} for originalTransactionId {OriginalTransactionId}, product {ProductId}",
+                    "✅ Successfully processed Apple notification: Type={Type}, OriginalTransactionId={OriginalTransactionId}, ProductId={ProductId}, Status={Status}, ExpiresAtUtc={ExpiresAtUtc}",
                     notificationType,
                     originalTransactionId,
-                    productId);
+                    productId ?? "null",
+                    subscription.Status,
+                    subscription.ExpiresAtUtc?.ToString("yyyy-MM-dd HH:mm:ss UTC") ?? "null");
 
                 return true;
             }
