@@ -12,7 +12,7 @@ namespace Mindflow_Web_API.DTOs
     public record SignInResponseDto(string access_token, string token_type, int expires_in, string refresh_token, UserDto user);
     public record RefreshTokenRequestDto(string refresh_token);
     public record RefreshTokenResponseDto(string access_token, string token_type, int expires_in, string refresh_token);
-    public record UserProfileDto(string UserName, string Email, string? FirstName, string? LastName, DateTime? DateOfBirth, string? ProfilePic, bool QuestionnaireFilled);
+    public record UserProfileDto(string UserName, string Email, string? FirstName, string? LastName, DateTime? DateOfBirth, string? ProfilePic, bool QuestionnaireFilled, UserSubscriptionDto? ActiveSubscription = null);
     public record UpdateProfileDto(string? FirstName, string? LastName, DateTime? DateOfBirth, string? ProfilePic);
     public record UploadProfilePictureBase64Dto(string Base64Image, string FileName);
     public record UploadProfilePictureUrlDto(string ImageUrl);

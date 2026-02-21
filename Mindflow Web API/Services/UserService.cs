@@ -20,12 +20,15 @@ namespace Mindflow_Web_API.Services
         private readonly IConfiguration _configuration;
         private readonly IEmailService _emailService;
 
-        public UserService(MindflowDbContext dbContext, ILogger<UserService> logger, IConfiguration configuration, IEmailService emailService)
+        private readonly ISubscriptionService _subscriptionService;
+
+        public UserService(MindflowDbContext dbContext, ILogger<UserService> logger, IConfiguration configuration, IEmailService emailService, ISubscriptionService subscriptionService)
         {
             _dbContext = dbContext;
             _logger = logger;
             _configuration = configuration;
             _emailService = emailService;
+            _subscriptionService = subscriptionService;
         }
 
         public async Task<UserDto> RegisterAsync(RegisterUserDto command)
@@ -269,7 +272,18 @@ namespace Mindflow_Web_API.Services
             var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId);
             if (user == null)
                 return null;
-            return new UserProfileDto(user.UserName, user.Email, user.FirstName, user.LastName, user.DateOfBirth, user.ProfilePic, user.QuestionnaireFilled);
+
+            var activeSubscription = await _subscriptionService.GetUserSubscriptionAsync(userId);
+
+            return new UserProfileDto(
+                user.UserName,
+                user.Email,
+                user.FirstName,
+                user.LastName,
+                user.DateOfBirth,
+                user.ProfilePic,
+                user.QuestionnaireFilled,
+                activeSubscription);
         }
 
         public async Task<bool> UpdateProfileAsync(Guid userId, UpdateProfileDto command)

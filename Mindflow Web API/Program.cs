@@ -17,6 +17,7 @@ using Serilog;
 using Serilog.Events;
 using Stripe;
 using System.Text;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -72,6 +73,12 @@ builder.Services.AddSwaggerGen(options =>
         }
     });
 });
+// Configure JSON to serialize enums as strings (e.g. "Active" instead of 0)
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
+
 // Configure SQLite as the database
 builder.Services.AddDbContext<MindflowDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
