@@ -4,15 +4,24 @@ using System.Collections.Generic;
 
 namespace Mindflow_Web_API.DTOs
 {
-     public record AppleSubscribeRequest(
+    /// <summary>
+    /// Apple subscribe: either JWS (StoreKit 2) or legacy transaction receipt.
+    /// - JWS path: provide SignedTransactionJws, OriginalTransactionId, ExpiresAtUtc (and optionally SignedRenewalInfoJws, AppAccountToken, Environment).
+    /// - Legacy path: provide TransactionReceipt (base64) and TransactionDateMs; we verify with Apple and extract the rest.
+    /// </summary>
+    public record AppleSubscribeRequest(
         string ProductId,
-        DateTime? ExpiresAtUtc,
-        string SignedTransactionJws,
-        string? SignedRenewalInfoJws,
         string TransactionId,
-        string OriginalTransactionId,
+        // JWS path (StoreKit 2)
+        string? SignedTransactionJws,
+        string? OriginalTransactionId,
+        DateTime? ExpiresAtUtc,
+        string? SignedRenewalInfoJws,
         Guid? AppAccountToken,
-        string? Environment
+        string? Environment,
+        // Legacy receipt path (StoreKit 1 / transactionReceipt)
+        string? TransactionReceipt,
+        long? TransactionDateMs
     );
 
     public record AppleRestoreRequest(

@@ -256,6 +256,72 @@ builder.Services.AddSingleton<SignedDataVerifier>(sp =>
         bundleId);
 });
 
+// Apple App Store Server API client (for legacy receipt → Get Transaction Info via Mimo only)
+// SigningKey: PEM contents, path to .p8, filename in db dir (same as cert), or raw base64
+string? GetAppleBaseDirectory(IConfiguration config)
+{
+    var connectionString = config.GetConnectionString("DefaultConnection");
+    string? dbPath = null;
+    if (!string.IsNullOrWhiteSpace(connectionString))
+    {
+        var parts = connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries);
+        var dataSourcePart = parts.FirstOrDefault(p =>
+            p.TrimStart().StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase) ||
+            p.TrimStart().StartsWith("DataSource=", StringComparison.OrdinalIgnoreCase));
+        if (dataSourcePart != null)
+        {
+            var kv = dataSourcePart.Split('=', 2, StringSplitOptions.RemoveEmptyEntries);
+            if (kv.Length == 2) dbPath = kv[1].Trim();
+        }
+    }
+    return !string.IsNullOrEmpty(dbPath) ? Path.GetDirectoryName(dbPath) ?? AppContext.BaseDirectory : AppContext.BaseDirectory;
+}
+string? ResolveAppleSigningKeyPem(string? value, string? baseDir)
+{
+    if (string.IsNullOrWhiteSpace(value)) return value;
+    if (value.Contains("-----BEGIN", StringComparison.OrdinalIgnoreCase))
+        return value;
+    var path = value.Trim();
+    // Try absolute/current path first, then db directory (same as cert), then Secrets
+    var toTry = new List<string> { path };
+    if (!string.IsNullOrWhiteSpace(baseDir))
+    {
+        toTry.Add(Path.Combine(baseDir, path));
+        toTry.Add(Path.Combine(baseDir, "Secrets", Path.GetFileName(path)));
+    }
+    toTry.Add(Path.Combine(AppContext.BaseDirectory, "Secrets", Path.GetFileName(path)));
+    foreach (var p in toTry)
+    {
+        if (System.IO.File.Exists(p))
+            return System.IO.File.ReadAllText(p);
+    }
+    // Value may be raw base64 (e.g. from appsettings). PEM requires headers for ImportFromPem().
+    var base64 = path.Replace("\r", "").Replace("\n", "").Trim();
+    if (base64.Length > 0 && !base64.Contains(" "))
+        return "-----BEGIN PRIVATE KEY-----\n" + base64 + "\n-----END PRIVATE KEY-----";
+    throw new InvalidOperationException(
+        "Apple:SigningKey must be (1) full PEM, (2) path/filename to a .p8 file (looked for in db directory and Secrets), or (3) raw base64. Tried: " + string.Join("; ", toTry));
+}
+var appleBaseDir = GetAppleBaseDirectory(builder.Configuration);
+var appleSigningKeyRaw = builder.Configuration["Apple:SigningKey"];
+var appleSigningKey = ResolveAppleSigningKeyPem(appleSigningKeyRaw, appleBaseDir);
+var appleKeyId = builder.Configuration["Apple:KeyId"];
+var appleIssuerId = builder.Configuration["Apple:IssuerId"];
+var appleBundleId = builder.Configuration["Apple:BundleId"];
+if (!string.IsNullOrWhiteSpace(appleSigningKey) && !string.IsNullOrWhiteSpace(appleKeyId) && !string.IsNullOrWhiteSpace(appleIssuerId) && !string.IsNullOrWhiteSpace(appleBundleId))
+{
+    var appleProduction = new AppStoreServerApiClient(appleSigningKey, appleKeyId, appleIssuerId, appleBundleId, AppStoreEnvironment.Production);
+    var appleSandbox = new AppStoreServerApiClient(appleSigningKey, appleKeyId, appleIssuerId, appleBundleId, AppStoreEnvironment.Sandbox);
+    builder.Services.AddSingleton(new AppleAppStoreApiWrapper(appleProduction, appleSandbox));
+}
+else
+{
+    builder.Services.AddSingleton<AppleAppStoreApiWrapper>(new AppleAppStoreApiWrapper(null, null));
+}
+
+// ReceiptUtility from Mimo (stateless, used to extract transaction ID from legacy receipt)
+builder.Services.AddSingleton<ReceiptUtility>();
+
 // Register PaymentService
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 

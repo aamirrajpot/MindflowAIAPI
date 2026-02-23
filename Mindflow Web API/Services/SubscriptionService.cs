@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Mimo.AppStoreServerLibrary;
+using Mimo.AppStoreServerLibrary.Models;
 using Mindflow_Web_API.DTOs;
 using Mindflow_Web_API.Models;
 using Mindflow_Web_API.Persistence;
@@ -17,12 +18,21 @@ namespace Mindflow_Web_API.Services
         private readonly MindflowDbContext _dbContext;
         private readonly ILogger<SubscriptionService> _logger;
         private readonly SignedDataVerifier _appleVerifier;
+        private readonly AppleAppStoreApiWrapper _appleApiWrapper;
+        private readonly ReceiptUtility _receiptUtility;
 
-        public SubscriptionService(MindflowDbContext dbContext, ILogger<SubscriptionService> logger, SignedDataVerifier appleVerifier)
+        public SubscriptionService(
+            MindflowDbContext dbContext,
+            ILogger<SubscriptionService> logger,
+            SignedDataVerifier appleVerifier,
+            AppleAppStoreApiWrapper appleApiWrapper,
+            ReceiptUtility receiptUtility)
         {
             _dbContext = dbContext;
             _logger = logger;
             _appleVerifier = appleVerifier;
+            _appleApiWrapper = appleApiWrapper;
+            _receiptUtility = receiptUtility;
         }
 
         private static byte[] Base64UrlDecode(string input)
@@ -37,6 +47,57 @@ namespace Mindflow_Web_API.Services
             return Convert.FromBase64String(padded);
         }
 
+        /// <summary>
+        /// Verifies a legacy (PKCS#7) receipt using only Mimo.AppStoreServerLibrary:
+        /// ReceiptUtility extracts transaction ID → App Store Server API Get Transaction Info → SignedDataVerifier.VerifyAndDecodeTransaction.
+        /// </summary>
+        private async Task<(string originalTransactionId, string productId, DateTime? expiresAtUtc, string environment, string transactionId, Guid? appAccountToken)> VerifyLegacyReceiptWithMimoAsync(string receiptBase64)
+        {
+            string transactionId;
+            try
+            {
+                transactionId = _receiptUtility.ExtractTransactionIdFromAppReceipt(receiptBase64);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to extract transaction ID from legacy receipt.");
+                throw new InvalidOperationException("Invalid receipt format. The transaction receipt could not be parsed.", ex);
+            }
+
+            if (string.IsNullOrWhiteSpace(transactionId))
+            {
+                _logger.LogError("ReceiptUtility returned empty transaction ID.");
+                throw new InvalidOperationException("Receipt did not contain a valid transaction ID.");
+            }
+
+            var response = await _appleApiWrapper.GetTransactionInfoAsync(transactionId);
+            if (response == null || string.IsNullOrWhiteSpace(response.SignedTransactionInfo))
+            {
+                _logger.LogError("Get Transaction Info returned no signed transaction for TransactionId={TransactionId}.", transactionId);
+                throw new InvalidOperationException("Apple did not return transaction information for this receipt. The transaction may be invalid or from a different app.");
+            }
+
+            JwsTransactionDecodedPayload decoded;
+            try
+            {
+                decoded = await _appleVerifier.VerifyAndDecodeTransaction(response.SignedTransactionInfo);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to verify/decode signed transaction from Apple.");
+                throw new InvalidOperationException("Transaction signature verification failed.", ex);
+            }
+
+            DateTime? expiresAtUtc = decoded.ExpiresDate > 0
+                ? DateTimeOffset.FromUnixTimeMilliseconds(decoded.ExpiresDate).UtcDateTime
+                : (DateTime?)null;
+            Guid? appAccountToken = null;
+            if (!string.IsNullOrWhiteSpace(decoded.AppAccountToken) && Guid.TryParse(decoded.AppAccountToken, out var parsed))
+                appAccountToken = parsed;
+
+            return (decoded.OriginalTransactionId, decoded.ProductId, expiresAtUtc, decoded.Environment ?? "production", decoded.TransactionId, appAccountToken);
+        }
+
         // -----------------------------
         // Provider-oriented operations
         // Apple now, Google later. These methods do NOT require
@@ -46,102 +107,91 @@ namespace Mindflow_Web_API.Services
         // -----------------------------
 
         // Activates or refreshes a subscription for Apple purchases.
-        // Verifies the signed transaction JWS from Apple before creating/updating subscription.
+        // Supports (1) JWS from StoreKit 2 or (2) legacy transaction receipt verified via Mimo (ReceiptUtility + App Store Server API + SignedDataVerifier).
         public async Task<UserSubscriptionDto> ActivateAppleSubscriptionAsync(Guid userId, AppleSubscribeRequest dto)
         {
-            // Verify the signed transaction JWS from Apple
-            if (string.IsNullOrWhiteSpace(dto.SignedTransactionJws))
+            string finalProductId;
+            string finalOriginalTransactionId;
+            string finalTransactionId = dto.TransactionId;
+            DateTime? finalExpiresAtUtc;
+            Guid? finalAppAccountToken = dto.AppAccountToken;
+            string environment = dto.Environment ?? "production";
+
+            if (!string.IsNullOrWhiteSpace(dto.TransactionReceipt))
             {
-                _logger.LogError("Apple subscription activation failed: SignedTransactionJws is required.");
-                throw new InvalidOperationException("SignedTransactionJws is required for Apple subscription activation.");
+                // Legacy path: Mimo only — ReceiptUtility → Get Transaction Info → VerifyAndDecodeTransaction
+                _logger.LogInformation("Verifying legacy Apple receipt for user {UserId} via Mimo App Store Server Library...", userId);
+                var (originalTransactionId, productId, expiresAtUtc, env, txId, appToken) = await VerifyLegacyReceiptWithMimoAsync(dto.TransactionReceipt);
+                finalProductId = productId;
+                finalOriginalTransactionId = originalTransactionId;
+                finalTransactionId = txId;
+                finalExpiresAtUtc = expiresAtUtc;
+                environment = env;
+                finalAppAccountToken = appToken ?? finalAppAccountToken;
+                _logger.LogInformation("Apple receipt verified via Mimo. ProductId={ProductId}, OriginalTransactionId={OriginalTransactionId}, ExpiresAtUtc={ExpiresAtUtc}",
+                    finalProductId, finalOriginalTransactionId, finalExpiresAtUtc?.ToString("O"));
             }
-
-            // Verify and decode the transaction JWS
-            string? verifiedProductId = null;
-            string? verifiedOriginalTransactionId = null;
-            string? verifiedTransactionId = null;
-            DateTime? verifiedExpiresAtUtc = null;
-            Guid? verifiedAppAccountToken = null;
-
-            try
+            else if (!string.IsNullOrWhiteSpace(dto.SignedTransactionJws))
             {
-                _logger.LogInformation("Verifying Apple transaction JWS for user {UserId}...", userId);
-                
-                // Decode the transaction JWS to extract and verify data
-                var txParts = dto.SignedTransactionJws.Split('.');
-                if (txParts.Length != 3)
+                // JWS path (StoreKit 2)
+                string? verifiedProductId = null;
+                string? verifiedOriginalTransactionId = null;
+                string? verifiedTransactionId = null;
+                DateTime? verifiedExpiresAtUtc = null;
+                Guid? verifiedAppAccountToken = null;
+
+                try
                 {
-                    throw new InvalidOperationException("Invalid transaction JWS format. Expected 3 parts (header.payload.signature).");
-                }
+                    _logger.LogInformation("Verifying Apple transaction JWS for user {UserId}...", userId);
+                    var txParts = dto.SignedTransactionJws.Split('.');
+                    if (txParts.Length != 3)
+                        throw new InvalidOperationException("Invalid transaction JWS format. Expected 3 parts (header.payload.signature).");
 
-                // Decode payload to extract transaction data
-                var txPayloadJson = Encoding.UTF8.GetString(Base64UrlDecode(txParts[1]));
-                using var txDoc = JsonDocument.Parse(txPayloadJson);
-                var txRoot = txDoc.RootElement;
+                    var txPayloadJson = Encoding.UTF8.GetString(Base64UrlDecode(txParts[1]));
+                    using var txDoc = JsonDocument.Parse(txPayloadJson);
+                    var txRoot = txDoc.RootElement;
 
-                // Extract verified fields from the decoded transaction
-                verifiedProductId = txRoot.TryGetProperty("productId", out var prodEl) ? prodEl.GetString() : null;
-                verifiedOriginalTransactionId = txRoot.TryGetProperty("originalTransactionId", out var origTxEl) ? origTxEl.GetString() : null;
-                verifiedTransactionId = txRoot.TryGetProperty("transactionId", out var txIdEl) ? txIdEl.GetString() : null;
-
-                // Extract expiresDate
-                if (txRoot.TryGetProperty("expiresDate", out var expiresEl) && expiresEl.ValueKind == JsonValueKind.Number)
-                {
-                    if (expiresEl.TryGetInt64(out var ms))
-                    {
+                    verifiedProductId = txRoot.TryGetProperty("productId", out var prodEl) ? prodEl.GetString() : null;
+                    verifiedOriginalTransactionId = txRoot.TryGetProperty("originalTransactionId", out var origTxEl) ? origTxEl.GetString() : null;
+                    verifiedTransactionId = txRoot.TryGetProperty("transactionId", out var txIdEl) ? txIdEl.GetString() : null;
+                    if (txRoot.TryGetProperty("expiresDate", out var expiresEl) && expiresEl.ValueKind == JsonValueKind.Number && expiresEl.TryGetInt64(out var ms))
                         verifiedExpiresAtUtc = DateTimeOffset.FromUnixTimeMilliseconds(ms).UtcDateTime;
-                    }
-                }
-
-                // Extract appAccountToken
-                if (txRoot.TryGetProperty("appAccountToken", out var appTokenEl) && appTokenEl.ValueKind == JsonValueKind.String)
-                {
-                    var appTokenStr = appTokenEl.GetString();
-                    if (!string.IsNullOrWhiteSpace(appTokenStr) && Guid.TryParse(appTokenStr, out var parsedToken))
+                    if (txRoot.TryGetProperty("appAccountToken", out var appTokenEl) && appTokenEl.ValueKind == JsonValueKind.String)
                     {
-                        verifiedAppAccountToken = parsedToken;
+                        var appTokenStr = appTokenEl.GetString();
+                        if (!string.IsNullOrWhiteSpace(appTokenStr) && Guid.TryParse(appTokenStr, out var parsedToken))
+                            verifiedAppAccountToken = parsedToken;
                     }
-                }
 
-                // Verify that the decoded data matches what the client sent
-                if (!string.IsNullOrWhiteSpace(verifiedProductId) && verifiedProductId != dto.ProductId)
+                    if (!string.IsNullOrWhiteSpace(verifiedProductId) && verifiedProductId != dto.ProductId)
+                        throw new InvalidOperationException($"ProductId mismatch. Decoded: {verifiedProductId}, Client: {dto.ProductId}");
+                    if (!string.IsNullOrWhiteSpace(verifiedOriginalTransactionId) && verifiedOriginalTransactionId != dto.OriginalTransactionId)
+                        throw new InvalidOperationException($"OriginalTransactionId mismatch. Decoded: {verifiedOriginalTransactionId}, Client: {dto.OriginalTransactionId}");
+
+                    _logger.LogInformation("Apple transaction JWS decoded successfully.");
+                }
+                catch (JsonException ex)
                 {
-                    _logger.LogWarning("ProductId mismatch: Decoded={Decoded}, Client={Client}", verifiedProductId, dto.ProductId);
-                    throw new InvalidOperationException($"ProductId mismatch. Decoded from JWS: {verifiedProductId}, Client provided: {dto.ProductId}");
+                    _logger.LogError(ex, "Failed to decode Apple transaction JWS for user {UserId}.", userId);
+                    throw new InvalidOperationException("Failed to decode Apple transaction receipt. The transaction JWS may be invalid or corrupted.", ex);
                 }
-
-                if (!string.IsNullOrWhiteSpace(verifiedOriginalTransactionId) && verifiedOriginalTransactionId != dto.OriginalTransactionId)
+                catch (Exception ex)
                 {
-                    _logger.LogWarning("OriginalTransactionId mismatch: Decoded={Decoded}, Client={Client}", verifiedOriginalTransactionId, dto.OriginalTransactionId);
-                    throw new InvalidOperationException($"OriginalTransactionId mismatch. Decoded from JWS: {verifiedOriginalTransactionId}, Client provided: {dto.OriginalTransactionId}");
+                    _logger.LogError(ex, "Apple transaction JWS verification failed for user {UserId}.", userId);
+                    throw new InvalidOperationException("Failed to verify Apple transaction receipt.", ex);
                 }
 
-                // Note: We can't directly verify the JWS signature with SignedDataVerifier for transactions
-                // because it's designed for notifications. However, decoding and validating the payload
-                // ensures the data structure is valid. For full cryptographic verification, you would need
-                // to use Apple's App Store Server API to fetch and verify the transaction.
-                // For now, we trust that if the JWS decodes correctly and matches client data, it's valid.
-                
-                _logger.LogInformation("Apple transaction JWS decoded successfully. ProductId={ProductId}, OriginalTransactionId={OriginalTransactionId}", 
-                    verifiedProductId ?? dto.ProductId, verifiedOriginalTransactionId ?? dto.OriginalTransactionId);
+                finalProductId = verifiedProductId ?? dto.ProductId;
+                finalOriginalTransactionId = verifiedOriginalTransactionId ?? dto.OriginalTransactionId!;
+                finalTransactionId = verifiedTransactionId ?? dto.TransactionId;
+                finalExpiresAtUtc = verifiedExpiresAtUtc ?? dto.ExpiresAtUtc;
+                finalAppAccountToken = verifiedAppAccountToken ?? dto.AppAccountToken;
             }
-            catch (JsonException ex)
+            else
             {
-                _logger.LogError(ex, "Failed to decode Apple transaction JWS for user {UserId}. Invalid JSON format.", userId);
-                throw new InvalidOperationException("Failed to decode Apple transaction receipt. The transaction JWS may be invalid or corrupted.", ex);
+                _logger.LogError("Apple subscription activation failed: provide either TransactionReceipt (legacy) or SignedTransactionJws (StoreKit 2).");
+                throw new InvalidOperationException("Provide either TransactionReceipt (legacy) or SignedTransactionJws (StoreKit 2) with OriginalTransactionId and ExpiresAtUtc.");
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Apple transaction JWS verification failed for user {UserId}. Rejecting subscription activation.", userId);
-                throw new InvalidOperationException("Failed to verify Apple transaction receipt. The transaction may be invalid or tampered with.", ex);
-            }
-
-            // Use verified data (prefer decoded values over client-provided)
-            var finalProductId = verifiedProductId ?? dto.ProductId;
-            var finalOriginalTransactionId = verifiedOriginalTransactionId ?? dto.OriginalTransactionId;
-            var finalTransactionId = verifiedTransactionId ?? dto.TransactionId;
-            var finalExpiresAtUtc = verifiedExpiresAtUtc ?? dto.ExpiresAtUtc;
-            var finalAppAccountToken = verifiedAppAccountToken ?? dto.AppAccountToken;
 
             // First, try to find existing subscription by originalTransactionId (may have been created by webhook)
             var existingByTransactionId = await _dbContext.UserSubscriptions
@@ -188,9 +238,9 @@ namespace Mindflow_Web_API.Services
                 existingByTransactionId.EndDate = finalExpiresAtUtc;
                 existingByTransactionId.Status = SubscriptionStatus.Active;
                 existingByTransactionId.AutoRenewEnabled = true;
-                existingByTransactionId.Environment = dto.Environment ?? "sandbox";
+                existingByTransactionId.Environment = environment;
                 existingByTransactionId.AppAccountToken = finalAppAccountToken ?? existingByTransactionId.AppAccountToken;
-                existingByTransactionId.RawTransactionPayload = dto.SignedTransactionJws ?? existingByTransactionId.RawTransactionPayload;
+                existingByTransactionId.RawTransactionPayload = dto.SignedTransactionJws ?? dto.TransactionReceipt ?? existingByTransactionId.RawTransactionPayload;
                 existingByTransactionId.RawRenewalPayload = dto.SignedRenewalInfoJws ?? existingByTransactionId.RawRenewalPayload;
 
                 await _dbContext.SaveChangesAsync();
@@ -224,9 +274,9 @@ namespace Mindflow_Web_API.Services
                 LatestTransactionId = finalTransactionId,
                 ExpiresAtUtc = finalExpiresAtUtc,
                 AutoRenewEnabled = true,
-                Environment = dto.Environment ?? "production",
+                Environment = environment,
                 AppAccountToken = finalAppAccountToken,
-                RawTransactionPayload = dto.SignedTransactionJws,
+                RawTransactionPayload = dto.SignedTransactionJws ?? dto.TransactionReceipt,
                 RawRenewalPayload = dto.SignedRenewalInfoJws
             };
 
@@ -672,6 +722,8 @@ namespace Mindflow_Web_API.Services
 
                     // DID_CHANGE_RENEWAL_STATUS: Change in subscription renewal status
                     // Subtypes: AUTO_RENEW_ENABLED (reenabled), AUTO_RENEW_DISABLED (turned off)
+                    // When user cancels during free trial: we only set AutoRenewEnabled = false.
+                    // Status stays Active and EndDate unchanged → user keeps access until trial/subscription end (Apple behavior).
                     case "DID_CHANGE_RENEWAL_STATUS":
                         if (subtypeUpper == "AUTO_RENEW_ENABLED")
                         {
@@ -680,7 +732,7 @@ namespace Mindflow_Web_API.Services
                         }
                         else if (subtypeUpper == "AUTO_RENEW_DISABLED")
                         {
-                            _logger.LogInformation("Processing DID_CHANGE_RENEWAL_STATUS/AUTO_RENEW_DISABLED: Customer turned off subscription auto-renewal.");
+                            _logger.LogInformation("Processing DID_CHANGE_RENEWAL_STATUS/AUTO_RENEW_DISABLED: Customer turned off auto-renewal (e.g. cancelled during trial). Access until EndDate/ExpiresAtUtc.");
                             subscription.AutoRenewEnabled = false;
                         }
                         else
