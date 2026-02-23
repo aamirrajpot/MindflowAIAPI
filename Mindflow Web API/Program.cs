@@ -290,15 +290,24 @@ string? ResolveAppleSigningKeyPem(string? value, string? baseDir)
         toTry.Add(Path.Combine(baseDir, "Secrets", Path.GetFileName(path)));
     }
     toTry.Add(Path.Combine(AppContext.BaseDirectory, "Secrets", Path.GetFileName(path)));
+    Log.Information("Apple:SigningKey raw value='{Raw}', baseDir='{BaseDir}', candidate paths: {Paths}",
+        value, baseDir, string.Join(", ", toTry));
     foreach (var p in toTry)
     {
         if (System.IO.File.Exists(p))
+        {
+            Log.Information("Apple:SigningKey using key file at '{Path}'", p);
             return System.IO.File.ReadAllText(p);
+        }
     }
     // Value may be raw base64 (e.g. from appsettings). PEM requires headers for ImportFromPem().
     var base64 = path.Replace("\r", "").Replace("\n", "").Trim();
     if (base64.Length > 0 && !base64.Contains(" "))
+    {
+        Log.Information("Apple:SigningKey treated as raw base64; wrapping into PEM.");
         return "-----BEGIN PRIVATE KEY-----\n" + base64 + "\n-----END PRIVATE KEY-----";
+    }
+    Log.Error("Apple:SigningKey could not be resolved to a file or base64 key. Tried paths: {Paths}", string.Join("; ", toTry));
     throw new InvalidOperationException(
         "Apple:SigningKey must be (1) full PEM, (2) path/filename to a .p8 file (looked for in db directory and Secrets), or (3) raw base64. Tried: " + string.Join("; ", toTry));
 }
