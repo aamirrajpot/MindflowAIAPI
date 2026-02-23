@@ -12,15 +12,23 @@ public class AppleAppStoreApiWrapper
 {
     private readonly AppStoreServerApiClient? _production;
     private readonly AppStoreServerApiClient? _sandbox;
+    private readonly AppStoreEnvironment _defaultEnvironment;
 
-    public AppleAppStoreApiWrapper(AppStoreServerApiClient? production, AppStoreServerApiClient? sandbox)
+    public AppleAppStoreApiWrapper(
+        AppStoreServerApiClient? production,
+        AppStoreServerApiClient? sandbox,
+        AppStoreEnvironment defaultEnvironment)
     {
         _production = production;
         _sandbox = sandbox;
+        _defaultEnvironment = defaultEnvironment;
     }
 
     /// <summary>
-    /// Gets transaction info for the given transaction ID. Tries Production first, then Sandbox (e.g. for sandbox receipts).
+    /// Gets transaction info for the given transaction ID.
+    /// Uses the environment from configuration as the primary source:
+    /// - If Apple:Environment is Sandbox, tries sandbox first then production.
+    /// - Otherwise, tries production first then sandbox.
     /// </summary>
     public async Task<TransactionInfoResponse?> GetTransactionInfoAsync(string transactionId)
     {
@@ -28,6 +36,24 @@ public class AppleAppStoreApiWrapper
             throw new InvalidOperationException(
                 "Apple App Store API is not configured. For legacy receipt verification add Apple:SigningKey, Apple:KeyId, Apple:IssuerId (and Apple:BundleId if different).");
 
+        // If config says Sandbox, prefer sandbox first
+        if (_defaultEnvironment == AppStoreEnvironment.Sandbox)
+        {
+            try
+            {
+                var sandboxResponse = await _sandbox.GetTransactionInfo(transactionId);
+                if (sandboxResponse != null && !string.IsNullOrWhiteSpace(sandboxResponse.SignedTransactionInfo))
+                    return sandboxResponse;
+            }
+            catch (ApiException)
+            {
+                // Not found or other API error in sandbox; fall back to production
+            }
+
+            return await _production.GetTransactionInfo(transactionId);
+        }
+
+        // Default: prefer production first
         try
         {
             var response = await _production.GetTransactionInfo(transactionId);

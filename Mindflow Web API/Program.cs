@@ -308,15 +308,19 @@ var appleSigningKey = ResolveAppleSigningKeyPem(appleSigningKeyRaw, appleBaseDir
 var appleKeyId = builder.Configuration["Apple:KeyId"];
 var appleIssuerId = builder.Configuration["Apple:IssuerId"];
 var appleBundleId = builder.Configuration["Apple:BundleId"];
+var appleEnvValue = builder.Configuration["Apple:Environment"];
+var appleDefaultEnv = string.Equals(appleEnvValue, "Sandbox", StringComparison.OrdinalIgnoreCase)
+    ? AppStoreEnvironment.Sandbox
+    : AppStoreEnvironment.Production;
 if (!string.IsNullOrWhiteSpace(appleSigningKey) && !string.IsNullOrWhiteSpace(appleKeyId) && !string.IsNullOrWhiteSpace(appleIssuerId) && !string.IsNullOrWhiteSpace(appleBundleId))
 {
     var appleProduction = new AppStoreServerApiClient(appleSigningKey, appleKeyId, appleIssuerId, appleBundleId, AppStoreEnvironment.Production);
     var appleSandbox = new AppStoreServerApiClient(appleSigningKey, appleKeyId, appleIssuerId, appleBundleId, AppStoreEnvironment.Sandbox);
-    builder.Services.AddSingleton(new AppleAppStoreApiWrapper(appleProduction, appleSandbox));
+    builder.Services.AddSingleton(new AppleAppStoreApiWrapper(appleProduction, appleSandbox, appleDefaultEnv));
 }
 else
 {
-    builder.Services.AddSingleton<AppleAppStoreApiWrapper>(new AppleAppStoreApiWrapper(null, null));
+    builder.Services.AddSingleton<AppleAppStoreApiWrapper>(new AppleAppStoreApiWrapper(null, null, appleDefaultEnv));
 }
 
 // ReceiptUtility from Mimo (stateless, used to extract transaction ID from legacy receipt)
