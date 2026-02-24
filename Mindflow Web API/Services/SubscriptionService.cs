@@ -80,7 +80,7 @@ namespace Mindflow_Web_API.Services
             JwsTransactionDecodedPayload decoded;
             try
             {
-                decoded = await _appleVerifier.VerifyAndDecodeTransaction(receiptBase64);
+                decoded = await _appleVerifier.VerifyAndDecodeTransaction(response.SignedTransactionInfo);
             }
             catch (Exception ex)
             {
