@@ -84,7 +84,7 @@ namespace Mindflow_Web_API.Services
             var validationParameters = new TokenValidationParameters
             {
                 ValidIssuer = "https://appleid.apple.com",
-                ValidAudience = _configuration["Apple:ClientId"] ?? "", // Set your Apple client ID here
+                ValidAudience = _configuration["Apple:Audience"] ?? "", // Set your Apple client ID here
                 IssuerSigningKeys = matchedKey != null
                     ? new[] { new RsaSecurityKey(new System.Security.Cryptography.RSAParameters
                             {
