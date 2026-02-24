@@ -80,7 +80,7 @@ namespace Mindflow_Web_API.Services
             JwsTransactionDecodedPayload decoded;
             try
             {
-                decoded = await _appleVerifier.VerifyAndDecodeTransaction(response.SignedTransactionInfo);
+                decoded = await _appleVerifier.VerifyAndDecodeTransaction(receiptBase64);
             }
             catch (Exception ex)
             {
@@ -117,19 +117,15 @@ namespace Mindflow_Web_API.Services
             Guid? finalAppAccountToken = dto.AppAccountToken;
             string environment = dto.Environment ?? "production";
 
-            if (!string.IsNullOrWhiteSpace(dto.TransactionReceipt))
+          if (!string.IsNullOrWhiteSpace(dto.TransactionReceipt))
             {
-                // Legacy path: Mimo only — ReceiptUtility → Get Transaction Info → VerifyAndDecodeTransaction
-                _logger.LogInformation("Verifying legacy Apple receipt for user {UserId} via Mimo App Store Server Library...", userId);
-                var (originalTransactionId, productId, expiresAtUtc, env, txId, appToken) = await VerifyLegacyReceiptWithMimoAsync(dto.TransactionReceipt);
-                finalProductId = productId;
-                finalOriginalTransactionId = originalTransactionId;
-                finalTransactionId = txId;
-                finalExpiresAtUtc = expiresAtUtc;
-                environment = env;
-                finalAppAccountToken = appToken ?? finalAppAccountToken;
-                _logger.LogInformation("Apple receipt verified via Mimo. ProductId={ProductId}, OriginalTransactionId={OriginalTransactionId}, ExpiresAtUtc={ExpiresAtUtc}",
-                    finalProductId, finalOriginalTransactionId, finalExpiresAtUtc?.ToString("O"));
+                // Legacy path: skip App Store Server API (no server-side verification)
+                _logger.LogWarning("Skipping Apple App Store Server API for legacy receipt; using client-supplied values. This disables server-side verification.");
+                finalProductId = dto.ProductId;
+                finalOriginalTransactionId = dto.TransactionId; // treat transactionId as original for legacy
+                finalTransactionId = dto.TransactionId;
+                finalExpiresAtUtc = dto.ExpiresAtUtc; // or null if you don’t have it
+                // environment stays as dto.Environment or default
             }
             else if (!string.IsNullOrWhiteSpace(dto.SignedTransactionJws))
             {
