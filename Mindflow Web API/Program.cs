@@ -13,6 +13,7 @@ using Mindflow_Web_API.Middleware;
 using Mindflow_Web_API.Models;
 using Mindflow_Web_API.Persistence;
 using Mindflow_Web_API.Services;
+using Newtonsoft.Json.Linq;
 using Serilog;
 using Serilog.Events;
 using Stripe;
@@ -278,6 +279,7 @@ string? GetAppleBaseDirectory(IConfiguration config)
 }
 string? ResolveAppleSigningKeyPem(string? value, string? baseDir)
 {
+    Log.Information("Apple:SigningKey '{Value}'", value);
     if (string.IsNullOrWhiteSpace(value)) return value;
     if (value.Contains("-----BEGIN", StringComparison.OrdinalIgnoreCase))
         return value;
@@ -287,7 +289,7 @@ string? ResolveAppleSigningKeyPem(string? value, string? baseDir)
     if (!string.IsNullOrWhiteSpace(baseDir))
     {
         Log.Information("Apple:SigningKey base directory derived from connection string is '{BaseDir}'", baseDir);
-        toTry.Add(Path.Combine(baseDir, "SubscriptionKey_C59L7M5B9W.p8"));
+        toTry.Add(Path.Combine(baseDir, value));
     }
     Log.Information("Apple:SigningKey raw value='{Raw}', baseDir='{BaseDir}', candidate paths: {Paths}",
         value, baseDir, string.Join(", ", toTry));
@@ -325,6 +327,7 @@ bool IsLikelyBase64Key(string s)
 }
 var appleBaseDir = GetAppleBaseDirectory(builder.Configuration);
 var appleSigningKeyRaw = builder.Configuration["Apple:SigningKey"];
+Log.Information("Apple:SigningKey AppleSigningKeyRaw '{AppleSigningKeyRaw}'", appleSigningKeyRaw);
 var appleSigningKey = ResolveAppleSigningKeyPem(appleSigningKeyRaw, appleBaseDir);
 var appleKeyId = builder.Configuration["Apple:KeyId"];
 var appleIssuerId = builder.Configuration["Apple:IssuerId"];
@@ -338,6 +341,7 @@ if (!string.IsNullOrWhiteSpace(appleSigningKey) && !string.IsNullOrWhiteSpace(ap
     var appleProduction = new AppStoreServerApiClient(appleSigningKey, appleKeyId, appleIssuerId, appleBundleId, AppStoreEnvironment.Production);
     var appleSandbox = new AppStoreServerApiClient(appleSigningKey, appleKeyId, appleIssuerId, appleBundleId, AppStoreEnvironment.Sandbox);
     builder.Services.AddSingleton(new AppleAppStoreApiWrapper(appleProduction, appleSandbox, appleDefaultEnv));
+    Log.Information("AppleAppStoreApiWrapper registered with production and sandbox clients. Default environment: {DefaultEnv}", appleDefaultEnv);
 }
 else
 {
