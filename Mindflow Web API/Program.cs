@@ -286,10 +286,9 @@ string? ResolveAppleSigningKeyPem(string? value, string? baseDir)
     var toTry = new List<string> { path };
     if (!string.IsNullOrWhiteSpace(baseDir))
     {
-        toTry.Add(Path.Combine(baseDir, path));
-        toTry.Add(Path.Combine(baseDir, "Secrets", Path.GetFileName(path)));
+        Log.Information("Apple:SigningKey base directory derived from connection string is '{BaseDir}'", baseDir);
+        toTry.Add(Path.Combine(baseDir, "SubscriptionKey_C59L7M5B9W.p8"));
     }
-    toTry.Add(Path.Combine(AppContext.BaseDirectory, "Secrets", Path.GetFileName(path)));
     Log.Information("Apple:SigningKey raw value='{Raw}', baseDir='{BaseDir}', candidate paths: {Paths}",
         value, baseDir, string.Join(", ", toTry));
     foreach (var p in toTry)
@@ -302,7 +301,7 @@ string? ResolveAppleSigningKeyPem(string? value, string? baseDir)
     }
     // Value may be raw base64 (e.g. from appsettings). PEM requires headers for ImportFromPem().
     var base64 = path.Replace("\r", "").Replace("\n", "").Trim();
-    if (base64.Length > 0 && !base64.Contains(" "))
+    if (IsLikelyBase64Key(base64))
     {
         Log.Information("Apple:SigningKey treated as raw base64; wrapping into PEM.");
         return "-----BEGIN PRIVATE KEY-----\n" + base64 + "\n-----END PRIVATE KEY-----";
@@ -310,6 +309,19 @@ string? ResolveAppleSigningKeyPem(string? value, string? baseDir)
     Log.Error("Apple:SigningKey could not be resolved to a file or base64 key. Tried paths: {Paths}", string.Join("; ", toTry));
     throw new InvalidOperationException(
         "Apple:SigningKey must be (1) full PEM, (2) path/filename to a .p8 file (looked for in db directory and Secrets), or (3) raw base64. Tried: " + string.Join("; ", toTry));
+}
+
+bool IsLikelyBase64Key(string s)
+{
+    if (string.IsNullOrWhiteSpace(s)) return false;
+    // Base64 should only contain A–Z, a–z, 0–9, +, /, =
+    foreach (var c in s)
+    {
+        if (!(char.IsLetterOrDigit(c) || c == '+' || c == '/' || c == '='))
+            return false;
+    }
+    // Length should be divisible by 4 for standard base64
+    return s.Length % 4 == 0;
 }
 var appleBaseDir = GetAppleBaseDirectory(builder.Configuration);
 var appleSigningKeyRaw = builder.Configuration["Apple:SigningKey"];
