@@ -275,6 +275,7 @@ namespace Mindflow_Web_API.Services
                 return null;
 
             var activeSubscription = await _subscriptionService.GetUserSubscriptionAsync(userId);
+            var appAccountToken = await _subscriptionService.CreateAppleAppAccountTokenAsync(userId);
 
             return new UserProfileDto(
                 user.UserName,
@@ -284,7 +285,8 @@ namespace Mindflow_Web_API.Services
                 user.DateOfBirth,
                 user.ProfilePic,
                 user.QuestionnaireFilled,
-                activeSubscription);
+                activeSubscription,
+                appAccountToken);
         }
 
         public async Task<bool> UpdateProfileAsync(Guid userId, UpdateProfileDto command)
