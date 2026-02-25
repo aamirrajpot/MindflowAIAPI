@@ -277,6 +277,7 @@ namespace Mindflow_Web_API.Services
             var activeSubscription = await _subscriptionService.GetUserSubscriptionAsync(userId);
             var appAccountToken = await _subscriptionService.CreateAppleAppAccountTokenAsync(userId);
 
+
             return new UserProfileDto(
                 user.UserName,
                 user.Email,
