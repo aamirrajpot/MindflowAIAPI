@@ -1179,9 +1179,7 @@ namespace Mindflow_Web_API.Services
         {
             // Reuse existing active token for this user if one exists
             var existing = await _dbContext.AppleAppAccountTokens
-                .Where(m => m.UserId == userId && m.IsActive)
-                .OrderByDescending(m => m.Created)
-                .FirstOrDefaultAsync();
+                .FirstOrDefaultAsync(m => m.UserId == userId && m.IsActive);
 
             if (existing != null)
             {
