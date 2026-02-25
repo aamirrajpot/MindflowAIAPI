@@ -119,7 +119,8 @@ namespace Mindflow_Web_API.Services
             _logger.LogInformation($"User signed in: {user.UserName}");
             
             var userDto = new UserDto(user.Id, user.UserName, user.Email, user.EmailConfirmed, user.FirstName, user.LastName, user.IsActive, user.DateOfBirth, user.ProfilePic, user.StripeCustomerId, user.QuestionnaireFilled);
-            return new SignInResponseDto(tokenString, "Bearer", expiresInSeconds, refreshToken, userDto);
+            var appAccountToken = await _subscriptionService.CreateAppleAppAccountTokenAsync(user.Id);
+            return new SignInResponseDto(tokenString, "Bearer", expiresInSeconds, refreshToken, userDto, appAccountToken);
         }
         
         private static string GenerateRefreshToken()

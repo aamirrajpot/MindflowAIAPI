@@ -37,6 +37,9 @@ namespace Mindflow_Web_API.Services
         Task<UserSubscriptionDto?> UpdateUserSubscriptionAsync(Guid userId, UpdateUserSubscriptionDto dto);
         Task<bool> CancelUserSubscriptionAsync(Guid userId, CancelSubscriptionDto dto);
 
+        // Apple appAccountToken issuance (for StoreKit appAccountToken linkage)
+        Task<Guid> CreateAppleAppAccountTokenAsync(Guid userId);
+
         // Subscription Overview
         Task<SubscriptionOverviewDto> GetSubscriptionOverviewAsync(Guid userId);
         

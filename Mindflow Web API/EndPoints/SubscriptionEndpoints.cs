@@ -64,6 +64,26 @@ namespace Mindflow_Web_API.EndPoints
                 return op;
             });
 
+            // Issue Apple appAccountToken for StoreKit purchases (used to link webhooks to user)
+            subscriptionApi.MapPost("/apple/app-account-token", async (ISubscriptionService subscriptionService, HttpContext context) =>
+            {
+                if (!context.User.Identity?.IsAuthenticated ?? true)
+                    throw ApiExceptions.Unauthorized("User is not authenticated");
+                var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier || c.Type == "sub");
+                if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+                    throw ApiExceptions.Unauthorized("Invalid user token");
+
+                var token = await subscriptionService.CreateAppleAppAccountTokenAsync(userId);
+                return Results.Ok(new { appAccountToken = token });
+            })
+            .RequireAuthorization()
+            .WithOpenApi(op =>
+            {
+                op.Summary = "Issue Apple appAccountToken";
+                op.Description = "Issues a GUID appAccountToken for the authenticated user to use in Apple IAPs.";
+                return op;
+            });
+
             subscriptionApi.MapPatch("/cancel", async (CancelSubscriptionDto dto, ISubscriptionService subscriptionService, HttpContext context) =>
             {
                 if (!context.User.Identity?.IsAuthenticated ?? true)

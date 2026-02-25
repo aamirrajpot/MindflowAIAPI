@@ -473,30 +473,31 @@ namespace Mindflow_Web_API.Services
 
                 if (subscription == null)
                 {
-                    // Try to find user via appAccountToken if available
+                    // Resolve user strictly via appAccountToken mapping (issued by our API before purchase)
                     Guid? userId = null;
                     if (appAccountToken.HasValue)
                     {
                         _logger.LogInformation("No subscription found. Attempting to find user by AppAccountToken={AppAccountToken}...", appAccountToken.Value);
-                        var existingSubscriptionWithToken = await _dbContext.UserSubscriptions
-                            .FirstOrDefaultAsync(s =>
-                                s.Provider == SubscriptionProvider.Apple &&
-                                s.AppAccountToken == appAccountToken.Value &&
-                                s.UserId != Guid.Empty);
-                        
-                        if (existingSubscriptionWithToken != null)
+
+                        var mapping = await _dbContext.AppleAppAccountTokens
+                            .Where(m => m.AppAccountToken == appAccountToken.Value && m.IsActive)
+                            .OrderByDescending(m => m.Created)
+                            .FirstOrDefaultAsync();
+
+                        if (mapping != null)
                         {
-                            userId = existingSubscriptionWithToken.UserId;
-                            _logger.LogInformation("Found user via AppAccountToken: UserId={UserId}", userId.Value);
+                            userId = mapping.UserId;
+                            mapping.IsActive = false;
+                            _logger.LogInformation("Found user via AppleAppAccountToken mapping: UserId={UserId}", userId.Value);
                         }
                         else
                         {
-                            _logger.LogWarning("No user found via AppAccountToken. Subscription will be created without userId and linked later when user calls subscribe endpoint.");
+                            _logger.LogWarning("No user mapping found via AppAccountToken. Subscription will be created without userId.");
                         }
                     }
                     else
                     {
-                        _logger.LogWarning("No AppAccountToken in webhook payload. Subscription will be created without userId and linked later when user calls subscribe endpoint.");
+                        _logger.LogWarning("No AppAccountToken in webhook payload. Subscription will be created without userId.");
                     }
 
                     _logger.LogInformation("Creating new UserSubscription for OriginalTransactionId={OriginalTransactionId} (UserId={UserId})...", 
@@ -1172,6 +1173,33 @@ namespace Mindflow_Web_API.Services
 
             await _dbContext.SaveChangesAsync();
             return true;
+        }
+
+        public async Task<Guid> CreateAppleAppAccountTokenAsync(Guid userId)
+        {
+            // Reuse existing active token for this user if one exists
+            var existing = await _dbContext.AppleAppAccountTokens
+                .Where(m => m.UserId == userId && m.IsActive)
+                .OrderByDescending(m => m.Created)
+                .FirstOrDefaultAsync();
+
+            if (existing != null)
+            {
+                _logger.LogInformation("Reusing existing Apple appAccountToken mapping: UserId={UserId}, AppAccountToken={AppAccountToken}", userId, existing.AppAccountToken);
+                return existing.AppAccountToken;
+            }
+
+            var token = Guid.NewGuid();
+            var mapping = new AppleAppAccountToken
+            {
+                UserId = userId,
+                AppAccountToken = token,
+                IsActive = true
+            };
+            await _dbContext.AppleAppAccountTokens.AddAsync(mapping);
+            await _dbContext.SaveChangesAsync();
+            _logger.LogInformation("Created Apple appAccountToken mapping: UserId={UserId}, AppAccountToken={AppAccountToken}", userId, token);
+            return token;
         }
 
         // Subscription Overview

@@ -9,7 +9,7 @@ namespace Mindflow_Web_API.DTOs
     public record ForgotPasswordDto(string Email);
     public record ResetPasswordDto(string Email, string Otp, string NewPassword);
     public record TokenResponseDto(string access_token, string token_type, int expires_in);
-    public record SignInResponseDto(string access_token, string token_type, int expires_in, string refresh_token, UserDto user);
+    public record SignInResponseDto(string access_token, string token_type, int expires_in, string refresh_token, UserDto user, Guid? apple_app_account_token);
     public record RefreshTokenRequestDto(string refresh_token);
     public record RefreshTokenResponseDto(string access_token, string token_type, int expires_in, string refresh_token);
     public record UserProfileDto(string UserName, string Email, string? FirstName, string? LastName, DateTime? DateOfBirth, string? ProfilePic, bool QuestionnaireFilled, UserSubscriptionDto? ActiveSubscription = null);

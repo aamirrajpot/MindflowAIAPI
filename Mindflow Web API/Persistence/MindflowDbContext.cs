@@ -22,6 +22,7 @@ namespace Mindflow_Web_API.Persistence
         public DbSet<TaskSuggestionRecord> TaskSuggestionRecords => Set<TaskSuggestionRecord>();
         public DbSet<FcmDeviceToken> FcmDeviceTokens => Set<FcmDeviceToken>();
         public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+        public DbSet<AppleAppAccountToken> AppleAppAccountTokens => Set<AppleAppAccountToken>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
