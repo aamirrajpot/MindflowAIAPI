@@ -335,7 +335,7 @@ var appleSigningKey = ResolveAppleSigningKeyPem(appleSigningKeyRaw, appleBaseDir
 try
 {
     using var ecdsa = ECDsa.Create();
-    ecdsa.ImportFromPem(appleSigningKey);
+    ecdsa.ImportFromPem("-----BEGIN PRIVATE KEY----- MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgQFvLw6FpuFKIgBJH YdwyvAdcE7Ivv02PD4ejJZ870cegCgYIKoZIzj0DAQehRANCAARsXpwJ3cp0zZjJ 13Ym6B0fWqYBRb3I0N4gxK1/lJFYsEk3tI2OY0PG6/ASb1EkXlEq+TOTVCpOC7jP ZqtjmMLF -----END PRIVATE KEY-----");
     Log.Information("ECDSA private key imported successfully on this environment.");
 }
 catch (Exception ex)
