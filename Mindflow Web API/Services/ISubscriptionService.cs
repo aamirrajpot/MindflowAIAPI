@@ -40,6 +40,9 @@ namespace Mindflow_Web_API.Services
         // Apple appAccountToken issuance (for StoreKit appAccountToken linkage)
         Task<Guid> CreateAppleAppAccountTokenAsync(Guid userId);
 
+        // Apple verifyReceipt-style endpoint (uses same logic as ActivateAppleSubscriptionAsync)
+        Task<UserSubscriptionDto> VerifyAppleReceiptAsync(Guid userId, AppleSubscribeRequest dto);
+
         // Subscription Overview
         Task<SubscriptionOverviewDto> GetSubscriptionOverviewAsync(Guid userId);
         

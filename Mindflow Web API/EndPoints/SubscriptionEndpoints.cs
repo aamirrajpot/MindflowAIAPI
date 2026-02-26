@@ -300,8 +300,8 @@ namespace Mindflow_Web_API.EndPoints
                 return op;
             });
 
-            // Apple IAP endpoints
-            subscriptionApi.MapPost("/apple/subscribe", async (AppleSubscribeRequest dto, ISubscriptionService subscriptionService, HttpContext context) =>
+            // Apple verifyReceipt-style endpoint (same payload as /apple/subscribe)
+            subscriptionApi.MapPost("/apple/verify", async (AppleSubscribeRequest dto, ISubscriptionService subscriptionService, HttpContext context) =>
             {
                 if (!context.User.Identity?.IsAuthenticated ?? true)
                     throw ApiExceptions.Unauthorized("User is not authenticated");
@@ -309,13 +309,14 @@ namespace Mindflow_Web_API.EndPoints
                 if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
                     throw ApiExceptions.Unauthorized("Invalid user token");
 
-                var sub = await subscriptionService.ActivateAppleSubscriptionAsync(userId, dto);
+                var sub = await subscriptionService.VerifyAppleReceiptAsync(userId, dto);
                 return Results.Ok(sub);
             })
             .RequireAuthorization()
-            .WithOpenApi(op => {
-                op.Summary = "Apple IAP subscribe/activate";
-                op.Description = "Activates a subscription using Apple In-App Purchase transaction payloads.";
+            .WithOpenApi(op =>
+            {
+                op.Summary = "Apple verifyReceipt (StoreKit 2 / legacy)";
+                op.Description = "Verifies an Apple IAP transaction payload (JWS or legacy receipt) and upserts the user subscription.";
                 return op;
             });
 

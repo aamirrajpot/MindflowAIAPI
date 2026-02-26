@@ -117,15 +117,31 @@ namespace Mindflow_Web_API.Services
             Guid? finalAppAccountToken = dto.AppAccountToken;
             string environment = dto.Environment ?? "production";
 
-          if (!string.IsNullOrWhiteSpace(dto.TransactionReceipt))
+            if (!string.IsNullOrWhiteSpace(dto.TransactionReceipt))
             {
-                // Legacy path: skip App Store Server API (no server-side verification)
-                _logger.LogWarning("Skipping Apple App Store Server API for legacy receipt; using client-supplied values. This disables server-side verification.");
-                finalProductId = dto.ProductId;
-                finalOriginalTransactionId = dto.TransactionId; // treat transactionId as original for legacy
-                finalTransactionId = dto.TransactionId;
-                finalExpiresAtUtc = dto.ExpiresAtUtc; // or null if you don’t have it
-                // environment stays as dto.Environment or default
+                // Legacy PKCS#7 receipt path – fully verify with Mimo (ReceiptUtility + App Store Server API + SignedDataVerifier)
+                _logger.LogInformation("Verifying legacy Apple transaction receipt via Mimo for user {UserId}...", userId);
+
+                var (verifiedOriginalTransactionId,
+                     verifiedProductId,
+                     verifiedExpiresAtUtc,
+                     verifiedEnvironment,
+                     verifiedTransactionId,
+                     verifiedAppAccountToken) = await VerifyLegacyReceiptWithMimoAsync(dto.TransactionReceipt);
+
+                // Optional safety checks against client-supplied values
+                if (!string.IsNullOrWhiteSpace(dto.ProductId) && dto.ProductId != verifiedProductId)
+                {
+                    _logger.LogWarning("Legacy receipt ProductId mismatch. Decoded={Decoded}, Client={Client}", verifiedProductId, dto.ProductId);
+                }
+
+                finalProductId = verifiedProductId;
+                finalOriginalTransactionId = verifiedOriginalTransactionId;
+                finalTransactionId = verifiedTransactionId;
+                finalExpiresAtUtc = verifiedExpiresAtUtc;
+                environment = verifiedEnvironment ?? environment;
+                if (verifiedAppAccountToken.HasValue)
+                    finalAppAccountToken = verifiedAppAccountToken;
             }
             else if (!string.IsNullOrWhiteSpace(dto.SignedTransactionJws))
             {
@@ -281,6 +297,13 @@ namespace Mindflow_Web_API.Services
 
             _logger.LogInformation("Apple subscription activated for user {UserId} with product {ProductId}", userId, finalProductId);
             return await ToUserSubscriptionDtoAsync(userSubscription);
+        }
+
+        public Task<UserSubscriptionDto> VerifyAppleReceiptAsync(Guid userId, AppleSubscribeRequest dto)
+        {
+            // For now, reuse the same verification + upsert logic as ActivateAppleSubscriptionAsync.
+            // JWS (StoreKit 2) path uses SignedDataVerifier; legacy receipt path currently trusts client fields.
+            return ActivateAppleSubscriptionAsync(userId, dto);
         }
 
         // Restores an Apple subscription (e.g., re-install, new device)
