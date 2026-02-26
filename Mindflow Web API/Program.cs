@@ -17,6 +17,7 @@ using Newtonsoft.Json.Linq;
 using Serilog;
 using Serilog.Events;
 using Stripe;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Serialization;
 
@@ -329,6 +330,20 @@ var appleBaseDir = GetAppleBaseDirectory(builder.Configuration);
 var appleSigningKeyRaw = builder.Configuration["Apple:SigningKey"];
 Log.Information("Apple:SigningKey AppleSigningKeyRaw '{AppleSigningKeyRaw}'", appleSigningKeyRaw);
 var appleSigningKey = ResolveAppleSigningKeyPem(appleSigningKeyRaw, appleBaseDir);
+
+// >>> Add your test block here <<<
+try
+{
+    using var ecdsa = ECDsa.Create();
+    ecdsa.ImportFromPem(appleSigningKey);
+    Log.Information("ECDSA private key imported successfully on this environment.");
+}
+catch (Exception ex)
+{
+    Log.Error(ex, "Failed to import Apple private key with ImportFromPem.");
+}
+// >>> End test block <<<
+
 var appleKeyId = builder.Configuration["Apple:KeyId"];
 var appleIssuerId = builder.Configuration["Apple:IssuerId"];
 var appleBundleId = builder.Configuration["Apple:BundleId"];
