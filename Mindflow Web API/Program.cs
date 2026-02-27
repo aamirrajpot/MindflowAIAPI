@@ -258,8 +258,8 @@ builder.Services.AddSingleton<SignedDataVerifier>(sp =>
         bundleId);
 });
 
-// Apple App Store Server API wrapper (initializes its own AppStoreServerApiClient instances) + ReceiptUtility (Mimo)
-builder.Services.AddSingleton<AppleAppStoreApiWrapper>();
+//// Apple App Store Server API wrapper (initializes its own AppStoreServerApiClient instances) + ReceiptUtility (Mimo)
+//builder.Services.AddSingleton<AppleAppStoreApiWrapper>();
 builder.Services.AddSingleton<ReceiptUtility>();
 
 // Register PaymentService

@@ -18,21 +18,24 @@ namespace Mindflow_Web_API.Services
         private readonly MindflowDbContext _dbContext;
         private readonly ILogger<SubscriptionService> _logger;
         private readonly SignedDataVerifier _appleVerifier;
-        private readonly AppleAppStoreApiWrapper _appleApiWrapper;
         private readonly ReceiptUtility _receiptUtility;
+        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly string? _appleSharedSecret;
 
         public SubscriptionService(
             MindflowDbContext dbContext,
             ILogger<SubscriptionService> logger,
             SignedDataVerifier appleVerifier,
-            AppleAppStoreApiWrapper appleApiWrapper,
-            ReceiptUtility receiptUtility)
+            ReceiptUtility receiptUtility,
+            IHttpClientFactory httpClientFactory,
+            IConfiguration configuration)
         {
             _dbContext = dbContext;
             _logger = logger;
             _appleVerifier = appleVerifier;
-            _appleApiWrapper = appleApiWrapper;
             _receiptUtility = receiptUtility;
+            _httpClientFactory = httpClientFactory;
+            _appleSharedSecret = configuration["Apple:SharedSecret"];
         }
 
         private static byte[] Base64UrlDecode(string input)
@@ -48,54 +51,144 @@ namespace Mindflow_Web_API.Services
         }
 
         /// <summary>
-        /// Verifies a legacy (PKCS#7) receipt using only Mimo.AppStoreServerLibrary:
-        /// ReceiptUtility extracts transaction ID → App Store Server API Get Transaction Info → SignedDataVerifier.VerifyAndDecodeTransaction.
+        /// Verifies a legacy (PKCS#7) receipt using Apple's deprecated /verifyReceipt endpoint.
+        /// This path does NOT require the App Store Server API (.p8 key); it uses the app-specific shared secret instead.
+        /// Flow: POST receipt-data + password → handle 21007 sandbox redirect → read latest_receipt_info/in_app.
         /// </summary>
-        private async Task<(string originalTransactionId, string productId, DateTime? expiresAtUtc, string environment, string transactionId, Guid? appAccountToken)> VerifyLegacyReceiptWithMimoAsync(string receiptBase64)
+        private async Task<(string originalTransactionId, string productId, DateTime? expiresAtUtc, string environment, string transactionId)> VerifyLegacyReceiptViaVerifyReceiptApiAsync(string receiptBase64, string? expectedProductId)
         {
-            string transactionId;
-            try
+            if (string.IsNullOrWhiteSpace(_appleSharedSecret))
             {
-                transactionId = _receiptUtility.ExtractTransactionIdFromAppReceipt(receiptBase64);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to extract transaction ID from legacy receipt.");
-                throw new InvalidOperationException("Invalid receipt format. The transaction receipt could not be parsed.", ex);
+                throw new InvalidOperationException("Apple:SharedSecret is not configured. It is required for legacy /verifyReceipt validation.");
             }
 
-            if (string.IsNullOrWhiteSpace(transactionId))
+            const string productionUrl = "https://buy.itunes.apple.com/verifyReceipt";
+            const string sandboxUrl = "https://sandbox.itunes.apple.com/verifyReceipt";
+
+            async Task<JsonDocument> CallVerifyEndpointAsync(string url)
             {
-                _logger.LogError("ReceiptUtility returned empty transaction ID.");
-                throw new InvalidOperationException("Receipt did not contain a valid transaction ID.");
+                var client = _httpClientFactory.CreateClient();
+                var body = new Dictionary<string, object?>
+                {
+                    ["receipt-data"] = receiptBase64,
+                    ["password"] = _appleSharedSecret,
+                    ["exclude-old-transactions"] = true
+                };
+
+                using var response = await client.PostAsJsonAsync(url, body);
+                var content = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogError("Apple verifyReceipt HTTP {StatusCode} at {Url}. Body={Body}", (int)response.StatusCode, url, content);
+                    throw new InvalidOperationException($"Apple verifyReceipt HTTP error: {(int)response.StatusCode}");
+                }
+
+                try
+                {
+                    return JsonDocument.Parse(content);
+                }
+                catch (JsonException ex)
+                {
+                    _logger.LogError(ex, "Failed to parse Apple verifyReceipt JSON response. Body={Body}", content);
+                    throw new InvalidOperationException("Apple verifyReceipt returned invalid JSON.", ex);
+                }
             }
 
-            var response = await _appleApiWrapper.GetTransactionInfoAsync(transactionId);
-            if (response == null || string.IsNullOrWhiteSpace(response.SignedTransactionInfo))
+            // 1) Call production first
+            using var prodDoc = await CallVerifyEndpointAsync(productionUrl);
+            var root = prodDoc.RootElement;
+            var status = root.TryGetProperty("status", out var statusEl) && statusEl.ValueKind == JsonValueKind.Number
+                ? statusEl.GetInt32()
+                : -1;
+
+            JsonDocument activeDoc = prodDoc;
+            if (status == 21007)
             {
-                _logger.LogError("Get Transaction Info returned no signed transaction for TransactionId={TransactionId}.", transactionId);
-                throw new InvalidOperationException("Apple did not return transaction information for this receipt. The transaction may be invalid or from a different app.");
+                // 2) Sandbox receipt; call sandbox endpoint
+                _logger.LogInformation("Apple verifyReceipt indicated sandbox receipt (21007). Retrying against sandbox endpoint.");
+                activeDoc.Dispose();
+                activeDoc = await CallVerifyEndpointAsync(sandboxUrl);
+                root = activeDoc.RootElement;
+                status = root.TryGetProperty("status", out statusEl) && statusEl.ValueKind == JsonValueKind.Number
+                    ? statusEl.GetInt32()
+                    : -1;
             }
 
-            JwsTransactionDecodedPayload decoded;
-            try
+            if (status != 0)
             {
-                decoded = await _appleVerifier.VerifyAndDecodeTransaction(response.SignedTransactionInfo);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to verify/decode signed transaction from Apple.");
-                throw new InvalidOperationException("Transaction signature verification failed.", ex);
+                _logger.LogError("Apple verifyReceipt returned non-success status={Status}. Raw={Json}", status, root.ToString());
+                throw new InvalidOperationException($"Apple verifyReceipt failed with status code {status}.");
             }
 
-            DateTime? expiresAtUtc = decoded.ExpiresDate > 0
-                ? DateTimeOffset.FromUnixTimeMilliseconds(decoded.ExpiresDate).UtcDateTime
-                : (DateTime?)null;
-            Guid? appAccountToken = null;
-            if (!string.IsNullOrWhiteSpace(decoded.AppAccountToken) && Guid.TryParse(decoded.AppAccountToken, out var parsed))
-                appAccountToken = parsed;
+            var environment = root.TryGetProperty("environment", out var envEl) && envEl.ValueKind == JsonValueKind.String
+                ? envEl.GetString() ?? "Production"
+                : "Production";
 
-            return (decoded.OriginalTransactionId, decoded.ProductId, expiresAtUtc, decoded.Environment ?? "production", decoded.TransactionId, appAccountToken);
+            // 3) Pick the most relevant in-app receipt (latest_receipt_info preferred)
+            JsonElement selected;
+            if (root.TryGetProperty("latest_receipt_info", out var latestEl) && latestEl.ValueKind == JsonValueKind.Array && latestEl.GetArrayLength() > 0)
+            {
+                JsonElement? match = null;
+                foreach (var item in latestEl.EnumerateArray())
+                {
+                    if (!string.IsNullOrWhiteSpace(expectedProductId) &&
+                        item.TryGetProperty("product_id", out var prodEl) &&
+                        prodEl.ValueKind == JsonValueKind.String &&
+                        string.Equals(prodEl.GetString(), expectedProductId, StringComparison.Ordinal))
+                    {
+                        match = item;
+                    }
+                }
+
+                selected = match ?? latestEl.EnumerateArray().Last();
+            }
+            else if (root.TryGetProperty("receipt", out var receiptEl) &&
+                     receiptEl.ValueKind == JsonValueKind.Object &&
+                     receiptEl.TryGetProperty("in_app", out var inAppEl) &&
+                     inAppEl.ValueKind == JsonValueKind.Array &&
+                     inAppEl.GetArrayLength() > 0)
+            {
+                selected = inAppEl.EnumerateArray().Last();
+            }
+            else
+            {
+                _logger.LogError("Apple verifyReceipt response does not contain latest_receipt_info or receipt.in_app.");
+                throw new InvalidOperationException("Apple verifyReceipt response did not contain in-app purchase details.");
+            }
+
+            string? originalTransactionId = selected.TryGetProperty("original_transaction_id", out var origTxEl) && origTxEl.ValueKind == JsonValueKind.String
+                ? origTxEl.GetString()
+                : null;
+            string? productId = selected.TryGetProperty("product_id", out var prodIdEl) && prodIdEl.ValueKind == JsonValueKind.String
+                ? prodIdEl.GetString()
+                : null;
+            string? transactionId = selected.TryGetProperty("transaction_id", out var txIdEl) && txIdEl.ValueKind == JsonValueKind.String
+                ? txIdEl.GetString()
+                : originalTransactionId;
+
+            if (string.IsNullOrWhiteSpace(originalTransactionId) || string.IsNullOrWhiteSpace(productId))
+            {
+                _logger.LogError("Apple verifyReceipt missing required fields. OriginalTransactionId={OriginalTransactionId}, ProductId={ProductId}", originalTransactionId, productId);
+                throw new InvalidOperationException("Apple verifyReceipt response did not contain required transaction fields.");
+            }
+
+            DateTime? expiresAtUtc = null;
+            if (selected.TryGetProperty("expires_date_ms", out var expiresMsEl) &&
+                expiresMsEl.ValueKind == JsonValueKind.String &&
+                long.TryParse(expiresMsEl.GetString(), out var ms))
+            {
+                expiresAtUtc = DateTimeOffset.FromUnixTimeMilliseconds(ms).UtcDateTime;
+            }
+
+            _logger.LogInformation("Apple verifyReceipt succeeded. OriginalTransactionId={OriginalTransactionId}, TransactionId={TransactionId}, ProductId={ProductId}, ExpiresAtUtc={ExpiresAtUtc}, Environment={Environment}",
+                originalTransactionId,
+                transactionId ?? "null",
+                productId ?? "null",
+                expiresAtUtc?.ToString("u") ?? "null",
+                environment);
+
+            return (originalTransactionId, productId!, expiresAtUtc, environment, transactionId ?? originalTransactionId);
         }
 
         // -----------------------------
@@ -106,8 +199,8 @@ namespace Mindflow_Web_API.Services
         // Table evolution will come in a later step.
         // -----------------------------
 
-        // Activates or refreshes a subscription for Apple purchases.
-        // Supports (1) JWS from StoreKit 2 or (2) legacy transaction receipt verified via Mimo (ReceiptUtility + App Store Server API + SignedDataVerifier).
+            // Activates or refreshes a subscription for Apple purchases.
+            // Supports (1) JWS from StoreKit 2 or (2) legacy transaction receipt verified via Apple's /verifyReceipt endpoint using the shared secret.
         public async Task<UserSubscriptionDto> ActivateAppleSubscriptionAsync(Guid userId, AppleSubscribeRequest dto)
         {
             string finalProductId;
@@ -119,15 +212,14 @@ namespace Mindflow_Web_API.Services
 
             if (!string.IsNullOrWhiteSpace(dto.TransactionReceipt))
             {
-                // Legacy PKCS#7 receipt path – fully verify with Mimo (ReceiptUtility + App Store Server API + SignedDataVerifier)
-                _logger.LogInformation("Verifying legacy Apple transaction receipt via Mimo for user {UserId}...", userId);
+                // Legacy PKCS#7 receipt path – verify using Apple's legacy /verifyReceipt API (shared secret only, no .p8 required)
+                _logger.LogInformation("Verifying legacy Apple transaction receipt via /verifyReceipt API for user {UserId}...", userId);
 
                 var (verifiedOriginalTransactionId,
                      verifiedProductId,
                      verifiedExpiresAtUtc,
                      verifiedEnvironment,
-                     verifiedTransactionId,
-                     verifiedAppAccountToken) = await VerifyLegacyReceiptWithMimoAsync(dto.TransactionReceipt);
+                     verifiedTransactionId) = await VerifyLegacyReceiptViaVerifyReceiptApiAsync(dto.TransactionReceipt, dto.ProductId);
 
                 // Optional safety checks against client-supplied values
                 if (!string.IsNullOrWhiteSpace(dto.ProductId) && dto.ProductId != verifiedProductId)
@@ -140,8 +232,6 @@ namespace Mindflow_Web_API.Services
                 finalTransactionId = verifiedTransactionId;
                 finalExpiresAtUtc = verifiedExpiresAtUtc;
                 environment = verifiedEnvironment ?? environment;
-                if (verifiedAppAccountToken.HasValue)
-                    finalAppAccountToken = verifiedAppAccountToken;
             }
             else if (!string.IsNullOrWhiteSpace(dto.SignedTransactionJws))
             {
