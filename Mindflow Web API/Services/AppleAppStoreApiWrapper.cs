@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Mimo.AppStoreServerLibrary;
 using Mimo.AppStoreServerLibrary.Exceptions;
 using Mimo.AppStoreServerLibrary.Models;
@@ -7,21 +10,46 @@ namespace Mindflow_Web_API.Services;
 /// <summary>
 /// Wraps Mimo App Store Server API clients (Production + Sandbox) so we can resolve a transaction
 /// without knowing the environment. Uses only Mimo.AppStoreServerLibrary (no direct verifyReceipt calls).
+/// Initializes <see cref="AppStoreServerApiClient" /> instances from IConfiguration instead of Program.cs.
 /// </summary>
 public class AppleAppStoreApiWrapper
 {
+    private readonly ILogger<AppleAppStoreApiWrapper> _logger;
     private readonly AppStoreServerApiClient? _production;
     private readonly AppStoreServerApiClient? _sandbox;
     private readonly AppStoreEnvironment _defaultEnvironment;
 
-    public AppleAppStoreApiWrapper(
-        AppStoreServerApiClient? production,
-        AppStoreServerApiClient? sandbox,
-        AppStoreEnvironment defaultEnvironment)
+    public AppleAppStoreApiWrapper(IConfiguration configuration, ILogger<AppleAppStoreApiWrapper> logger)
     {
-        _production = production;
-        _sandbox = sandbox;
-        _defaultEnvironment = defaultEnvironment;
+        _logger = logger;
+
+        var appleEnvValue = configuration["Apple:Environment"];
+        _defaultEnvironment = string.Equals(appleEnvValue, "Sandbox", StringComparison.OrdinalIgnoreCase)
+            ? AppStoreEnvironment.Sandbox
+            : AppStoreEnvironment.Production;
+
+        var appleSigningKeyRaw = configuration["Apple:SigningKey"];
+        _logger.LogInformation("Apple:SigningKey raw configuration value length={Len}", appleSigningKeyRaw?.Length ?? 0);
+        var appleSigningKey = ResolveAppleSigningKeyPem(appleSigningKeyRaw);
+
+
+        var appleKeyId = configuration["Apple:KeyId"];
+        var appleIssuerId = configuration["Apple:IssuerId"];
+        var appleBundleId = configuration["Apple:BundleId"];
+
+        if (!string.IsNullOrWhiteSpace(appleSigningKey) &&
+            !string.IsNullOrWhiteSpace(appleKeyId) &&
+            !string.IsNullOrWhiteSpace(appleIssuerId) &&
+            !string.IsNullOrWhiteSpace(appleBundleId))
+        {
+            _production = new AppStoreServerApiClient(appleSigningKey, appleKeyId, appleIssuerId, appleBundleId, AppStoreEnvironment.Production);
+            _sandbox = new AppStoreServerApiClient(appleSigningKey, appleKeyId, appleIssuerId, appleBundleId, AppStoreEnvironment.Sandbox);
+            _logger.LogInformation("AppleAppStoreApiWrapper initialized with production and sandbox clients. Default environment: {DefaultEnv}", _defaultEnvironment);
+        }
+        else
+        {
+            _logger.LogWarning("Apple App Store API is not fully configured. Ensure Apple:SigningKey, Apple:KeyId, Apple:IssuerId, and Apple:BundleId are set.");
+        }
     }
 
     /// <summary>
@@ -66,5 +94,38 @@ public class AppleAppStoreApiWrapper
         }
 
         return await _sandbox.GetTransactionInfo(transactionId);
+    }
+
+    private string? ResolveAppleSigningKeyPem(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return value;
+
+        if (value.Contains("-----BEGIN", StringComparison.OrdinalIgnoreCase))
+            return value;
+
+        // Value may be raw base64 (e.g. from appsettings). PEM requires headers for ImportFromPem().
+        var base64 = value.Replace("\r", "").Replace("\n", "").Trim();
+        if (IsLikelyBase64Key(base64))
+        {
+            _logger.LogInformation("Apple:SigningKey treated as raw base64; wrapping into PEM.");
+            return "-----BEGIN PRIVATE KEY-----\n" + base64 + "\n-----END PRIVATE KEY-----";
+        }
+
+        _logger.LogError("Apple:SigningKey is neither a PEM block nor a valid base64 key string.");
+        throw new InvalidOperationException("Apple:SigningKey must be either full PEM content or raw base64 for the private key.");
+    }
+
+    private static bool IsLikelyBase64Key(string s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return false;
+        // Base64 should only contain A–Z, a–z, 0–9, +, /, =
+        foreach (var c in s)
+        {
+            if (!(char.IsLetterOrDigit(c) || c == '+' || c == '/' || c == '='))
+                return false;
+        }
+        // Length should be divisible by 4 for standard base64
+        return s.Length % 4 == 0;
     }
 }
