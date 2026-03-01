@@ -332,7 +332,7 @@ namespace Mindflow_Web_API.Services
                     other.EndDate = DateTime.UtcNow;
                     _logger.LogInformation("Cancelled other active subscription: SubscriptionId={SubscriptionId}", other.Id);
                 }
-
+                //Commented
                 // Update subscription with verified data from transaction JWS
                 existingByTransactionId.PlanId = finalProductId;
                 existingByTransactionId.ProductId = finalProductId;
