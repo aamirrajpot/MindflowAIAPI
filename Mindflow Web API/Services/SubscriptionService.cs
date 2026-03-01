@@ -583,7 +583,7 @@ namespace Mindflow_Web_API.Services
                 var subscription = await _dbContext.UserSubscriptions
                     .FirstOrDefaultAsync(s =>
                         s.Provider == SubscriptionProvider.Apple &&
-                        s.OriginalTransactionId == originalTransactionId);
+                        s.OriginalTransactionId == originalTransactionId && s.Status == SubscriptionStatus.Active);
 
                 if (subscription == null)
                 {
