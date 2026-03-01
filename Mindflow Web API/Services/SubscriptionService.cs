@@ -7,6 +7,7 @@ using Mindflow_Web_API.Persistence;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection.Metadata.Ecma335;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -585,53 +586,54 @@ namespace Mindflow_Web_API.Services
                         s.Provider == SubscriptionProvider.Apple &&
                         s.OriginalTransactionId == originalTransactionId && s.Status == SubscriptionStatus.Active);
 
-                if (subscription == null)
-                {
-                    // Resolve user strictly via appAccountToken mapping (issued by our API before purchase)
-                    Guid? userId = null;
-                    if (appAccountToken.HasValue)
-                    {
-                        _logger.LogInformation("No subscription found. Attempting to find user by AppAccountToken={AppAccountToken}...", appAccountToken.Value);
+                //if (subscription == null)
+                //{
+                    //// Resolve user strictly via appAccountToken mapping (issued by our API before purchase)
+                    //Guid? userId = null;
+                    //if (appAccountToken.HasValue)
+                    //{
+                    //    _logger.LogInformation("No subscription found. Attempting to find user by AppAccountToken={AppAccountToken}...", appAccountToken.Value);
 
-                        var mapping = await _dbContext.AppleAppAccountTokens
-                            .Where(m => m.AppAccountToken == appAccountToken.Value && m.IsActive)
-                            .OrderByDescending(m => m.Created)
-                            .FirstOrDefaultAsync();
+                    //    var mapping = await _dbContext.AppleAppAccountTokens
+                    //        .Where(m => m.AppAccountToken == appAccountToken.Value && m.IsActive)
+                    //        .FirstOrDefaultAsync();
 
-                        if (mapping != null)
-                        {
-                            userId = mapping.UserId;
-                            mapping.IsActive = false;
-                            _logger.LogInformation("Found user via AppleAppAccountToken mapping: UserId={UserId}", userId.Value);
-                        }
-                        else
-                        {
-                            _logger.LogWarning("No user mapping found via AppAccountToken. Subscription will be created without userId.");
-                        }
-                    }
-                    else
-                    {
-                        _logger.LogWarning("No AppAccountToken in webhook payload. Subscription will be created without userId.");
-                    }
+                    //    if (mapping != null)
+                    //    {
+                    //        userId = mapping.UserId;
+                    //        mapping.IsActive = false;
+                    //        _logger.LogInformation("Found user via AppleAppAccountToken mapping: UserId={UserId}", userId.Value);
+                    //    }
+                    //    else
+                    //    {
+                    //        _logger.LogWarning("No user mapping found via AppAccountToken. Subscription will be created without userId.");
+                    //    }
+                    //}
+                    //else
+                    //{
+                    //    _logger.LogWarning("No AppAccountToken in webhook payload. Subscription will be created without userId.");
+                    //}
 
-                    _logger.LogInformation("Creating new UserSubscription for OriginalTransactionId={OriginalTransactionId} (UserId={UserId})...", 
-                        originalTransactionId, userId?.ToString() ?? "Guid.Empty");
-                    subscription = new UserSubscription
-                    {
-                        UserId = userId ?? Guid.Empty, // Will be linked when user calls subscribe endpoint if not found via appAccountToken
-                        PlanId = productId ?? string.Empty, // Use productId from Apple as PlanId
-                        Provider = SubscriptionProvider.Apple,
-                        ProductId = productId ?? string.Empty,
-                        OriginalTransactionId = originalTransactionId,
-                        LatestTransactionId = transactionId ?? string.Empty,
-                        AppAccountToken = appAccountToken,
-                        StartDate = DateTime.UtcNow,
-                        Environment = environment,
-                        ExpiresAtUtc = expiresAtUtc
-                    };
-                    await _dbContext.UserSubscriptions.AddAsync(subscription);
-                }
-                else
+                    //_logger.LogInformation("Creating new UserSubscription for OriginalTransactionId={OriginalTransactionId} (UserId={UserId})...", 
+                    //    originalTransactionId, userId?.ToString() ?? "Guid.Empty");
+                    //subscription = new UserSubscription
+                    //{
+                    //    UserId = userId ?? Guid.Empty, // Will be linked when user calls subscribe endpoint if not found via appAccountToken
+                    //    PlanId = productId ?? string.Empty, // Use productId from Apple as PlanId
+                    //    Provider = SubscriptionProvider.Apple,
+                    //    ProductId = productId ?? string.Empty,
+                    //    OriginalTransactionId = originalTransactionId,
+                    //    LatestTransactionId = transactionId ?? string.Empty,
+                    //    AppAccountToken = appAccountToken,
+                    //    StartDate = DateTime.UtcNow,
+                    //    Environment = environment,
+                    //    ExpiresAtUtc = expiresAtUtc
+                    //};
+                    //await _dbContext.UserSubscriptions.AddAsync(subscription);
+                    
+                //}
+                //else
+                if(subscription != null)
                 {
                     _logger.LogInformation("Found existing subscription: SubscriptionId={SubscriptionId}, UserId={UserId}, CurrentStatus={Status}, CurrentProductId={ProductId}",
                         subscription.Id, subscription.UserId, subscription.Status, subscription.ProductId);
