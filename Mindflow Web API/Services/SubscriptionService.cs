@@ -1288,6 +1288,18 @@ namespace Mindflow_Web_API.Services
             return true;
         }
 
+        public async Task<bool> DeleteCurrentUserSubscriptionAsync(Guid userId)
+        {
+            var toRemove = await _dbContext.UserSubscriptions
+                .Where(us => us.UserId == userId)
+                .ToListAsync();
+            if (toRemove.Count == 0) return false;
+            _dbContext.UserSubscriptions.RemoveRange(toRemove);
+            await _dbContext.SaveChangesAsync();
+            _logger.LogInformation("Deleted {Count} subscription(s) for user {UserId}.", toRemove.Count, userId);
+            return true;
+        }
+
         public async Task<Guid> CreateAppleAppAccountTokenAsync(Guid userId)
         {
             // Reuse existing active token for this user if one exists

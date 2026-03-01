@@ -103,6 +103,26 @@ namespace Mindflow_Web_API.EndPoints
                 return op;
             });
 
+            subscriptionApi.MapDelete("/current", async (ISubscriptionService subscriptionService, HttpContext context) =>
+            {
+                if (!context.User.Identity?.IsAuthenticated ?? true)
+                    throw ApiExceptions.Unauthorized("User is not authenticated");
+                var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier || c.Type == "sub");
+                if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+                    throw ApiExceptions.Unauthorized("Invalid user token");
+                var deleted = await subscriptionService.DeleteCurrentUserSubscriptionAsync(userId);
+                if (!deleted)
+                    throw ApiExceptions.NotFound("No subscription found for the current user.");
+                return Results.Ok(new { message = "Subscription deleted successfully" });
+            })
+            .RequireAuthorization()
+            .WithOpenApi(op =>
+            {
+                op.Summary = "Delete current user subscription";
+                op.Description = "Permanently removes the current user's subscription record(s) from the database.";
+                return op;
+            });
+
             // Admin endpoints for managing plans and features
             var adminSubscriptionApi = app.MapGroup("/api/admin/subscriptions").WithTags("Admin Subscriptions");
 
