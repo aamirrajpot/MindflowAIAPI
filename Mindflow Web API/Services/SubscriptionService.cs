@@ -298,6 +298,7 @@ namespace Mindflow_Web_API.Services
             // First, try to find existing subscription by originalTransactionId (may have been created by webhook)
             var existingByTransactionId = await _dbContext.UserSubscriptions
                 .FirstOrDefaultAsync(us =>
+                    us.UserId == userId &&
                     us.Provider == SubscriptionProvider.Apple &&
                     us.OriginalTransactionId == finalOriginalTransactionId);
 
