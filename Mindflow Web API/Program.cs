@@ -192,6 +192,7 @@ builder.Services.AddHostedService<BrainDumpReminderService>();
 
 // Register SubscriptionService (fully qualify to avoid Stripe.SubscriptionService ambiguity)
 builder.Services.AddScoped<Mindflow_Web_API.Services.ISubscriptionService, Mindflow_Web_API.Services.SubscriptionService>();
+builder.Services.AddScoped<Mindflow_Web_API.Services.IFeatureMatrixService, Mindflow_Web_API.Services.FeatureMatrixService>();
 
 // Apple App Store Server Notifications (V2) - SignedDataVerifier using Mimo.AppStoreServerLibrary
 builder.Services.AddSingleton<SignedDataVerifier>(sp =>

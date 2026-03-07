@@ -20,7 +20,7 @@ namespace Mindflow_Web_API.EndPoints
 			api.MapPost("/suggestions", async (
 				[FromBody] BrainDumpRequest request,
 				IBrainDumpService service,
-				ISubscriptionService subscriptionService,
+				IFeatureMatrixService featureMatrix,
 				HttpContext ctx,
 				MindflowDbContext db,
 				[FromQuery] int maxTokens = 1200,
@@ -34,11 +34,14 @@ namespace Mindflow_Web_API.EndPoints
 				if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
 					return Results.Unauthorized();
 
-				// Check if user has an active subscription (not free user and not expired)
-				var hasActiveSubscription = await subscriptionService.IsSubscriptionActiveAsync(userId);
-				if (!hasActiveSubscription)
+				// Feature matrix: Free tier has weekly limit; paid tiers have full access
+				var canPerform = await featureMatrix.CanPerformBrainDumpAsync(userId);
+				if (!canPerform)
 				{
-					throw ApiExceptions.Forbidden("An active subscription is required to use brain dump features. Please subscribe to continue.");
+					var limit = await featureMatrix.GetBrainDumpWeeklyLimitAsync(userId);
+					var used = await featureMatrix.GetBrainDumpCountThisWeekAsync(userId);
+					throw ApiExceptions.Forbidden(
+						$"You've reached your weekly brain dump limit ({used}/{limit} this week). Upgrade to a paid plan for unlimited brain dumps.");
 				}
 
 				// Generate comprehensive brain dump analysis
@@ -56,6 +59,7 @@ namespace Mindflow_Web_API.EndPoints
 			api.MapPost("/add-to-calendar", async (
 				[FromBody] AddToCalendarRequest request,
 				IBrainDumpService service,
+				IFeatureMatrixService featureMatrix,
 				HttpContext ctx) =>
 			{
 				if (!ctx.User.Identity?.IsAuthenticated ?? true)
@@ -65,6 +69,11 @@ namespace Mindflow_Web_API.EndPoints
 				var userIdClaim = ctx.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
 				if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
 					return Results.Unauthorized();
+
+				// Calendar auto-scheduling requires Weekly plan or higher
+				var canUseCalendar = await featureMatrix.CanUseCalendarAutoScheduleAsync(userId);
+				if (!canUseCalendar)
+					throw ApiExceptions.Forbidden("Calendar auto-scheduling is available on Weekly plan and above. Please upgrade to add tasks to your calendar.");
 
 				try
 				{
@@ -106,6 +115,7 @@ namespace Mindflow_Web_API.EndPoints
 			api.MapPost("/add-multiple-to-calendar", async (
 				[FromBody] AddMultipleTasksRequest request,
 				IBrainDumpService service,
+				IFeatureMatrixService featureMatrix,
 				HttpContext ctx) =>
 			{
 				if (!ctx.User.Identity?.IsAuthenticated ?? true)
@@ -115,6 +125,11 @@ namespace Mindflow_Web_API.EndPoints
 				var userIdClaim = ctx.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
 				if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
 					return Results.Unauthorized();
+
+				// Calendar auto-scheduling requires Weekly plan or higher
+				var canUseCalendar = await featureMatrix.CanUseCalendarAutoScheduleAsync(userId);
+				if (!canUseCalendar)
+					throw ApiExceptions.Forbidden("Calendar auto-scheduling is available on Weekly plan and above. Please upgrade to add tasks to your calendar.");
 
 			try
 			{
@@ -304,6 +319,7 @@ namespace Mindflow_Web_API.EndPoints
 			api.MapPost("/auto-schedule-all", async (
 				[FromBody] AutoScheduleAllRequest request,
 				IBrainDumpService service,
+				IFeatureMatrixService featureMatrix,
 				HttpContext ctx) =>
 			{
 				if (!ctx.User.Identity?.IsAuthenticated ?? true)
@@ -313,6 +329,11 @@ namespace Mindflow_Web_API.EndPoints
 				var userIdClaim = ctx.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
 				if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
 					return Results.Unauthorized();
+
+				// Calendar auto-scheduling requires Weekly plan or higher
+				var canUseCalendar = await featureMatrix.CanUseCalendarAutoScheduleAsync(userId);
+				if (!canUseCalendar)
+					throw ApiExceptions.Forbidden("Calendar auto-scheduling is available on Weekly plan and above. Please upgrade to auto-schedule all tasks.");
 
 				try
 				{
