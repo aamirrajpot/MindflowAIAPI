@@ -64,6 +64,48 @@ namespace Mindflow_Web_API.EndPoints
                 return op;
             });
 
+            // Feature matrix for UI: tier, feature flags, and brain dump usage/limits
+            subscriptionApi.MapGet("/features", async (IFeatureMatrixService featureMatrix, HttpContext context) =>
+            {
+                if (!context.User.Identity?.IsAuthenticated ?? true)
+                    throw ApiExceptions.Unauthorized("User is not authenticated");
+                var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier || c.Type == "sub");
+                if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+                    throw ApiExceptions.Unauthorized("Invalid user token");
+
+                var tier = await featureMatrix.GetTierAsync(userId);
+                var used = await featureMatrix.GetBrainDumpCountThisWeekAsync(userId);
+                var limit = await featureMatrix.GetBrainDumpWeeklyLimitAsync(userId);
+
+                return Results.Ok(new
+                {
+                    tier = tier.ToString(),
+                    features = new
+                    {
+                        brainDump = await featureMatrix.CanUseFeatureAsync(userId, SubscriptionFeatures.BrainDump),
+                        calendarAutoSchedule = await featureMatrix.CanUseFeatureAsync(userId, SubscriptionFeatures.CalendarAutoSchedule),
+                        advancedInsights = await featureMatrix.CanUseFeatureAsync(userId, SubscriptionFeatures.AdvancedInsights),
+                        dataExport = await featureMatrix.CanUseFeatureAsync(userId, SubscriptionFeatures.DataExport),
+                        weeklyReflection = await featureMatrix.CanUseFeatureAsync(userId, SubscriptionFeatures.WeeklyReflection),
+                        smartPrioritization = await featureMatrix.CanUseFeatureAsync(userId, SubscriptionFeatures.SmartPrioritization),
+                    },
+                    brainDump = new
+                    {
+                        usedThisWeek = used,
+                        weeklyLimit = limit,
+                        remainingThisWeek = limit.HasValue ? Math.Max(0, limit.Value - used) : (int?)null,
+                        canPerform = await featureMatrix.CanPerformBrainDumpAsync(userId),
+                    },
+                });
+            })
+            .RequireAuthorization()
+            .WithOpenApi(op =>
+            {
+                op.Summary = "Get feature matrix and usage for current user";
+                op.Description = "Returns subscription tier, per-feature access flags, and brain dump usage/limits. Use this to drive UI (show/hide, upgrade prompts, usage counters).";
+                return op;
+            });
+
             // Issue Apple appAccountToken for StoreKit purchases (used to link webhooks to user)
             subscriptionApi.MapPost("/apple/app-account-token", async (ISubscriptionService subscriptionService, HttpContext context) =>
             {
