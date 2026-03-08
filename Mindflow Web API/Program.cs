@@ -164,6 +164,9 @@ builder.Services.AddHttpClient<IOpenAIService, OpenAIService>((serviceProvider, 
     client.BaseAddress = new Uri(baseUrl);
 });
 
+
+//commented
+
 // Register HttpClient for Google OAuth
 builder.Services.AddHttpClient("google-oauth", client =>
 {
