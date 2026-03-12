@@ -794,7 +794,7 @@ namespace Mindflow_Web_API.Services
                 throw ApiExceptions.InternalServerError("Failed to generate wellness analysis");
             }
         }
-
+        //
         public async Task<WellnessSummaryDto> GetWellnessSummaryAsync(Guid userId)
         {
             _logger.LogInformation("Starting GetWellnessSummaryAsync for user {UserId}", userId);
