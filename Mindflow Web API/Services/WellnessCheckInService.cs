@@ -152,14 +152,8 @@ namespace Mindflow_Web_API.Services
                 throw ApiExceptions.ValidationError("Patch data cannot be null.");
             }
 
-            var timezoneIdInput = string.IsNullOrWhiteSpace(patchDto.TimezoneId) ? null : patchDto.TimezoneId.Trim();
-
             _logger.LogDebug("Patch data received for user {UserId}. MoodLevel: {MoodLevel}, ReminderEnabled: {ReminderEnabled}, TimezoneId: {TimezoneId}", 
-                userId, patchDto.MoodLevel, patchDto.ReminderEnabled, timezoneIdInput ?? "null");
-            _logger.LogDebug("Weekday times - Start: {WeekdayStartTime} {WeekdayStartShift}, End: {WeekdayEndTime} {WeekdayEndShift}", 
-                patchDto.WeekdayStartTime, patchDto.WeekdayStartShift, patchDto.WeekdayEndTime, patchDto.WeekdayEndShift);
-            _logger.LogDebug("Weekend times - Start: {WeekendStartTime} {WeekendStartShift}, End: {WeekendEndTime} {WeekendEndShift}", 
-                patchDto.WeekendStartTime, patchDto.WeekendStartShift, patchDto.WeekendEndTime, patchDto.WeekendEndShift);
+                userId, patchDto.MoodLevel, patchDto.ReminderEnabled, "n/a (slots handled separately)");
 
             try
             {
@@ -185,14 +179,7 @@ namespace Mindflow_Web_API.Services
                     var questions = patchDto.Questions ?? new Dictionary<string, object>();
                     _logger.LogDebug("Creating new wellness check-in for user {UserId}. MoodLevel: {MoodLevel}, AgeRange: {AgeRange}, FocusAreas: {FocusAreas}, QuestionsCount: {QuestionsCount}", 
                         userId, string.IsNullOrEmpty(moodLevel) ? "null" : moodLevel, patchDto.AgeRange, patchDto.FocusAreas != null ? string.Join(", ", patchDto.FocusAreas) : "null", questions.Count);
-                    
-                    // Store original times as-is (user input)
-                    // Convert to UTC and store in UTC fields for backend processing
-                    var weekdayStartTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekdayStartTime, patchDto.WeekdayStartShift, timezoneIdInput);
-                    var weekdayEndTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekdayEndTime, patchDto.WeekdayEndShift, timezoneIdInput);
-                    var weekendStartTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekendStartTime, patchDto.WeekendStartShift, timezoneIdInput);
-                    var weekendEndTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekendEndTime, patchDto.WeekendEndShift, timezoneIdInput);
-                    
+
                     checkIn = WellnessCheckIn.Create(
                         userId,
                         moodLevel,
@@ -201,29 +188,26 @@ namespace Mindflow_Web_API.Services
                         patchDto.ReminderTime,
                         patchDto.AgeRange,
                         patchDto.FocusAreas,
-                        patchDto.WeekdayStartTime,  // Store original as-is
-                        patchDto.WeekdayStartShift,
-                        patchDto.WeekdayEndTime,
-                        patchDto.WeekdayEndShift,
-                        patchDto.WeekendStartTime,
-                        patchDto.WeekendStartShift,
-                        patchDto.WeekendEndTime,
-                        patchDto.WeekendEndShift,
-                        weekdayStartTimeUtc,  // Store UTC version
-                        weekdayEndTimeUtc,
-                        weekendStartTimeUtc,
-                        weekendEndTimeUtc,
-                        null, // Will be computed by WellnessDataProcessor
-                        null,
-                        null,
-                        null,
-                        timezoneIdInput,
+                        null, // WeekdayStartTime
+                        null, // WeekdayStartShift
+                        null, // WeekdayEndTime
+                        null, // WeekdayEndShift
+                        null, // WeekendStartTime
+                        null, // WeekendStartShift
+                        null, // WeekendEndTime
+                        null, // WeekendEndShift
+                        null, // WeekdayStartTimeUtc
+                        null, // WeekdayEndTimeUtc
+                        null, // WeekendStartTimeUtc
+                        null, // WeekendEndTimeUtc
+                        null, // WeekdayStartMinutesUtc
+                        null, // WeekdayEndMinutesUtc
+                        null, // WeekendStartMinutesUtc
+                        null, // WeekendEndMinutesUtc
+                        null, // TimezoneId
                         questions
                     );
-                    
-                    // Compute UTC minute offsets for improved scheduling
-                    _wellnessDataProcessor.ComputeUtcOffsets(checkIn);
-                    
+
                     _logger.LogDebug("Created new wellness check-in for user {UserId}. CheckInId: {CheckInId}, QuestionsCount: {QuestionsCount}", 
                         userId, checkIn.Id, checkIn.Questions?.Count ?? 0);
                     
@@ -235,7 +219,7 @@ namespace Mindflow_Web_API.Services
                     
                     var fieldsUpdated = new List<string>();
                     
-                    // Update fixed fields
+                    // Update fixed fields (non-slot)
                     if (!string.IsNullOrEmpty(patchDto.MoodLevel))
                     {
                         checkIn.MoodLevel = patchDto.MoodLevel;
@@ -261,38 +245,6 @@ namespace Mindflow_Web_API.Services
                         checkIn.FocusAreas = patchDto.FocusAreas;
                         fieldsUpdated.Add("FocusAreas");
                     }
-                    var effectiveTimezoneId = timezoneIdInput ?? checkIn.TimezoneId;
-
-                    // Store original times as-is (user input)
-                    // Convert to UTC and store in UTC fields for backend processing
-                    if (patchDto.WeekdayStartTime != null || patchDto.WeekdayStartShift != null)
-                    {
-                        checkIn.WeekdayStartTime = patchDto.WeekdayStartTime;
-                        checkIn.WeekdayStartShift = patchDto.WeekdayStartShift;
-                        checkIn.WeekdayStartTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekdayStartTime, patchDto.WeekdayStartShift, effectiveTimezoneId);
-                        fieldsUpdated.Add("WeekdayStartTime");
-                    }
-                    if (patchDto.WeekdayEndTime != null || patchDto.WeekdayEndShift != null)
-                    {
-                        checkIn.WeekdayEndTime = patchDto.WeekdayEndTime;
-                        checkIn.WeekdayEndShift = patchDto.WeekdayEndShift;
-                        checkIn.WeekdayEndTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekdayEndTime, patchDto.WeekdayEndShift, effectiveTimezoneId);
-                        fieldsUpdated.Add("WeekdayEndTime");
-                    }
-                    if (patchDto.WeekendStartTime != null || patchDto.WeekendStartShift != null)
-                    {
-                        checkIn.WeekendStartTime = patchDto.WeekendStartTime;
-                        checkIn.WeekendStartShift = patchDto.WeekendStartShift;
-                        checkIn.WeekendStartTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekendStartTime, patchDto.WeekendStartShift, effectiveTimezoneId);
-                        fieldsUpdated.Add("WeekendStartTime");
-                    }
-                    if (patchDto.WeekendEndTime != null || patchDto.WeekendEndShift != null)
-                    {
-                        checkIn.WeekendEndTime = patchDto.WeekendEndTime;
-                        checkIn.WeekendEndShift = patchDto.WeekendEndShift;
-                        checkIn.WeekendEndTimeUtc = ConvertTimeToUtc24Hour(patchDto.WeekendEndTime, patchDto.WeekendEndShift, effectiveTimezoneId);
-                        fieldsUpdated.Add("WeekendEndTime");
-                    }
                     
                     // Merge questions dictionary
                     if (patchDto.Questions != null && patchDto.Questions.Count > 0)
@@ -312,24 +264,7 @@ namespace Mindflow_Web_API.Services
                         
                         _logger.LogDebug("Merged {Count} questions for user {UserId}", patchDto.Questions.Count, userId);
                     }
-                    
-                    // Update timezone if changed
-                    if (timezoneIdInput != null)
-                    {
-                        checkIn.TimezoneId = timezoneIdInput;
-                    }
-                    
-                    // Recompute UTC minute offsets if time fields or timezone changed
-                    if (patchDto.WeekdayStartTime != null || patchDto.WeekdayStartShift != null ||
-                        patchDto.WeekdayEndTime != null || patchDto.WeekdayEndShift != null ||
-                        patchDto.WeekendStartTime != null || patchDto.WeekendStartShift != null ||
-                        patchDto.WeekendEndTime != null || patchDto.WeekendEndShift != null ||
-                        timezoneIdInput != null)
-                    {
-                        _wellnessDataProcessor.ComputeUtcOffsets(checkIn);
-                        fieldsUpdated.Add("UTCMinutes");
-                    }
-                    
+                                        
                     checkIn.Update(
                         checkIn.MoodLevel,
                         DateTime.UtcNow,
@@ -353,7 +288,7 @@ namespace Mindflow_Web_API.Services
                         checkIn.WeekdayEndMinutesUtc,
                         checkIn.WeekendStartMinutesUtc,
                         checkIn.WeekendEndMinutesUtc,
-                        effectiveTimezoneId,
+                        checkIn.TimezoneId,
                         checkIn.Questions);
                     
                     _logger.LogDebug("Updated fields for user {UserId}: {UpdatedFields}", userId, string.Join(", ", fieldsUpdated));

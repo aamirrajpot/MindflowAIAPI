@@ -54,7 +54,7 @@ namespace Mindflow_Web_API.DTOs
         Dictionary<string, object> Questions  // Dynamic questions
     );
     
-    // DTO for patching/updating wellness check-in
+    // DTO for patching/updating wellness check-in (non-slot fields only)
     // Questions dictionary will be merged with existing questions
     public record PatchWellnessCheckInDto(
         string? MoodLevel, 
@@ -62,16 +62,7 @@ namespace Mindflow_Web_API.DTOs
         string? ReminderTime, 
         string? AgeRange, 
         string[]? FocusAreas, 
-        string? WeekdayStartTime, 
-        string? WeekdayStartShift, 
-        string? WeekdayEndTime, 
-        string? WeekdayEndShift, 
-        string? WeekendStartTime, 
-        string? WeekendStartShift, 
-        string? WeekendEndTime, 
-        string? WeekendEndShift,
-        Dictionary<string, object>? Questions,  // Dynamic questions to merge
-        string? TimezoneId  // IANA timezone ID (e.g., "America/Chicago", "America/New_York"). If null, assumes times are already in UTC.
+        Dictionary<string, object>? Questions  // Dynamic questions to merge
     );
 
     // DTO for updating only time slots + reminder settings
