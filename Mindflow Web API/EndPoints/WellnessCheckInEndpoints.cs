@@ -10,8 +10,6 @@ namespace Mindflow_Web_API.EndPoints
         {
             var wellnessApi = app.MapGroup("/api/wellness").WithTags("Wellness");
 
-
-
             wellnessApi.MapPatch("/check-in", async (PatchWellnessCheckInDto dto, IWellnessCheckInService wellnessService, HttpContext context) =>
             {
                 if (!context.User.Identity?.IsAuthenticated ?? true)
@@ -31,6 +29,30 @@ namespace Mindflow_Web_API.EndPoints
             .WithOpenApi(op => {
                 op.Summary = "Patch wellness check-in";
                 op.Description = "Partially updates or creates the authenticated user's wellness check-in record. Accepts only the fields to update.";
+                return op;
+            });
+
+            // Update only time slots + reminder settings
+            wellnessApi.MapPatch("/slots", async (UpdateWellnessSlotsDto dto, IWellnessCheckInService wellnessService, HttpContext context) =>
+            {
+                if (!context.User.Identity?.IsAuthenticated ?? true)
+                    throw ApiExceptions.Unauthorized("User is not authenticated");
+
+                var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
+                if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+                    throw ApiExceptions.Unauthorized("Invalid user token");
+
+                var checkIn = await wellnessService.UpdateSlotsAsync(userId, dto);
+                if (checkIn == null)
+                    throw ApiExceptions.NotFound("Wellness check-in not found");
+
+                return Results.Ok(checkIn);
+            })
+            .RequireAuthorization()
+            .WithOpenApi(op =>
+            {
+                op.Summary = "Update wellness time slots and reminder settings";
+                op.Description = "Updates only weekday/weekend time slots, timezone, and reminder settings for the authenticated user. Does not change mood, age range, focus areas, or questions.";
                 return op;
             });
 

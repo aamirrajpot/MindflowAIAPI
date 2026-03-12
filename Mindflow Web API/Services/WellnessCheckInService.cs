@@ -421,6 +421,199 @@ namespace Mindflow_Web_API.Services
             }
         }
 
+        /// <summary>
+        /// Updates only the user's time slots (weekday/weekend) and reminder settings.
+        /// Does not touch mood, age range, focus areas, or dynamic questions.
+        /// Creates a minimal wellness check-in if none exists yet.
+        /// </summary>
+        public async Task<WellnessCheckInDto?> UpdateSlotsAsync(Guid userId, UpdateWellnessSlotsDto slotsDto)
+        {
+            _logger.LogInformation("Starting UpdateSlotsAsync for user {UserId}", userId);
+
+            if (userId == Guid.Empty)
+            {
+                _logger.LogWarning("Invalid user ID provided to UpdateSlotsAsync: {UserId}", userId);
+                throw ApiExceptions.ValidationError("Invalid user ID provided.");
+            }
+
+            if (slotsDto == null)
+            {
+                _logger.LogWarning("Slots update data is null for user {UserId}", userId);
+                throw ApiExceptions.ValidationError("Slots data cannot be null.");
+            }
+
+            var timezoneIdInput = string.IsNullOrWhiteSpace(slotsDto.TimezoneId) ? null : slotsDto.TimezoneId.Trim();
+
+            try
+            {
+                _logger.LogDebug("Querying database for existing wellness check-in for slots update for user {UserId}", userId);
+
+                var checkIn = await _dbContext.WellnessCheckIns
+                    .FromSqlRaw(@"
+                        SELECT * FROM WellnessCheckIns 
+                        WHERE UserId = {0} 
+                        ORDER BY CheckInDate DESC 
+                        LIMIT 1", userId)
+                    .FirstOrDefaultAsync();
+
+                if (checkIn == null)
+                {
+                    _logger.LogInformation("No existing wellness check-in found for user {UserId}, creating minimal record for slots", userId);
+
+                    var weekdayStartTimeUtc = ConvertTimeToUtc24Hour(slotsDto.WeekdayStartTime, slotsDto.WeekdayStartShift, timezoneIdInput);
+                    var weekdayEndTimeUtc = ConvertTimeToUtc24Hour(slotsDto.WeekdayEndTime, slotsDto.WeekdayEndShift, timezoneIdInput);
+                    var weekendStartTimeUtc = ConvertTimeToUtc24Hour(slotsDto.WeekendStartTime, slotsDto.WeekendStartShift, timezoneIdInput);
+                    var weekendEndTimeUtc = ConvertTimeToUtc24Hour(slotsDto.WeekendEndTime, slotsDto.WeekendEndShift, timezoneIdInput);
+
+                    checkIn = WellnessCheckIn.Create(
+                        userId,
+                        string.Empty,              // MoodLevel
+                        DateTime.UtcNow,
+                        slotsDto.ReminderEnabled ?? false,
+                        slotsDto.ReminderTime,
+                        null,                      // AgeRange
+                        null,                      // FocusAreas
+                        slotsDto.WeekdayStartTime,
+                        slotsDto.WeekdayStartShift,
+                        slotsDto.WeekdayEndTime,
+                        slotsDto.WeekdayEndShift,
+                        slotsDto.WeekendStartTime,
+                        slotsDto.WeekendStartShift,
+                        slotsDto.WeekendEndTime,
+                        slotsDto.WeekendEndShift,
+                        weekdayStartTimeUtc,
+                        weekdayEndTimeUtc,
+                        weekendStartTimeUtc,
+                        weekendEndTimeUtc,
+                        null,
+                        null,
+                        null,
+                        null,
+                        timezoneIdInput,
+                        new Dictionary<string, object>()
+                    );
+
+                    _wellnessDataProcessor.ComputeUtcOffsets(checkIn);
+                    await _dbContext.WellnessCheckIns.AddAsync(checkIn);
+                }
+                else
+                {
+                    _logger.LogInformation("Updating slots for existing wellness check-in for user {UserId}. CheckInId: {CheckInId}", userId, checkIn.Id);
+
+                    if (slotsDto.ReminderEnabled.HasValue)
+                    {
+                        checkIn.ReminderEnabled = slotsDto.ReminderEnabled.Value;
+                    }
+                    if (slotsDto.ReminderTime != null)
+                    {
+                        checkIn.ReminderTime = slotsDto.ReminderTime;
+                    }
+
+                    var effectiveTimezoneId = timezoneIdInput ?? checkIn.TimezoneId;
+
+                    if (slotsDto.WeekdayStartTime != null || slotsDto.WeekdayStartShift != null)
+                    {
+                        checkIn.WeekdayStartTime = slotsDto.WeekdayStartTime;
+                        checkIn.WeekdayStartShift = slotsDto.WeekdayStartShift;
+                        checkIn.WeekdayStartTimeUtc = ConvertTimeToUtc24Hour(slotsDto.WeekdayStartTime, slotsDto.WeekdayStartShift, effectiveTimezoneId);
+                    }
+                    if (slotsDto.WeekdayEndTime != null || slotsDto.WeekdayEndShift != null)
+                    {
+                        checkIn.WeekdayEndTime = slotsDto.WeekdayEndTime;
+                        checkIn.WeekdayEndShift = slotsDto.WeekdayEndShift;
+                        checkIn.WeekdayEndTimeUtc = ConvertTimeToUtc24Hour(slotsDto.WeekdayEndTime, slotsDto.WeekdayEndShift, effectiveTimezoneId);
+                    }
+                    if (slotsDto.WeekendStartTime != null || slotsDto.WeekendStartShift != null)
+                    {
+                        checkIn.WeekendStartTime = slotsDto.WeekendStartTime;
+                        checkIn.WeekendStartShift = slotsDto.WeekendStartShift;
+                        checkIn.WeekendStartTimeUtc = ConvertTimeToUtc24Hour(slotsDto.WeekendStartTime, slotsDto.WeekendStartShift, effectiveTimezoneId);
+                    }
+                    if (slotsDto.WeekendEndTime != null || slotsDto.WeekendEndShift != null)
+                    {
+                        checkIn.WeekendEndTime = slotsDto.WeekendEndTime;
+                        checkIn.WeekendEndShift = slotsDto.WeekendEndShift;
+                        checkIn.WeekendEndTimeUtc = ConvertTimeToUtc24Hour(slotsDto.WeekendEndTime, slotsDto.WeekendEndShift, effectiveTimezoneId);
+                    }
+
+                    if (timezoneIdInput != null)
+                    {
+                        checkIn.TimezoneId = timezoneIdInput;
+                    }
+
+                    // Recompute minute offsets based on updated slots / timezone
+                    _wellnessDataProcessor.ComputeUtcOffsets(checkIn);
+
+                    checkIn.Update(
+                        checkIn.MoodLevel,
+                        DateTime.UtcNow,
+                        checkIn.ReminderEnabled,
+                        checkIn.ReminderTime,
+                        checkIn.AgeRange,
+                        checkIn.FocusAreas,
+                        checkIn.WeekdayStartTime,
+                        checkIn.WeekdayStartShift,
+                        checkIn.WeekdayEndTime,
+                        checkIn.WeekdayEndShift,
+                        checkIn.WeekendStartTime,
+                        checkIn.WeekendStartShift,
+                        checkIn.WeekendEndTime,
+                        checkIn.WeekendEndShift,
+                        checkIn.WeekdayStartTimeUtc,
+                        checkIn.WeekdayEndTimeUtc,
+                        checkIn.WeekendStartTimeUtc,
+                        checkIn.WeekendEndTimeUtc,
+                        checkIn.WeekdayStartMinutesUtc,
+                        checkIn.WeekdayEndMinutesUtc,
+                        checkIn.WeekendStartMinutesUtc,
+                        checkIn.WeekendEndMinutesUtc,
+                        effectiveTimezoneId,
+                        checkIn.Questions ?? new Dictionary<string, object>()
+                    );
+                }
+
+                await _dbContext.SaveChangesAsync();
+
+                var resultDto = new WellnessCheckInDto(
+                    checkIn.Id,
+                    checkIn.UserId,
+                    checkIn.MoodLevel,
+                    checkIn.CheckInDate,
+                    checkIn.Created,
+                    checkIn.LastModified,
+                    checkIn.ReminderEnabled,
+                    checkIn.ReminderTime,
+                    checkIn.AgeRange,
+                    checkIn.FocusAreas,
+                    checkIn.WeekdayStartTime,
+                    checkIn.WeekdayStartShift,
+                    checkIn.WeekdayEndTime,
+                    checkIn.WeekdayEndShift,
+                    checkIn.WeekendStartTime,
+                    checkIn.WeekendStartShift,
+                    checkIn.WeekendEndTime,
+                    checkIn.WeekendEndShift,
+                    checkIn.WeekdayStartTimeUtc,
+                    checkIn.WeekdayEndTimeUtc,
+                    checkIn.WeekendStartTimeUtc,
+                    checkIn.WeekendEndTimeUtc,
+                    checkIn.WeekdayStartMinutesUtc,
+                    checkIn.WeekdayEndMinutesUtc,
+                    checkIn.WeekendStartMinutesUtc,
+                    checkIn.WeekendEndMinutesUtc,
+                    checkIn.TimezoneId,
+                    checkIn.Questions ?? new Dictionary<string, object>()
+                );
+
+                return resultDto;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to update wellness slots for user {UserId}. Error: {ErrorMessage}", userId, ex.Message);
+                throw ApiExceptions.InternalServerError("Failed to update wellness slots.");
+            }
+        }
+
         private async Task<WellnessAnalysisDto> GenerateSimpleSummaryAsync(Guid userId, WellnessCheckInDto wellnessData)
         {
             _logger.LogInformation("Starting GenerateSimpleSummaryAsync for user {UserId}", userId);

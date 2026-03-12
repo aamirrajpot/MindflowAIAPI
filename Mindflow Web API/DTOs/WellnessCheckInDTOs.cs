@@ -73,4 +73,19 @@ namespace Mindflow_Web_API.DTOs
         Dictionary<string, object>? Questions,  // Dynamic questions to merge
         string? TimezoneId  // IANA timezone ID (e.g., "America/Chicago", "America/New_York"). If null, assumes times are already in UTC.
     );
+
+    // DTO for updating only time slots + reminder settings
+    public record UpdateWellnessSlotsDto(
+        bool? ReminderEnabled,
+        string? ReminderTime,
+        string? WeekdayStartTime,
+        string? WeekdayStartShift,
+        string? WeekdayEndTime,
+        string? WeekdayEndShift,
+        string? WeekendStartTime,
+        string? WeekendStartShift,
+        string? WeekendEndTime,
+        string? WeekendEndShift,
+        string? TimezoneId  // Optional IANA timezone; if null, existing timezone (if any) is reused
+    );
 } 
