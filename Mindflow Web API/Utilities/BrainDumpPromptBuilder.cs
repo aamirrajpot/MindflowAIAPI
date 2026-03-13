@@ -409,23 +409,37 @@ namespace Mindflow_Web_API.Utilities
                 sb.Append("\n");
             }
             
-            // NOTE: Inline examples are intentionally generic/abstract to prevent the LLM from copying
-            // them verbatim. Concrete examples with real content caused the model to echo the example
-            // text instead of generating a unique response for the actual user input.
-            sb.Append("STYLE PATTERN (do NOT copy these words — use as structure only):\n");
-            sb.Append("CBT:  \"[Observation of specific thought] — [gentle examination question about evidence]?\"\n");
-            sb.Append("DBT:  \"[Emotion validation] — [mindful question about what feels strongest right now]?\"\n");
-            sb.Append("Trauma: \"[Safety statement] — [empowering, no-pressure invitation to share more].\"\n\n");
-
-            sb.Append("OUTPUT RULES — follow exactly:\n");
-            sb.Append("- Write exactly 2-3 sentences. No more.\n");
-            sb.Append("- Begin with 'You' or 'It' — never 'Sure', 'Here', 'Based on', or any preamble.\n");
-            sb.Append("- Use ONLY details from the user's actual text above — never invent details.\n");
-            sb.Append("- Do NOT copy or paraphrase any example wording from this prompt.\n");
-            sb.Append("- Return your response as a JSON object: {\"summary\": \"<your 2-3 sentence response here>\"}\n");
-            sb.Append("- No markdown, no extra keys, no explanation outside the JSON.\n\n");
-
-            sb.Append("Respond with the JSON object now. [/INST]");
+            sb.Append("GOOD EXAMPLE (CBT-style):\n");
+            sb.Append("It sounds like you're having the thought that you're failing at everything and can't focus. ");
+            sb.Append("Let's pause and examine that—what evidence supports this thought, and what evidence might challenge it? ");
+            sb.Append("I notice you mentioned feeling behind on work deadlines. When you think about 'failing at everything,' ");
+            sb.Append("are there areas where you're actually making progress, even if small? ");
+            sb.Append("What would it feel like to acknowledge both the struggle and any steps you've taken, however small?\n\n");
+            
+            sb.Append("GOOD EXAMPLE (DBT-style):\n");
+            sb.Append("That sounds really overwhelming. Anyone in your situation would feel drained trying to balance ");
+            sb.Append("everything you've described. Let's slow down for a moment—can you name what emotion feels strongest ");
+            sb.Append("right now? Is it the anxiety about deadlines, or maybe something deeper like fear of disappointing others? ");
+            sb.Append("Sometimes naming the emotion helps us understand what we actually need in this moment.\n\n");
+            
+            sb.Append("BAD EXAMPLE (avoid this - too generic):\n");
+            sb.Append("You seem overwhelmed and stressed about work. You have deadlines and feel overwhelmed. ");
+            sb.Append("It seems like you need to manage your time better. Here are some tasks to help you.\n\n");
+            
+            sb.Append("CRITICAL OUTPUT RULES:\n");
+            sb.Append("- Return ONLY the summary text itself\n");
+            sb.Append("- DO NOT include any introductory phrases like 'Sure, here is...', 'Here's a summary...', 'Here is a personalized...', etc.\n");
+            sb.Append("- DO NOT include phrases like 'that validates the user's experience' or 'that references specific details'\n");
+            sb.Append("- DO NOT include quotes around the text\n");
+            sb.Append("- DO NOT include JSON formatting\n");
+            sb.Append("- Start DIRECTLY with the summary content (e.g., 'You're navigating...' or 'It sounds like...')\n");
+            sb.Append("- The summary should:\n");
+            sb.Append("  1. Validate their experience without being repetitive\n");
+            sb.Append("  2. Reference specific details they mentioned\n");
+            sb.Append("  3. Show you understand the deeper meaning\n");
+            sb.Append("  4. Use warm, supportive, therapy-informed language\n\n");
+            
+            sb.Append("Return ONLY the summary text. Start directly with the summary content. [/INST]");
             return sb.ToString();
         }
 
@@ -725,164 +739,166 @@ namespace Mindflow_Web_API.Utilities
             }
         }
 
-        // Parser for Step 3: AI Summary
-        // The prompt now asks for {"summary": "..."} JSON, so JSON parsing is the primary path.
-        // The heuristic text-cleaning path is kept as a fallback for older cached responses.
+        // Parser for Step 3: AI Summary (Enhanced)
         public static string ParseAiSummaryResponse(string aiResponse, ILogger? logger = null)
         {
-            const string fallback = "Your brain dump has been processed and personalized insights have been generated.";
             try
             {
+                // Extract text from RunPod response envelope (handles both new and old structures)
                 var extractedText = RunpodResponseHelper.ExtractTextFromRunpodResponse(aiResponse);
-
-                // --- Primary path: JSON object with a "summary" key ---
-                var jsonSummary = TryExtractJsonSummary(extractedText, logger);
-                if (!string.IsNullOrWhiteSpace(jsonSummary))
-                    return EnsureCompleteSentences(jsonSummary, fallback, logger);
-
-                // --- Fallback: heuristic free-text cleanup for non-JSON responses ---
-                logger?.LogWarning("AI summary response was not JSON — falling back to heuristic text cleanup.");
-                var cleanText = HeuristicCleanSummary(extractedText, logger);
-
-                if (string.IsNullOrWhiteSpace(cleanText) || cleanText.Length < 20)
+                var cleanText = extractedText.Trim();
+                
+                // Remove any markdown or code blocks
+                if (cleanText.StartsWith("```"))
                 {
-                    logger?.LogWarning("Summary too short after heuristic cleanup. Using fallback.");
-                    return fallback;
+                    var lines = cleanText.Split('\n');
+                    if (lines.Length > 2)
+                        cleanText = string.Join("\n", lines.Skip(1).Take(lines.Length - 2));
+                    else
+                        cleanText = cleanText.Replace("```", "").Trim();
+                }
+                
+                // First, try to extract content from quotes if the entire response is quoted
+                if (cleanText.StartsWith("\"") && cleanText.EndsWith("\""))
+                    cleanText = cleanText.Substring(1, cleanText.Length - 2).Trim();
+                
+                // Remove common prefixes that LLMs sometimes add
+                // Use case-insensitive matching and remove the longest matching prefix
+                var prefixesToRemove = new[]
+                {
+                    "sure, here is a personalized, insightful summary that validates the user's experience and references specific details they mentioned:",
+                    "sure, here's a personalized, insightful summary that validates the user's experience and references specific details they mentioned:",
+                    "here is a personalized, insightful summary that validates the user's experience and references specific details they mentioned:",
+                    "here's a personalized, insightful summary that validates the user's experience and references specific details they mentioned:",
+                    "sure, here is a personalized, insightful summary:",
+                    "sure, here's a personalized, insightful summary:",
+                    "here is a personalized, insightful summary:",
+                    "here's a personalized, insightful summary:",
+                    "sure, here is the summary:",
+                    "sure, here's the summary:",
+                    "here is the summary:",
+                    "here's the summary:",
+                    "summary:",
+                    "the summary is:",
+                    "based on your text,",
+                    "based on what you wrote,",
+                    "looking at your brain dump,",
+                    "from your entry,",
+                    "here's what i understand:",
+                    "here is what i understand:",
+                    "sure, here is",
+                    "sure, here's",
+                    "here is",
+                    "here's"
+                };
+                
+                // Sort by length descending to match longest prefix first
+                var sortedPrefixes = prefixesToRemove.OrderByDescending(p => p.Length).ToArray();
+                var lowerText = cleanText.ToLower().TrimStart();
+                
+                foreach (var prefix in sortedPrefixes)
+                {
+                    if (lowerText.StartsWith(prefix))
+                    {
+                        cleanText = cleanText.Substring(prefix.Length).TrimStart();
+                        // Remove any leading colon, dash, or quote
+                        while (cleanText.Length > 0 && (cleanText[0] == ':' || cleanText[0] == '-' || cleanText[0] == '"' || cleanText[0] == '\''))
+                            cleanText = cleanText.Substring(1).TrimStart();
+                        break;
+                    }
+                }
+                
+                // Additional pattern: Look for introductory phrases ending with colon followed by quoted text.
+                // IMPORTANT: only match smart/curly quotes (\u201C\u201D) or straight double quotes,
+                // NOT apostrophes — apostrophes appear in contractions like "you're" and would
+                // incorrectly split a real summary sentence into a fragment starting with "re".
+                var quotePattern = new System.Text.RegularExpressions.Regex(
+                    @"^[^\u201C\u201D""]*[\u201C\u201D""](.+)[\u201C\u201D""]\s*$",
+                    System.Text.RegularExpressions.RegexOptions.Singleline);
+                var quoteMatch = quotePattern.Match(cleanText);
+                if (quoteMatch.Success && quoteMatch.Groups.Count > 1)
+                {
+                    cleanText = quoteMatch.Groups[1].Value.Trim();
+                }
+                
+                // If text still starts with common introductory patterns, try to find where actual summary starts.
+                // IMPORTANT: introPattern also must NOT use apostrophes as delimiters to avoid
+                // splitting on contractions ("mentioned you're..." would falsely match "you'" as a quote).
+                var introPattern = new System.Text.RegularExpressions.Regex(
+                    @".*?(?:validates|references|mentioned)[^\u201C\u201D""]*[\u201C\u201D""](.+)[\u201C\u201D""]",
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
+                var introMatch = introPattern.Match(cleanText);
+                if (introMatch.Success && introMatch.Groups.Count > 1)
+                {
+                    cleanText = introMatch.Groups[1].Value.Trim();
+                }
+                
+                // Guard: if the result still starts with a lowercase letter, the text was likely truncated
+                // mid-word (for example due to a mis-detected quote). Try to recover by finding the first
+                // real sentence start (capital letter beginning a word).
+                if (!string.IsNullOrEmpty(cleanText) && char.IsLower(cleanText[0]))
+                {
+                    logger?.LogWarning("AI summary starts with lowercase — likely mid-word truncation. Attempting recovery. Preview: {Preview}",
+                        cleanText.Substring(0, Math.Min(60, cleanText.Length)));
+
+                    var sentenceStart = System.Text.RegularExpressions.Regex.Match(cleanText, @"[A-Z][a-z]");
+                    if (sentenceStart.Success && sentenceStart.Index < cleanText.Length / 2)
+                    {
+                        cleanText = cleanText.Substring(sentenceStart.Index).TrimStart();
+                        logger?.LogDebug("Recovered sentence start at index {Index}: {Preview}",
+                            sentenceStart.Index,
+                            cleanText.Substring(0, Math.Min(60, cleanText.Length)));
+                    }
+                    else
+                    {
+                        logger?.LogWarning("Could not recover a valid sentence start from AI summary. Using fallback.");
+                        return "Your brain dump has been processed and personalized insights have been generated.";
+                    }
                 }
 
-                return EnsureCompleteSentences(cleanText, fallback, logger);
+                // Ensure we have meaningful content (at least 20 characters)
+                if (cleanText.Length < 20)
+                {
+                    logger?.LogWarning("Summary too short, using fallback");
+                    return "Your brain dump has been processed and personalized insights have been generated.";
+                }
+
+                // If the text doesn't end with sentence-ending punctuation, the LLM response was
+                // probably cut off mid-sentence by the token limit. Truncate back to the last complete
+                // sentence so the user never sees a dangling fragment like "any steps you".
+                cleanText = cleanText.Trim();
+                if (cleanText.Length > 0 && !new[] { '.', '!', '?' }.Contains(cleanText[^1]))
+                {
+                    var lastSentenceEnd = -1;
+                    for (int i = cleanText.Length - 1; i >= 0; i--)
+                    {
+                        if (cleanText[i] == '.' || cleanText[i] == '!' || cleanText[i] == '?')
+                        {
+                            lastSentenceEnd = i;
+                            break;
+                        }
+                    }
+
+                    if (lastSentenceEnd > 0)
+                    {
+                        logger?.LogWarning("AI summary was truncated mid-sentence. Cutting back to last complete sentence at index {Index}.",
+                            lastSentenceEnd);
+                        cleanText = cleanText.Substring(0, lastSentenceEnd + 1).Trim();
+                    }
+                    else
+                    {
+                        logger?.LogWarning("AI summary has no complete sentence at all. Using fallback.");
+                        return "Your brain dump has been processed and personalized insights have been generated.";
+                    }
+                }
+
+                return cleanText;
             }
             catch (Exception ex)
             {
                 logger?.LogWarning(ex, "Failed to parse AI summary response");
-                return fallback;
+                return "Your brain dump has been processed and personalized insights have been generated.";
             }
-        }
-
-        // Attempts to parse {"summary": "..."} from the LLM response.
-        // Returns null when the response is not valid JSON or has no "summary" key.
-        private static string? TryExtractJsonSummary(string text, ILogger? logger)
-        {
-            try
-            {
-                var t = text.Trim();
-
-                // Strip markdown fences
-                if (t.StartsWith("```")) t = System.Text.RegularExpressions.Regex.Replace(t, @"^```[a-z]*\n?", "").TrimEnd('`').Trim();
-
-                // Find the JSON object boundaries
-                var start = t.IndexOf('{');
-                var end = t.LastIndexOf('}');
-                if (start < 0 || end <= start) return null;
-
-                t = t.Substring(start, end - start + 1);
-                using var doc = System.Text.Json.JsonDocument.Parse(t);
-                if (doc.RootElement.TryGetProperty("summary", out var prop))
-                {
-                    var value = prop.GetString()?.Trim();
-                    if (!string.IsNullOrWhiteSpace(value))
-                    {
-                        logger?.LogDebug("Parsed AI summary from JSON field. Length: {Len}", value.Length);
-                        return value;
-                    }
-                }
-
-                return null;
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        // Legacy free-text cleanup kept as a fallback for non-JSON LLM responses.
-        private static string HeuristicCleanSummary(string text, ILogger? logger)
-        {
-            var cleanText = text.Trim();
-
-            if (cleanText.StartsWith("```"))
-            {
-                var lines = cleanText.Split('\n');
-                cleanText = lines.Length > 2
-                    ? string.Join("\n", lines.Skip(1).Take(lines.Length - 2))
-                    : cleanText.Replace("```", "").Trim();
-            }
-
-            if (cleanText.StartsWith("\"") && cleanText.EndsWith("\""))
-                cleanText = cleanText.Substring(1, cleanText.Length - 2).Trim();
-
-            var prefixesToRemove = new[]
-            {
-                "sure, here is a personalized, insightful summary that validates the user's experience and references specific details they mentioned:",
-                "sure, here's a personalized, insightful summary that validates the user's experience and references specific details they mentioned:",
-                "here is a personalized, insightful summary that validates the user's experience and references specific details they mentioned:",
-                "here's a personalized, insightful summary that validates the user's experience and references specific details they mentioned:",
-                "sure, here is a personalized, insightful summary:",
-                "sure, here's a personalized, insightful summary:",
-                "here is a personalized, insightful summary:",
-                "here's a personalized, insightful summary:",
-                "sure, here is the summary:", "sure, here's the summary:",
-                "here is the summary:", "here's the summary:",
-                "summary:", "the summary is:",
-                "based on your text,", "based on what you wrote,",
-                "looking at your brain dump,", "from your entry,",
-                "here's what i understand:", "here is what i understand:",
-                "sure, here is", "sure, here's", "here is", "here's"
-            };
-
-            var lowerText = cleanText.ToLower().TrimStart();
-            foreach (var prefix in prefixesToRemove.OrderByDescending(p => p.Length))
-            {
-                if (lowerText.StartsWith(prefix))
-                {
-                    cleanText = cleanText.Substring(prefix.Length).TrimStart();
-                    while (cleanText.Length > 0 && (cleanText[0] == ':' || cleanText[0] == '-' || cleanText[0] == '"'))
-                        cleanText = cleanText.Substring(1).TrimStart();
-                    break;
-                }
-            }
-
-            // If still starts lowercase, attempt to recover a real sentence start.
-            if (!string.IsNullOrEmpty(cleanText) && char.IsLower(cleanText[0]))
-            {
-                logger?.LogWarning("Heuristic summary starts lowercase — attempting recovery. Preview: {P}", cleanText[..Math.Min(60, cleanText.Length)]);
-                var m = System.Text.RegularExpressions.Regex.Match(cleanText, @"[A-Z][a-z]");
-                if (m.Success && m.Index < cleanText.Length / 2)
-                    cleanText = cleanText[m.Index..].TrimStart();
-                else
-                    return string.Empty;
-            }
-
-            return cleanText.Trim();
-        }
-
-        // Trims to the last complete sentence if the text is cut off mid-sentence.
-        private static string EnsureCompleteSentences(string text, string fallback, ILogger? logger)
-        {
-            var t = text.Trim();
-            if (t.Length == 0) return fallback;
-
-            if (!new[] { '.', '!', '?' }.Contains(t[^1]))
-            {
-                var lastEnd = -1;
-                for (var i = t.Length - 1; i >= 0; i--)
-                {
-                    if (t[i] == '.' || t[i] == '!' || t[i] == '?') { lastEnd = i; break; }
-                }
-
-                if (lastEnd > 0)
-                {
-                    logger?.LogWarning("AI summary truncated mid-sentence — trimming to last complete sentence.");
-                    t = t[..(lastEnd + 1)].Trim();
-                }
-                else
-                {
-                    logger?.LogWarning("AI summary has no complete sentence. Using fallback.");
-                    return fallback;
-                }
-            }
-
-            return t;
         }
 
         // Multi-prompt approach: Step 5 - Break Down Tasks into Micro-Steps
@@ -1519,39 +1535,8 @@ namespace Mindflow_Web_API.Utilities
                 };
                 
                 var tasks = JsonSerializer.Deserialize<List<TaskSuggestion>>(cleanText, options);
-                var result = tasks ?? new List<TaskSuggestion>();
-
-                // Filter out tasks where the LLM leaked prompt instructions as task titles.
-                // These are recognisable because they repeat exact instruction wording from our prompt.
-                var promptLeakPhrases = new[]
-                {
-                    "read the entire text",
-                    "extract every task",
-                    "instruction:",
-                    "critical:",
-                    "important:",
-                    "ensure comprehensive",
-                    "do not include",
-                    "do not add",
-                    "output only",
-                    "return only",
-                    "format your response",
-                    "respond with"
-                };
-
-                result = result
-                    .Where(t =>
-                    {
-                        if (string.IsNullOrWhiteSpace(t.Task)) return false;
-                        var lower = t.Task.ToLowerInvariant();
-                        return !promptLeakPhrases.Any(phrase => lower.Contains(phrase));
-                    })
-                    .ToList();
-
-                if (result.Count != (tasks?.Count ?? 0))
-                    logger?.LogWarning("Filtered {Count} prompt-leaked task(s) from AI suggestions.", (tasks?.Count ?? 0) - result.Count);
-
-                return result;
+                
+                return tasks ?? new List<TaskSuggestion>();
             }
             catch (Exception ex)
             {
