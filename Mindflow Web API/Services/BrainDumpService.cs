@@ -22,7 +22,7 @@ namespace Mindflow_Web_API.Services
 		Task<bool> SkipTasksAsync(Guid userId, Guid brainDumpEntryId, List<Guid>? suggestionIds = null);
 	}
 
-	public class BrainDumpService : IBrainDumpService
+		public class BrainDumpService : IBrainDumpService
 	{
 		private readonly IRunPodService _runPodService;
 		private readonly MindflowDbContext _db;
@@ -31,6 +31,14 @@ namespace Mindflow_Web_API.Services
 		private readonly IUserService _userService;
 		private readonly IServiceProvider _serviceProvider;
 		private readonly TimeSlotHelper _timeSlotHelper;
+
+		private static readonly string[] CrisisKeywords = new[]
+		{
+			"suicide", "suicidal", "kill myself", "killing myself",
+			"end my life", "don't want to live", "do not want to live",
+			"self-harm", "self harm", "cutting myself", "hurt myself",
+			"no reason to live", "give up on life"
+		};
 
 		public BrainDumpService(IRunPodService runPodService, ILogger<BrainDumpService> logger, MindflowDbContext db, IWellnessCheckInService wellnessService, IUserService userService, IServiceProvider serviceProvider, TimeSlotHelper timeSlotHelper)
 		{
@@ -41,6 +49,23 @@ namespace Mindflow_Web_API.Services
 			_userService = userService;
 			_serviceProvider = serviceProvider;
 			_timeSlotHelper = timeSlotHelper;
+		}
+
+		private static (bool crisisDetected, List<string> matches) DetectCrisisText(string text)
+		{
+			if (string.IsNullOrWhiteSpace(text))
+				return (false, new List<string>());
+
+			var lowered = text.ToLowerInvariant();
+			var hits = new List<string>();
+
+			foreach (var keyword in CrisisKeywords)
+			{
+				if (lowered.Contains(keyword))
+					hits.Add(keyword);
+			}
+
+			return (hits.Count > 0, hits);
 		}
 
 		public async Task<BrainDumpResponse> GetTaskSuggestionsAsync(Guid userId, BrainDumpRequest request, int maxTokens = 1200, double temperature = 0.7)
@@ -56,6 +81,16 @@ namespace Mindflow_Web_API.Services
             var emotions = await ExtractEmotionsAsync(request.Text);
             var topics = await ExtractTopicsAsync(request.Text);
             var summary = await SummarizeMindDumpAsync(request.Text);
+
+			// Lightweight crisis detection on the raw text (before generating user-facing AI content).
+			// This does NOT block data processing, but signals the client to show a crisis card
+			// instead of (or in addition to) the normal AI summary.
+			var (crisisDetected, crisisMatches) = DetectCrisisText(request.Text ?? string.Empty);
+			if (crisisDetected)
+			{
+				_logger.LogWarning("Crisis-like language detected in brain dump for user {UserId}. Keywords: {Keywords}",
+					userId, string.Join(", ", crisisMatches));
+			}
 
             // ⚠️ WellnessData is huge — reduce it first
             var wellnessSummary = WellnessReducer.Reduce(wellnessData);
@@ -335,7 +370,9 @@ namespace Mindflow_Web_API.Services
 				// Emotional Intelligence Layer
 				EmotionalValidation = emotionalValidation,
 				PatternInsight = patternInsight,
-				CopingTools = copingTools
+				CopingTools = copingTools,
+				CrisisDetected = crisisDetected,
+				CrisisKeywords = crisisMatches.Count > 0 ? crisisMatches : null
 			};
 
 			// If still no activities after retries, synthesize a minimal fallback list

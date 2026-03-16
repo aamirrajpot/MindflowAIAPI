@@ -45,7 +45,7 @@ namespace Mindflow_Web_API.Services
             {
                 // Automatically send OTP after registration
                 await SendOtpAsync(unconfirmedUser.Email);
-                return new UserDto(unconfirmedUser.Id, unconfirmedUser.UserName, unconfirmedUser.Email, unconfirmedUser.EmailConfirmed, unconfirmedUser.FirstName, unconfirmedUser.LastName, unconfirmedUser.IsActive, unconfirmedUser.DateOfBirth, unconfirmedUser.ProfilePic, unconfirmedUser.StripeCustomerId, unconfirmedUser.QuestionnaireFilled);
+                return new UserDto(unconfirmedUser.Id, unconfirmedUser.UserName, unconfirmedUser.Email, unconfirmedUser.EmailConfirmed, unconfirmedUser.FirstName, unconfirmedUser.LastName, unconfirmedUser.IsActive, unconfirmedUser.DateOfBirth, unconfirmedUser.ProfilePic, unconfirmedUser.StripeCustomerId, unconfirmedUser.QuestionnaireFilled, unconfirmedUser.AiConsentAtUtc);
             }
 
             var user = new User
@@ -67,7 +67,7 @@ namespace Mindflow_Web_API.Services
             // Automatically send OTP after registration
             await SendOtpAsync(user.Email);
 
-            return new UserDto(user.Id, user.UserName, user.Email, user.EmailConfirmed, user.FirstName, user.LastName, user.IsActive, user.DateOfBirth, user.ProfilePic, user.StripeCustomerId, user.QuestionnaireFilled);
+            return new UserDto(user.Id, user.UserName, user.Email, user.EmailConfirmed, user.FirstName, user.LastName, user.IsActive, user.DateOfBirth, user.ProfilePic, user.StripeCustomerId, user.QuestionnaireFilled, user.AiConsentAtUtc);
         }
 
         public async Task<SignInResponseDto?> SignInAsync(SignInUserDto command)
@@ -118,7 +118,7 @@ namespace Mindflow_Web_API.Services
             
             _logger.LogInformation($"User signed in: {user.UserName}");
             
-            var userDto = new UserDto(user.Id, user.UserName, user.Email, user.EmailConfirmed, user.FirstName, user.LastName, user.IsActive, user.DateOfBirth, user.ProfilePic, user.StripeCustomerId, user.QuestionnaireFilled);
+            var userDto = new UserDto(user.Id, user.UserName, user.Email, user.EmailConfirmed, user.FirstName, user.LastName, user.IsActive, user.DateOfBirth, user.ProfilePic, user.StripeCustomerId, user.QuestionnaireFilled, user.AiConsentAtUtc);
             var appAccountToken = await _subscriptionService.CreateAppleAppAccountTokenAsync(user.Id);
             return new SignInResponseDto(tokenString, "Bearer", expiresInSeconds, refreshToken, userDto, appAccountToken);
         }
@@ -177,6 +177,21 @@ namespace Mindflow_Web_API.Services
             _logger.LogInformation($"Refresh token used for user {user.UserName}. New tokens issued.");
             
             return new RefreshTokenResponseDto(newAccessToken, "Bearer", expiresInSeconds, newRefreshToken);
+        }
+
+        public async Task<bool> MarkAiConsentAsync(Guid userId)
+        {
+            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId);
+            if (user == null)
+                return false;
+
+            // Only set if not already set, so we preserve the original consent timestamp.
+            if (user.AiConsentAtUtc is null)
+                user.AiConsentAtUtc = DateTime.UtcNow;
+
+            await _dbContext.SaveChangesAsync();
+            _logger.LogInformation("AI consent recorded for user {UserId} at {ConsentAt}", userId, user.AiConsentAtUtc);
+            return true;
         }
 
         public async Task<SendOtpResponseDto> SendOtpAsync(string email)
@@ -286,6 +301,7 @@ namespace Mindflow_Web_API.Services
                 user.DateOfBirth,
                 user.ProfilePic,
                 user.QuestionnaireFilled,
+                user.AiConsentAtUtc,
                 activeSubscription,
                 appAccountToken);
         }

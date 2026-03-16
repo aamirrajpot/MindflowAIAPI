@@ -34,6 +34,15 @@ namespace Mindflow_Web_API.EndPoints
 				if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
 					return Results.Unauthorized();
 
+				// Fetch user to check AI consent and enforce feature matrix limits
+				var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId);
+				if (user == null)
+					return Results.Unauthorized();
+
+				// AI transparency / consent gate: user must have explicitly accepted before using brain dump AI.
+				if (user.AiConsentAtUtc is null)
+					throw ApiExceptions.Forbidden("Please review and accept the AI terms before using MindFlow's AI insights.");
+
 				// Feature matrix: Free tier has weekly limit; paid tiers have full access
 				var canPerform = await featureMatrix.CanPerformBrainDumpAsync(userId);
 				if (!canPerform)
@@ -53,6 +62,52 @@ namespace Mindflow_Web_API.EndPoints
 			{
 				op.Summary = "Get comprehensive brain dump analysis";
 				op.Description = "Accepts free-form text and returns user profile summary, key themes, AI summary, and personalized task suggestions";
+				return op;
+			});
+
+			// Report an inappropriate or unhelpful AI response for a specific brain dump entry.
+			// This endpoint is intentionally simple: it records the report so the team can
+			// review patterns and improve prompts/models. App Review can use this to verify
+			// that users have a way to flag problematic AI content.
+			api.MapPost("/report-ai", async (
+				[FromBody] CreateAiContentReportDto dto,
+				MindflowDbContext db,
+				HttpContext ctx) =>
+			{
+				if (!ctx.User.Identity?.IsAuthenticated ?? true)
+					return Results.Unauthorized();
+
+				var userIdClaim = ctx.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier || c.Type == "sub");
+				if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+					return Results.Unauthorized();
+
+				// Ensure the referenced brain dump entry belongs to this user
+				var entryExists = await db.BrainDumpEntries
+					.AnyAsync(e => e.Id == dto.BrainDumpEntryId && e.UserId == userId);
+				if (!entryExists)
+					return Results.NotFound(new { message = "Brain dump entry not found." });
+
+				var report = new AiContentReport
+				{
+					UserId = userId,
+					BrainDumpEntryId = dto.BrainDumpEntryId,
+					SuggestionId = dto.SuggestionId,
+					Type = dto.Type.Trim(),
+					Reason = string.IsNullOrWhiteSpace(dto.Reason) ? null : dto.Reason.Trim()
+				};
+
+				db.AiContentReports.Add(report);
+				await db.SaveChangesAsync();
+
+				return Results.Ok(new
+				{
+					message = "Your feedback has been recorded. Thank you for helping improve MindFlow AI."
+				});
+			})
+			.WithOpenApi(op =>
+			{
+				op.Summary = "Report an AI-generated response";
+				op.Description = "Allows users to report an AI summary or task suggestion as inappropriate or unhelpful. Records the report for later review.";
 				return op;
 			});
 

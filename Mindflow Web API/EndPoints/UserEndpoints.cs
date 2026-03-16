@@ -136,6 +136,31 @@ namespace Mindflow_Web_API.EndPoints
                 return op;
             });
 
+            // Mark that the authenticated user has accepted the AI consent/terms.
+            // Mobile should call this once the user taps "Accept" on the AI consent modal.
+            usersApi.MapPost("/ai-consent", async (IUserService userService, HttpContext context) =>
+            {
+                if (!context.User.Identity?.IsAuthenticated ?? true)
+                    throw ApiExceptions.Unauthorized("User is not authenticated");
+
+                var userIdClaim = context.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier || c.Type == "sub");
+                if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+                    throw ApiExceptions.Unauthorized("Invalid user token");
+
+                var success = await userService.MarkAiConsentAsync(userId);
+                if (!success)
+                    throw ApiExceptions.NotFound("User not found");
+
+                return Results.Ok(new { message = "AI consent recorded successfully.", consentAtUtc = DateTime.UtcNow });
+            })
+            .RequireAuthorization()
+            .WithOpenApi(op =>
+            {
+                op.Summary = "Record AI consent";
+                op.Description = "Marks that the authenticated user has accepted MindFlow AI's transparency and consent notice. Used to gate AI features.";
+                return op;
+            });
+
             usersApi.MapPost("/google-auth", async (GoogleAuthDto dto, IExternalAuthService externalAuthService) =>
             {
                 var result = await externalAuthService.GoogleAuthenticateAsync(dto);

@@ -2,7 +2,7 @@ namespace Mindflow_Web_API.DTOs
 {
     public record RegisterUserDto(string UserName, string Email, string Password, string FirstName, string LastName);
     public record SignInUserDto(string UserNameOrEmail, string Password);
-    public record UserDto(Guid Id, string UserName, string Email, bool EmailConfirmed, string FirstName, string LastName, bool IsActive, DateTime? DateOfBirth, string? ProfilePic, string? StripeCustomerId, bool QuestionnaireFilled);
+    public record UserDto(Guid Id, string UserName, string Email, bool EmailConfirmed, string FirstName, string LastName, bool IsActive, DateTime? DateOfBirth, string? ProfilePic, string? StripeCustomerId, bool QuestionnaireFilled, DateTime? AiConsentAtUtc);
     public record SendOtpResponseDto(string Email, bool Sent);
     public record VerifyOtpDto(Guid UserId, string Code);
     public record ChangePasswordDto(string CurrentPassword, string NewPassword);
@@ -12,7 +12,7 @@ namespace Mindflow_Web_API.DTOs
     public record SignInResponseDto(string access_token, string token_type, int expires_in, string refresh_token, UserDto user, Guid? apple_app_account_token);
     public record RefreshTokenRequestDto(string refresh_token);
     public record RefreshTokenResponseDto(string access_token, string token_type, int expires_in, string refresh_token);
-    public record UserProfileDto(string UserName, string Email, string? FirstName, string? LastName, DateTime? DateOfBirth, string? ProfilePic, bool QuestionnaireFilled, UserSubscriptionDto? ActiveSubscription = null, Guid? apple_app_account_token = null);
+    public record UserProfileDto(string UserName, string Email, string? FirstName, string? LastName, DateTime? DateOfBirth, string? ProfilePic, bool QuestionnaireFilled, DateTime? AiConsentAtUtc, UserSubscriptionDto? ActiveSubscription = null, Guid? apple_app_account_token = null);
     public record UpdateProfileDto(string? FirstName, string? LastName, DateTime? DateOfBirth, string? ProfilePic);
     public record UploadProfilePictureBase64Dto(string Base64Image, string FileName);
     public record UploadProfilePictureUrlDto(string ImageUrl);

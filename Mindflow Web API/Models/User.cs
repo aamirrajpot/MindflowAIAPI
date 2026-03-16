@@ -22,6 +22,10 @@ namespace Mindflow_Web_API.Models
         // When the last "please write a brain dump" reminder was sent
         public DateTime? LastBrainDumpReminderSentAtUtc { get; set; }
 
+        // When the user explicitly accepted the AI consent / transparency notice.
+        // Used to gate brain-dump AI features per App Store guideline 5.1.2(i).
+        public DateTime? AiConsentAtUtc { get; set; }
+
         public static User Create(string userName, string email, string firstName, string lastName, bool emailConfirmed, bool isActive, string passwordHash, string securityStamp, string? sub = null)
         {
             return new User

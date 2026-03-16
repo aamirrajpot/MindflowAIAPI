@@ -18,5 +18,6 @@ namespace Mindflow_Web_API.Services
         Task<string> UploadProfilePictureFromUrlAsync(Guid userId, string imageUrl, string baseUrl);
         Task<bool> DeactivateAccountAsync(Guid userId);
         Task<RefreshTokenResponseDto?> RefreshTokenAsync(string refreshToken);
+        Task<bool> MarkAiConsentAsync(Guid userId);
     }
 } 

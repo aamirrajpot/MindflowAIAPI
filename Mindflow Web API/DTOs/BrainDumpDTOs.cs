@@ -93,6 +93,15 @@ namespace Mindflow_Web_API.DTOs
 		public string? PatternInsight { get; set; } // Names emotional patterns or themes
 		[JsonPropertyName("copingTools")]
 		public List<string>? CopingTools { get; set; } // 1-2 quick coping strategies
+
+		// Crisis / safety signal for client UI.
+		// When true, the client should prioritize showing a crisis card instead of normal AI content.
+		[JsonPropertyName("crisisDetected")]
+		public bool CrisisDetected { get; set; }
+
+		// Optional: which words/phrases triggered the crisis flag (for logging / UI copy).
+		[JsonPropertyName("crisisKeywords")]
+		public List<string>? CrisisKeywords { get; set; }
 	}
     public class WellnessSummary
     {
