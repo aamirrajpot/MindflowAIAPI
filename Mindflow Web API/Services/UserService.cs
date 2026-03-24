@@ -294,6 +294,7 @@ namespace Mindflow_Web_API.Services
 
 
             return new UserProfileDto(
+                user.Id,
                 user.UserName,
                 user.Email,
                 user.FirstName,
