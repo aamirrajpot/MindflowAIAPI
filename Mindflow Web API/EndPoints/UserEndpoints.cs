@@ -23,13 +23,14 @@ namespace Mindflow_Web_API.EndPoints
             usersApi.MapPost("/signin", async (SignInUserDto dto, IUserService userService) =>
             {
                 var signInResponse = await userService.SignInAsync(dto);
+                // Wrong credentials → 400, not 401: avoids mobile clients treating this like missing/expired token.
                 if (signInResponse == null)
-                    throw ApiExceptions.Unauthorized("Invalid credentials");
+                    throw ApiExceptions.ValidationError("Invalid email/username or password.");
                 return Results.Ok(signInResponse);
             })
             .WithOpenApi(op => {
                 op.Summary = "Sign in a user";
-                op.Description = "Authenticates a user and returns a JWT access token and refresh token if credentials are valid.";
+                op.Description = "Authenticates a user and returns a JWT access token and refresh token if credentials are valid. Invalid credentials return 400 (not 401).";
                 return op;
             });
 
