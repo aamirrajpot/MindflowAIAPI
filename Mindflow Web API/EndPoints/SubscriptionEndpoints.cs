@@ -401,44 +401,45 @@ namespace Mindflow_Web_API.EndPoints
                 return op;
             });
 
-            subscriptionApi.MapPost("/apple/notifications", async (AppleNotificationDto dto, ISubscriptionService subscriptionService, ILogger<Program> logger) =>
+            // ── RevenueCat Webhook ──────────────────────────────────────────
+            // Configure /api/subscriptions/apple/notifications in RevenueCat dashboard → Settings → Webhooks.
+            // Optionally set a shared webhook auth key; add "RevenueCat:WebhookAuthKey" in appsettings.json.
+            subscriptionApi.MapPost("/apple/notifications", async (
+                RevenueCatWebhookDto dto,
+                ISubscriptionService subscriptionService,
+                IConfiguration configuration,
+                ILogger<Program> logger,
+                HttpContext httpContext) =>
             {
-                // Apple server notifications do not include user auth; they are signed by Apple.
-                logger.LogInformation("Received Apple server notification at /api/subscriptions/apple/notifications. Payload length={Len}", dto.SignedPayload?.Length ?? 0);
-                var ok = await subscriptionService.ApplyAppleNotificationAsync(dto);
-
-                if (!ok)
+                var expectedAuthKey = configuration["RevenueCat:WebhookAuthKey"];
+                if (!string.IsNullOrWhiteSpace(expectedAuthKey))
                 {
-                    logger.LogWarning("Apple server notification processing failed (see SubscriptionService logs for details).");
+                    var authHeader = httpContext.Request.Headers["Authorization"].FirstOrDefault();
+                    var incomingKey = authHeader?.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) == true
+                        ? authHeader.Substring(7).Trim()
+                        : authHeader?.Trim();
+
+                    if (!string.Equals(incomingKey, expectedAuthKey, StringComparison.Ordinal))
+                    {
+                        logger.LogWarning("RevenueCat webhook authorization failed. Expected key mismatch.");
+                        return Results.Unauthorized();
+                    }
                 }
 
-                // Always return 200 to Apple to avoid excessive retries; internal logs capture failures.
-                return Results.Ok(new { status = ok ? "ok" : "processed_with_errors" });
-            })
-            .WithOpenApi(op => {
-                op.Summary = "Apple Server Notifications (ASN v2)";
-                op.Description = "Receives signed notifications from Apple and updates subscription state.";
-                return op;
-            });
+                logger.LogInformation("Received RevenueCat webhook: Type={Type}, EventId={EventId}, AppUserId={AppUserId}",
+                    dto.Event?.Type, dto.Event?.Id, dto.Event?.App_user_id);
 
-            // Minimal API endpoint matching Apple docs: POST /api/apple/webhook with { \"signedPayload\": \"...\" }
-            app.MapPost("/api/apple/webhook", async (AppleNotificationDto dto, ISubscriptionService subscriptionService, ILogger<Program> logger) =>
-            {
-                logger.LogInformation("Received Apple server notification at /api/apple/webhook. Payload length={Len}", dto.SignedPayload?.Length ?? 0);
-                var ok = await subscriptionService.ApplyAppleNotificationAsync(dto);
+                var ok = await subscriptionService.ApplyRevenueCatWebhookAsync(dto);
 
                 if (!ok)
-                {
-                    logger.LogWarning("Apple server notification processing failed (see SubscriptionService logs for details).");
-                }
+                    logger.LogWarning("RevenueCat webhook processing returned false (see SubscriptionService logs for details).");
 
-                // Always return 200 to Apple to avoid excessive retries; internal logs capture failures.
                 return Results.Ok(new { status = ok ? "ok" : "processed_with_errors" });
             })
             .WithOpenApi(op =>
             {
-                op.Summary = "Apple App Store Server Notifications V2 webhook";
-                op.Description = "Receives Apple's signedPayload (JWS) at /api/apple/webhook and updates subscription state after verification.";
+                op.Summary = "RevenueCat Webhook";
+                op.Description = "Receives webhook events from RevenueCat for subscription lifecycle management (purchases, renewals, cancellations, etc.). Configure /api/subscriptions/apple/notifications in RevenueCat dashboard.";
                 return op;
             });
         }

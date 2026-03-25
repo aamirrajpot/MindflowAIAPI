@@ -450,6 +450,7 @@ namespace Mindflow_Web_API.Services
         // Apple Server Notification processing (ASN v2).
         // NOTE: This implementation decodes the JWS payloads and updates UserSubscriptions,
         // but does NOT yet perform full cryptographic signature verification.
+        [Obsolete("Use ApplyRevenueCatWebhookAsync instead. Direct Apple ASN v2 handling is superseded by RevenueCat.")]
         public async Task<bool> ApplyAppleNotificationAsync(AppleNotificationDto notification)
         {
             if (string.IsNullOrWhiteSpace(notification.SignedPayload))
@@ -1043,6 +1044,307 @@ namespace Mindflow_Web_API.Services
                 _logger.LogError(ex, "Failed to process Apple server notification.");
                 return false;
             }
+        }
+
+        // ── RevenueCat Webhook Processing ─────────────────────────────────
+        // Replaces direct Apple ASN v2 / Google RTDN handling.
+        // RevenueCat normalises events from all stores into a single schema.
+        // Docs: https://www.revenuecat.com/docs/integrations/webhooks
+        public async Task<bool> ApplyRevenueCatWebhookAsync(RevenueCatWebhookDto webhook)
+        {
+            var evt = webhook.Event;
+            if (evt == null)
+            {
+                _logger.LogWarning("RevenueCat webhook received with null event.");
+                return false;
+            }
+
+            var eventType = (evt.Type ?? string.Empty).ToUpperInvariant();
+            _logger.LogInformation(
+                "Processing RevenueCat webhook: Type={Type}, Id={EventId}, AppUserId={AppUserId}, ProductId={ProductId}, Store={Store}, Environment={Environment}",
+                eventType, evt.Id, evt.App_user_id, evt.Product_id, evt.Store, evt.Environment);
+
+            try
+            {
+                // Skip event types that don't affect subscription state
+                if (eventType is "TEST" or "EXPERIMENT_ENROLLMENT" or "VIRTUAL_CURRENCY_TRANSACTION" or "INVOICE_ISSUANCE")
+                {
+                    _logger.LogInformation("RevenueCat event {Type} is informational — no subscription update needed.", eventType);
+                    return true;
+                }
+
+                // ── Resolve user ──
+                Guid userId = Guid.Empty;
+                if (!string.IsNullOrWhiteSpace(evt.App_user_id) && Guid.TryParse(evt.App_user_id, out var parsedUserId))
+                {
+                    userId = parsedUserId;
+                }
+                else if (!string.IsNullOrWhiteSpace(evt.App_user_id))
+                {
+                    // RevenueCat may prefix anonymous IDs with $RCAnonymousID: — try aliases
+                    var matched = evt.Aliases?.FirstOrDefault(a => Guid.TryParse(a, out _));
+                    if (matched != null && Guid.TryParse(matched, out var aliasId))
+                        userId = aliasId;
+                }
+
+                if (userId == Guid.Empty)
+                {
+                    _logger.LogWarning("RevenueCat webhook could not resolve userId from app_user_id={AppUserId}. Skipping.", evt.App_user_id);
+                    return false;
+                }
+
+                // Verify user exists
+                var userExists = await _dbContext.Users.AnyAsync(u => u.Id == userId);
+                if (!userExists)
+                {
+                    _logger.LogWarning("RevenueCat webhook: User {UserId} not found in database. Skipping.", userId);
+                    return false;
+                }
+
+                // ── Map store → provider ──
+                var provider = MapStoreToProvider(evt.Store);
+
+                // ── Compute timestamps ──
+                DateTime? expiresAtUtc = evt.Expiration_at_ms.HasValue
+                    ? DateTimeOffset.FromUnixTimeMilliseconds(evt.Expiration_at_ms.Value).UtcDateTime
+                    : null;
+                DateTime? purchasedAtUtc = evt.Purchased_at_ms.HasValue
+                    ? DateTimeOffset.FromUnixTimeMilliseconds(evt.Purchased_at_ms.Value).UtcDateTime
+                    : null;
+
+                var environment = (evt.Environment ?? "PRODUCTION").ToUpperInvariant() == "SANDBOX" ? "sandbox" : "production";
+                var productId = evt.Product_id ?? string.Empty;
+                var originalTransactionId = evt.Original_transaction_id ?? string.Empty;
+                var transactionId = evt.Transaction_id ?? originalTransactionId;
+
+                // ── Find or create subscription ──
+                var subscription = await FindOrCreateSubscriptionAsync(
+                    userId, provider, originalTransactionId, productId,
+                    transactionId, expiresAtUtc, purchasedAtUtc, environment);
+
+                // Always update latest transaction data
+                if (!string.IsNullOrWhiteSpace(transactionId))
+                    subscription.LatestTransactionId = transactionId;
+                if (!string.IsNullOrWhiteSpace(productId))
+                {
+                    subscription.ProductId = productId;
+                    subscription.PlanId = productId;
+                }
+                if (expiresAtUtc.HasValue)
+                    subscription.ExpiresAtUtc = expiresAtUtc;
+                subscription.Environment = environment;
+                subscription.RawNotificationPayload = System.Text.Json.JsonSerializer.Serialize(webhook);
+
+                // ── Map event type → subscription status ──
+                var previousStatus = subscription.Status;
+
+                switch (eventType)
+                {
+                    case "INITIAL_PURCHASE":
+                        subscription.Status = SubscriptionStatus.Active;
+                        subscription.StartDate = purchasedAtUtc ?? DateTime.UtcNow;
+                        subscription.EndDate = expiresAtUtc;
+                        subscription.AutoRenewEnabled = true;
+                        if (evt.Period_type == "TRIAL")
+                            _logger.LogInformation("RevenueCat: Trial started for user {UserId}, product {ProductId}.", userId, productId);
+                        break;
+
+                    case "RENEWAL":
+                        subscription.Status = SubscriptionStatus.Active;
+                        subscription.EndDate = expiresAtUtc;
+                        subscription.AutoRenewEnabled = true;
+                        if (evt.Is_trial_conversion == true)
+                            _logger.LogInformation("RevenueCat: Trial converted to paid for user {UserId}.", userId);
+                        break;
+
+                    case "CANCELLATION":
+                        // Cancel reason: UNSUBSCRIBE, BILLING_ERROR, DEVELOPER_INITIATED, PRICE_INCREASE, CUSTOMER_SUPPORT, UNKNOWN
+                        if (string.Equals(evt.Cancel_reason, "CUSTOMER_SUPPORT", StringComparison.OrdinalIgnoreCase))
+                        {
+                            // Refund via customer support → immediate revocation
+                            subscription.Status = SubscriptionStatus.Cancelled;
+                            subscription.EndDate = DateTime.UtcNow;
+                        }
+                        else
+                        {
+                            // User turned off auto-renew — access continues until expiry
+                            subscription.AutoRenewEnabled = false;
+                            if (expiresAtUtc.HasValue)
+                                subscription.EndDate = expiresAtUtc;
+                        }
+                        _logger.LogInformation("RevenueCat CANCELLATION: reason={Reason}, user {UserId}.", evt.Cancel_reason, userId);
+                        break;
+
+                    case "UNCANCELLATION":
+                        subscription.AutoRenewEnabled = true;
+                        subscription.Status = SubscriptionStatus.Active;
+                        if (expiresAtUtc.HasValue)
+                            subscription.EndDate = expiresAtUtc;
+                        break;
+
+                    case "EXPIRATION":
+                        subscription.Status = SubscriptionStatus.Expired;
+                        subscription.EndDate = expiresAtUtc ?? DateTime.UtcNow;
+                        subscription.AutoRenewEnabled = false;
+                        _logger.LogInformation("RevenueCat EXPIRATION: reason={Reason}, user {UserId}.", evt.Expiration_reason, userId);
+                        break;
+
+                    case "BILLING_ISSUE":
+                        subscription.Status = SubscriptionStatus.BillingRetry;
+                        break;
+
+                    case "PRODUCT_CHANGE":
+                        if (!string.IsNullOrWhiteSpace(evt.New_product_id))
+                        {
+                            subscription.ProductId = evt.New_product_id;
+                            subscription.PlanId = evt.New_product_id;
+                            _logger.LogInformation("RevenueCat PRODUCT_CHANGE: {OldProduct} → {NewProduct} for user {UserId}.",
+                                productId, evt.New_product_id, userId);
+                        }
+                        subscription.Status = SubscriptionStatus.Active;
+                        subscription.EndDate = expiresAtUtc;
+                        break;
+
+                    case "SUBSCRIPTION_PAUSED":
+                        subscription.Status = SubscriptionStatus.Cancelled; // Treat paused as cancelled (Android only)
+                        if (evt.Auto_resume_at_ms.HasValue)
+                        {
+                            var resumeAt = DateTimeOffset.FromUnixTimeMilliseconds(evt.Auto_resume_at_ms.Value).UtcDateTime;
+                            subscription.EndDate = resumeAt;
+                            _logger.LogInformation("RevenueCat SUBSCRIPTION_PAUSED: will auto-resume at {ResumeAt} for user {UserId}.", resumeAt, userId);
+                        }
+                        break;
+
+                    case "SUBSCRIPTION_EXTENDED":
+                        subscription.Status = SubscriptionStatus.Active;
+                        if (expiresAtUtc.HasValue)
+                        {
+                            subscription.EndDate = expiresAtUtc;
+                            subscription.ExpiresAtUtc = expiresAtUtc;
+                        }
+                        break;
+
+                    case "REFUND_REVERSED":
+                        if (subscription.Status == SubscriptionStatus.Cancelled)
+                        {
+                            subscription.Status = SubscriptionStatus.Active;
+                            subscription.EndDate = expiresAtUtc;
+                        }
+                        break;
+
+                    case "NON_RENEWING_PURCHASE":
+                        subscription.Status = SubscriptionStatus.Active;
+                        subscription.AutoRenewEnabled = false;
+                        subscription.EndDate = expiresAtUtc;
+                        break;
+
+                    case "TRANSFER":
+                        // RevenueCat transferred subscription between users — log and mark current as cancelled
+                        _logger.LogWarning("RevenueCat TRANSFER: subscription transferred away from user {UserId}. Transferred_to={TransferredTo}",
+                            userId, evt.Transferred_to != null ? string.Join(",", evt.Transferred_to) : "unknown");
+                        subscription.Status = SubscriptionStatus.Cancelled;
+                        subscription.EndDate = DateTime.UtcNow;
+                        break;
+
+                    case "TEMPORARY_ENTITLEMENT_GRANT":
+                        subscription.Status = SubscriptionStatus.Active;
+                        _logger.LogInformation("RevenueCat TEMPORARY_ENTITLEMENT_GRANT: store outage temp access for user {UserId}.", userId);
+                        break;
+
+                    default:
+                        _logger.LogWarning("Unhandled RevenueCat event type: {Type} for user {UserId}. No status change.", eventType, userId);
+                        break;
+                }
+
+                _logger.LogInformation("RevenueCat: Status updated {PreviousStatus} → {NewStatus} for user {UserId}, product {ProductId}.",
+                    previousStatus, subscription.Status, userId, subscription.ProductId);
+
+                await _dbContext.SaveChangesAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to process RevenueCat webhook: Type={Type}, AppUserId={AppUserId}.", eventType, evt.App_user_id);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Finds existing subscription by userId + provider + originalTransactionId, or creates a new one.
+        /// Cancels any other active subscriptions for the user (single-active policy).
+        /// </summary>
+        private async Task<UserSubscription> FindOrCreateSubscriptionAsync(
+            Guid userId, SubscriptionProvider provider, string originalTransactionId,
+            string productId, string transactionId, DateTime? expiresAtUtc,
+            DateTime? purchasedAtUtc, string environment)
+        {
+            UserSubscription? subscription = null;
+
+            // 1) Match by originalTransactionId + provider (most precise)
+            if (!string.IsNullOrWhiteSpace(originalTransactionId))
+            {
+                subscription = await _dbContext.UserSubscriptions
+                    .FirstOrDefaultAsync(s =>
+                        s.Provider == provider &&
+                        s.OriginalTransactionId == originalTransactionId);
+            }
+
+            // 2) Fallback: match by userId + active status
+            subscription ??= await _dbContext.UserSubscriptions
+                .FirstOrDefaultAsync(s => s.UserId == userId && s.Status == SubscriptionStatus.Active);
+
+            if (subscription != null)
+            {
+                // Link to user if needed (webhook may arrive before client-side activation)
+                if (subscription.UserId == Guid.Empty)
+                    subscription.UserId = userId;
+
+                return subscription;
+            }
+
+            // 3) Cancel any other active subscriptions (single-active policy)
+            var otherActive = await _dbContext.UserSubscriptions
+                .Where(s => s.UserId == userId && s.Status == SubscriptionStatus.Active)
+                .ToListAsync();
+            foreach (var other in otherActive)
+            {
+                other.Status = SubscriptionStatus.Cancelled;
+                other.EndDate = DateTime.UtcNow;
+                _logger.LogInformation("RevenueCat: Cancelled older active subscription {SubId} for user {UserId}.", other.Id, userId);
+            }
+
+            // 4) Create new
+            var newSub = new UserSubscription
+            {
+                UserId = userId,
+                PlanId = productId,
+                ProductId = productId,
+                Provider = provider,
+                OriginalTransactionId = originalTransactionId,
+                LatestTransactionId = transactionId,
+                StartDate = purchasedAtUtc ?? DateTime.UtcNow,
+                EndDate = expiresAtUtc,
+                ExpiresAtUtc = expiresAtUtc,
+                Status = SubscriptionStatus.Active,
+                AutoRenewEnabled = true,
+                Environment = environment
+            };
+            await _dbContext.UserSubscriptions.AddAsync(newSub);
+            _logger.LogInformation("RevenueCat: Created new subscription for user {UserId}, product {ProductId}, originalTx={OrigTx}.",
+                userId, productId, originalTransactionId);
+
+            return newSub;
+        }
+
+        private static SubscriptionProvider MapStoreToProvider(string? store)
+        {
+            return (store ?? string.Empty).ToUpperInvariant() switch
+            {
+                "APP_STORE" => SubscriptionProvider.Apple,
+                "MAC_APP_STORE" => SubscriptionProvider.Apple,
+                "PLAY_STORE" => SubscriptionProvider.Google,
+                _ => SubscriptionProvider.Apple // Default; RC_BILLING, STRIPE, PROMOTIONAL fall here
+            };
         }
 
         // Subscription Plans

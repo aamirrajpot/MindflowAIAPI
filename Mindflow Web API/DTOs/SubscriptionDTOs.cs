@@ -156,4 +156,77 @@ namespace Mindflow_Web_API.DTOs
     public record CancelSubscriptionDto(
         string Reason = ""
     );
+
+    // ── RevenueCat Webhook DTOs ──────────────────────────────────────────
+
+    /// <summary>
+    /// Root webhook payload sent by RevenueCat.
+    /// Docs: https://www.revenuecat.com/docs/integrations/webhooks
+    /// </summary>
+    public class RevenueCatWebhookDto
+    {
+        public RevenueCatEventDto Event { get; set; } = null!;
+        public string Api_version { get; set; } = "1.0";
+    }
+
+    public class RevenueCatEventDto
+    {
+        public string Type { get; set; } = string.Empty;
+        public string Id { get; set; } = string.Empty;
+        public long? Event_timestamp_ms { get; set; }
+        public string? App_id { get; set; }
+
+        // Transaction identifiers
+        public string? Product_id { get; set; }
+        public string? Transaction_id { get; set; }
+        public string? Original_transaction_id { get; set; }
+
+        // Timing
+        public long? Purchased_at_ms { get; set; }
+        public long? Expiration_at_ms { get; set; }
+        public string? Period_type { get; set; }
+
+        // Store / environment
+        public string? Store { get; set; }
+        public string? Environment { get; set; }
+        public string? Country_code { get; set; }
+
+        // User identification
+        public string? App_user_id { get; set; }
+        public string? Original_app_user_id { get; set; }
+        public List<string>? Aliases { get; set; }
+
+        // Entitlements
+        public string? Entitlement_id { get; set; }
+        public List<string>? Entitlement_ids { get; set; }
+        public string? Presented_offering_id { get; set; }
+
+        // Pricing
+        public string? Currency { get; set; }
+        public decimal? Price { get; set; }
+        public decimal? Price_in_purchased_currency { get; set; }
+        public double? Takehome_percentage { get; set; }
+        public double? Tax_percentage { get; set; }
+        public double? Commission_percentage { get; set; }
+
+        // Type-specific fields
+        public string? Cancel_reason { get; set; }
+        public string? Expiration_reason { get; set; }
+        public string? New_product_id { get; set; }
+        public bool? Is_trial_conversion { get; set; }
+        public bool? Is_family_share { get; set; }
+        public long? Auto_resume_at_ms { get; set; }
+        public List<string>? Transferred_from { get; set; }
+        public List<string>? Transferred_to { get; set; }
+        public string? Offer_code { get; set; }
+        public int? Renewal_number { get; set; }
+
+        public Dictionary<string, RevenueCatSubscriberAttribute>? Subscriber_attributes { get; set; }
+    }
+
+    public class RevenueCatSubscriberAttribute
+    {
+        public string? Value { get; set; }
+        public long? Updated_at_ms { get; set; }
+    }
 }

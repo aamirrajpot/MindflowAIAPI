@@ -10,7 +10,12 @@ namespace Mindflow_Web_API.Services
          // Provider-oriented
         Task<UserSubscriptionDto> ActivateAppleSubscriptionAsync(Guid userId, AppleSubscribeRequest dto);
         Task<UserSubscriptionDto?> RestoreAppleSubscriptionAsync(Guid userId, AppleRestoreRequest dto);
+
+        [Obsolete("Use ApplyRevenueCatWebhookAsync instead. Direct Apple ASN v2 handling is superseded by RevenueCat.")]
         Task<bool> ApplyAppleNotificationAsync(AppleNotificationDto notification);
+
+        // RevenueCat webhook processing (replaces direct Apple/Google server notifications)
+        Task<bool> ApplyRevenueCatWebhookAsync(RevenueCatWebhookDto webhook);
 
         // Subscription Plans
         Task<SubscriptionPlanDto> CreatePlanAsync(CreateSubscriptionPlanDto dto);
