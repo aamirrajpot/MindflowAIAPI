@@ -1270,50 +1270,29 @@ namespace Mindflow_Web_API.Services
         }
 
         /// <summary>
-        /// Finds existing subscription by userId + provider + originalTransactionId, or creates a new one.
-        /// Cancels any other active subscriptions for the user (single-active policy).
+        /// Finds existing subscription purely by userId, or creates a new one.
+        /// Prefers the most recent subscription for this user (any status) so we can reactivate it.
         /// </summary>
         private async Task<UserSubscription> FindOrCreateSubscriptionAsync(
             Guid userId, SubscriptionProvider provider, string originalTransactionId,
             string productId, string transactionId, DateTime? expiresAtUtc,
             DateTime? purchasedAtUtc, string environment)
         {
-            UserSubscription? subscription = null;
-
-            // 1) Match by originalTransactionId + provider (most precise)
-            if (!string.IsNullOrWhiteSpace(originalTransactionId))
-            {
-                subscription = await _dbContext.UserSubscriptions
-                    .FirstOrDefaultAsync(s =>
-                        s.Provider == provider &&
-                        s.OriginalTransactionId == originalTransactionId);
-            }
-
-            // 2) Fallback: match by userId + active status
-            subscription ??= await _dbContext.UserSubscriptions
-                .FirstOrDefaultAsync(s => s.UserId == userId && s.Status == SubscriptionStatus.Active);
+            // Single lookup: find the most recent subscription for this user (any status)
+            var subscription = await _dbContext.UserSubscriptions
+                .Where(s => s.UserId == userId)
+                .OrderByDescending(s => s.Created)
+                .FirstOrDefaultAsync();
 
             if (subscription != null)
             {
-                // Link to user if needed (webhook may arrive before client-side activation)
-                if (subscription.UserId == Guid.Empty)
-                    subscription.UserId = userId;
-
+                _logger.LogInformation(
+                    "RevenueCat: Found existing subscription {SubId} for user {UserId}. Status={Status}, Product={Product}.",
+                    subscription.Id, userId, subscription.Status, subscription.ProductId);
                 return subscription;
             }
 
-            // 3) Cancel any other active subscriptions (single-active policy)
-            var otherActive = await _dbContext.UserSubscriptions
-                .Where(s => s.UserId == userId && s.Status == SubscriptionStatus.Active)
-                .ToListAsync();
-            foreach (var other in otherActive)
-            {
-                other.Status = SubscriptionStatus.Cancelled;
-                other.EndDate = DateTime.UtcNow;
-                _logger.LogInformation("RevenueCat: Cancelled older active subscription {SubId} for user {UserId}.", other.Id, userId);
-            }
-
-            // 4) Create new
+            // No subscription exists for this user — create one
             var newSub = new UserSubscription
             {
                 UserId = userId,
@@ -1330,8 +1309,9 @@ namespace Mindflow_Web_API.Services
                 Environment = environment
             };
             await _dbContext.UserSubscriptions.AddAsync(newSub);
-            _logger.LogInformation("RevenueCat: Created new subscription for user {UserId}, product {ProductId}, originalTx={OrigTx}.",
-                userId, productId, originalTransactionId);
+            _logger.LogInformation(
+                "RevenueCat: Created NEW subscription for user {UserId}, product {ProductId}, provider={Provider}, originalTx={OrigTx}.",
+                userId, productId, provider, originalTransactionId);
 
             return newSub;
         }

@@ -426,8 +426,10 @@ namespace Mindflow_Web_API.EndPoints
                     }
                 }
 
+                var rawPayload = System.Text.Json.JsonSerializer.Serialize(dto, new System.Text.Json.JsonSerializerOptions { WriteIndented = false });
                 logger.LogInformation("Received RevenueCat webhook: Type={Type}, EventId={EventId}, AppUserId={AppUserId}",
                     dto.Event?.Type, dto.Event?.Id, dto.Event?.App_user_id);
+                logger.LogInformation("RevenueCat webhook raw payload: {Payload}", rawPayload);
 
                 var ok = await subscriptionService.ApplyRevenueCatWebhookAsync(dto);
 
