@@ -1279,9 +1279,11 @@ namespace Mindflow_Web_API.Services
             DateTime? purchasedAtUtc, string environment)
         {
             // Single lookup: find the most recent subscription for this user (any status)
+            // Prefer active subscription; fall back to most recent by StartDate (DateTime, SQLite-safe)
             var subscription = await _dbContext.UserSubscriptions
                 .Where(s => s.UserId == userId)
-                .OrderByDescending(s => s.Created)
+                .OrderByDescending(s => s.Status == SubscriptionStatus.Active ? 1 : 0)
+                .ThenByDescending(s => s.StartDate)
                 .FirstOrDefaultAsync();
 
             if (subscription != null)
