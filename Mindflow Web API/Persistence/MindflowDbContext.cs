@@ -39,7 +39,7 @@ namespace Mindflow_Web_API.Persistence
                     var sampleMovie = await context.Set<Movie>().FirstOrDefaultAsync(b => b.Title == "Sonic the Hedgehog 3");
                     if (sampleMovie == null)
                     {
-                        sampleMovie = Movie.Create("Sonic the Hedgehog 3", "Fantasy", new DateTimeOffset(new DateTime(2025, 1, 3), TimeSpan.Zero), 7);
+                        sampleMovie = Movie.Create("Sonic the Hedgehog 3", "Fantasy", new DateTime(2025, 1, 3, 0, 0, 0, DateTimeKind.Utc), 7);
                         await context.Set<Movie>().AddAsync(sampleMovie);
                         await context.SaveChangesAsync();
                     }
@@ -49,7 +49,7 @@ namespace Mindflow_Web_API.Persistence
                     var sampleMovie = context.Set<Movie>().FirstOrDefault(b => b.Title == "Sonic the Hedgehog 3");
                     if (sampleMovie == null)
                     {
-                        sampleMovie = Movie.Create("Sonic the Hedgehog 3", "Fantasy", new DateTimeOffset(new DateTime(2025, 1, 3), TimeSpan.Zero), 7);
+                        sampleMovie = Movie.Create("Sonic the Hedgehog 3", "Fantasy", new DateTime(2025, 1, 3, 0, 0, 0, DateTimeKind.Utc), 7);
                         context.Set<Movie>().Add(sampleMovie);
                         context.SaveChanges();
                     }

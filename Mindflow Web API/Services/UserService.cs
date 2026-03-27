@@ -181,7 +181,7 @@ namespace Mindflow_Web_API.Services
 
             // Generate OTP
             var otp = new Random().Next(1000, 10000).ToString();
-            var expiry = DateTimeOffset.UtcNow.AddMinutes(5);
+            var expiry = DateTime.UtcNow.AddMinutes(5);
             var userOtp = new UserOtp
             {
                 UserId = user.Id,
@@ -215,7 +215,7 @@ namespace Mindflow_Web_API.Services
                 return null;
 
             // Get the latest non-expired OTP using raw SQL
-            var currentTime = DateTimeOffset.UtcNow;
+            var currentTime = DateTime.UtcNow;
             var otpRecord = await _dbContext.UserOtps
                 .FromSqlRaw(@"
                     SELECT * FROM UserOtps 
@@ -356,7 +356,7 @@ namespace Mindflow_Web_API.Services
 
             // Generate OTP
             var otp = new Random().Next(1000, 10000).ToString();
-            var expiry = DateTimeOffset.UtcNow.AddMinutes(5);
+            var expiry = DateTime.UtcNow.AddMinutes(5);
             var userOtp = new UserOtp
             {
                 UserId = user.Id,
@@ -390,7 +390,7 @@ namespace Mindflow_Web_API.Services
                 return false;
 
             // Get the latest non-expired OTP using raw SQL
-            var currentTime = DateTimeOffset.UtcNow;
+            var currentTime = DateTime.UtcNow;
             var otpRecord = await _dbContext.UserOtps
                 .FromSqlRaw(@"
                     SELECT * FROM UserOtps 
