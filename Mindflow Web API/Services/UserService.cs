@@ -87,40 +87,8 @@ namespace Mindflow_Web_API.Services
                 _logger.LogWarning($"Inactive or unconfirmed user tried to sign in: {user.UserName}");
                 throw ApiExceptions.ValidationError("Please verify your email and then try to sign in.");
             }
-            // Generate JWT token
-            int expiresInSeconds;
-            var tokenString = JwtHelper.GenerateJwtToken(user, _configuration, out expiresInSeconds);
-            
-            // Generate refresh token
-            var refreshToken = GenerateRefreshToken();
-            var refreshTokenExpiresDays = _configuration.GetValue<int>("Jwt:RefreshTokenExpiresInDays", 30);
-            var refreshTokenEntity = new RefreshToken
-            {
-                UserId = user.Id,
-                Token = refreshToken,
-                ExpiresAt = DateTime.UtcNow.AddDays(refreshTokenExpiresDays),
-                IsRevoked = false
-            };
-            
-            // Revoke old refresh tokens for this user (optional: keep last N tokens)
-            var oldTokens = await _dbContext.RefreshTokens
-                .Where(rt => rt.UserId == user.Id && !rt.IsRevoked && rt.ExpiresAt > DateTime.UtcNow)
-                .ToListAsync();
-            foreach (var oldToken in oldTokens)
-            {
-                oldToken.IsRevoked = true;
-                oldToken.RevokedAt = DateTime.UtcNow;
-                oldToken.ReplacedByToken = refreshToken;
-            }
-            
-            await _dbContext.RefreshTokens.AddAsync(refreshTokenEntity);
-            await _dbContext.SaveChangesAsync();
-            
             _logger.LogInformation($"User signed in: {user.UserName}");
-            
-            var userDto = new UserDto(user.Id, user.UserName, user.Email, user.EmailConfirmed, user.FirstName, user.LastName, user.IsActive, user.DateOfBirth, user.ProfilePic, user.StripeCustomerId, user.QuestionnaireFilled, user.AiConsentAtUtc);
-            var appAccountToken = await _subscriptionService.CreateAppleAppAccountTokenAsync(user.Id);
-            return new SignInResponseDto(tokenString, "Bearer", expiresInSeconds, refreshToken, userDto, appAccountToken);
+            return await GenerateSignInResponseAsync(user);
         }
         
         private static string GenerateRefreshToken()
@@ -240,11 +208,11 @@ namespace Mindflow_Web_API.Services
             return new SendOtpResponseDto(email, sent);
         }
 
-        public async Task<bool> VerifyOtpAsync(VerifyOtpDto command)
+        public async Task<SignInResponseDto?> VerifyOtpAsync(VerifyOtpDto command)
         {
             var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == command.UserId);
             if (user == null)
-                return false;
+                return null;
 
             // Get the latest non-expired OTP using raw SQL
             var currentTime = DateTimeOffset.UtcNow;
@@ -260,13 +228,60 @@ namespace Mindflow_Web_API.Services
                 .FirstOrDefaultAsync();
 
             if (otpRecord == null)
-                return false;
+                return null;
 
             otpRecord.IsUsed = true;
             user.IsActive = true;
             user.EmailConfirmed = true;
             await _dbContext.SaveChangesAsync();
-            return true;
+            _logger.LogInformation("OTP verified successfully for user: {UserName}", user.UserName);
+            return await GenerateSignInResponseAsync(user);
+        }
+
+        private async Task<SignInResponseDto> GenerateSignInResponseAsync(User user)
+        {
+            int expiresInSeconds;
+            var tokenString = JwtHelper.GenerateJwtToken(user, _configuration, out expiresInSeconds);
+
+            var refreshToken = GenerateRefreshToken();
+            var refreshTokenExpiresDays = _configuration.GetValue<int>("Jwt:RefreshTokenExpiresInDays", 30);
+            var refreshTokenEntity = new RefreshToken
+            {
+                UserId = user.Id,
+                Token = refreshToken,
+                ExpiresAt = DateTime.UtcNow.AddDays(refreshTokenExpiresDays),
+                IsRevoked = false
+            };
+
+            var oldTokens = await _dbContext.RefreshTokens
+                .Where(rt => rt.UserId == user.Id && !rt.IsRevoked && rt.ExpiresAt > DateTime.UtcNow)
+                .ToListAsync();
+            foreach (var oldToken in oldTokens)
+            {
+                oldToken.IsRevoked = true;
+                oldToken.RevokedAt = DateTime.UtcNow;
+                oldToken.ReplacedByToken = refreshToken;
+            }
+
+            await _dbContext.RefreshTokens.AddAsync(refreshTokenEntity);
+            await _dbContext.SaveChangesAsync();
+
+            var userDto = new UserDto(
+                user.Id,
+                user.UserName,
+                user.Email,
+                user.EmailConfirmed,
+                user.FirstName,
+                user.LastName,
+                user.IsActive,
+                user.DateOfBirth,
+                user.ProfilePic,
+                user.StripeCustomerId,
+                user.QuestionnaireFilled,
+                user.AiConsentAtUtc);
+
+            var appAccountToken = await _subscriptionService.CreateAppleAppAccountTokenAsync(user.Id);
+            return new SignInResponseDto(tokenString, "Bearer", expiresInSeconds, refreshToken, userDto, appAccountToken);
         }
 
         public async Task<bool> ChangePasswordAsync(Guid userId, ChangePasswordDto command)

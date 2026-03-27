@@ -7,7 +7,7 @@ namespace Mindflow_Web_API.Services
         Task<UserDto> RegisterAsync(RegisterUserDto command);
         Task<SignInResponseDto?> SignInAsync(SignInUserDto command);
         Task<SendOtpResponseDto> SendOtpAsync(string email);
-        Task<bool> VerifyOtpAsync(VerifyOtpDto command);
+        Task<SignInResponseDto?> VerifyOtpAsync(VerifyOtpDto command);
         Task<bool> ChangePasswordAsync(Guid userId, ChangePasswordDto command);
         Task<SendOtpResponseDto> ForgotPasswordAsync(ForgotPasswordDto command);
         Task<bool> ResetPasswordAsync(ResetPasswordDto command);

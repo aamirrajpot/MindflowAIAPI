@@ -63,14 +63,14 @@ namespace Mindflow_Web_API.EndPoints
 
             usersApi.MapPost("/verify-otp", async (VerifyOtpDto dto, IUserService userService) =>
             {
-                var success = await userService.VerifyOtpAsync(dto);
-                if (!success)
+                var signInResponse = await userService.VerifyOtpAsync(dto);
+                if (signInResponse == null)
                     throw ApiExceptions.ValidationError("Invalid or expired OTP.");
-                return Results.Ok();
+                return Results.Ok(signInResponse);
             })
             .WithOpenApi(op => {
                 op.Summary = "Verify OTP";
-                op.Description = "Verifies the OTP sent to the user's email address.";
+                op.Description = "Verifies the OTP sent to the user's email address and returns access + refresh tokens for immediate login.";
                 return op;
             });
 
