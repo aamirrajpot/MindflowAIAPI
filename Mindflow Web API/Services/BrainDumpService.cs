@@ -591,13 +591,34 @@ namespace Mindflow_Web_API.Services
 			if (wordCount < 8)
 				return (false, "Too short to be a meaningful reflection");
 
-			if (SuggestionGamingKeywords.Any(k => lower.Contains(k)))
-				return (false, "Suggestion-engine gaming phrase detected");
-
 			var hasReflectionSignal =
 				Regex.IsMatch(lower, @"\b(i|i'm|i am|my|me|today|feeling|felt|stressed|anxious|overwhelmed|worried|grateful|confused|struggling)\b");
 
 			var hasSentenceStructure = normalized.Contains(' ') && (normalized.Contains('.') || normalized.Contains(',') || normalized.Contains('\n'));
+
+			var matchedGamingKeywords = SuggestionGamingKeywords
+				.Where(k => lower.Contains(k))
+				.ToList();
+
+			// Only block when gaming intent appears clear and reflective context is weak.
+			var explicitAttackSignals = new[]
+			{
+				"jailbreak",
+				"prompt injection",
+				"inject prompt",
+				"system prompt",
+				"developer prompt",
+				"override instructions",
+				"ignore all previous"
+			};
+			var hasExplicitAttackSignal = explicitAttackSignals.Any(k => lower.Contains(k));
+
+			if (hasExplicitAttackSignal)
+				return (false, "Prompt-manipulation attempt detected");
+
+			if (matchedGamingKeywords.Count >= 2 && (!hasReflectionSignal || wordCount < 20))
+				return (false, "Suggestion-engine gaming phrase detected");
+
 			if (!hasReflectionSignal || !hasSentenceStructure)
 				return (false, "Input does not look like a genuine brain dump");
 
