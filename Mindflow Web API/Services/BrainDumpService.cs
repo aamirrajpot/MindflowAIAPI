@@ -31,6 +31,7 @@ namespace Mindflow_Web_API.Services
 		private readonly IUserService _userService;
 		private readonly IServiceProvider _serviceProvider;
 		private readonly TimeSlotHelper _timeSlotHelper;
+		private readonly IConfiguration? _configuration;
 
 		private static readonly string[] CrisisKeywords = new[]
 		{
@@ -40,7 +41,81 @@ namespace Mindflow_Web_API.Services
 			"no reason to live", "give up on life"
 		};
 
-		public BrainDumpService(IRunPodService runPodService, ILogger<BrainDumpService> logger, MindflowDbContext db, IWellnessCheckInService wellnessService, IUserService userService, IServiceProvider serviceProvider, TimeSlotHelper timeSlotHelper)
+		private static readonly string[] SuggestionGamingKeywords = new[]
+		{
+			"suggest tasks",
+			"give me tasks",
+			"generate tasks",
+			"generate suggestion",
+			"generate suggestions",
+			"suggest me",
+			"suggest todo",
+			"give me todo",
+			"generate todo",
+			"create tasks",
+			"make tasks",
+			"show tasks",
+			"list tasks",
+			"task me",
+			"task generator",
+			"todo generator",
+			"task suggestions",
+			"suggestion engine",
+			"test suggestion",
+			"test suggestions",
+			"testing suggestion",
+			"testing suggestions",
+			"test task generation",
+			"play with suggestion",
+			"play with suggestions",
+			"play with task engine",
+			"play with ai",
+			"just testing",
+			"this is a test",
+			"test input",
+			"sample input",
+			"fake input",
+			"nonsense input",
+			"garbage input",
+			"ignore previous",
+			"ignore above",
+			"ignore all previous",
+			"forget previous",
+			"forget above",
+			"disregard instructions",
+			"override instructions",
+			"system prompt",
+			"developer prompt",
+			"hidden prompt",
+			"reveal prompt",
+			"show prompt",
+			"prompt leak",
+			"jailbreak",
+			"prompt injection",
+			"inject prompt",
+			"bypass guardrails",
+			"bypass filters",
+			"bypass safety",
+			"disable safety",
+			"skip validation",
+			"without validation",
+			"no validation",
+			"without reflection",
+			"dummy input",
+			"random text",
+			"lorem ipsum",
+			"blah blah",
+			"whatever",
+			"anything",
+			"aaa",
+			"bbb",
+			"ccc",
+			"asdf",
+			"qwerty",
+			"zxcvbn"
+		};
+
+		public BrainDumpService(IRunPodService runPodService, ILogger<BrainDumpService> logger, MindflowDbContext db, IWellnessCheckInService wellnessService, IUserService userService, IServiceProvider serviceProvider, TimeSlotHelper timeSlotHelper, IConfiguration? configuration = null)
 		{
 			_runPodService = runPodService;
 			_logger = logger;
@@ -49,6 +124,7 @@ namespace Mindflow_Web_API.Services
 			_userService = userService;
 			_serviceProvider = serviceProvider;
 			_timeSlotHelper = timeSlotHelper;
+			_configuration = configuration;
 		}
 
 		private static (bool crisisDetected, List<string> matches) DetectCrisisText(string text)
@@ -70,12 +146,44 @@ namespace Mindflow_Web_API.Services
 
 		public async Task<BrainDumpResponse> GetTaskSuggestionsAsync(Guid userId, BrainDumpRequest request, int maxTokens = 1200, double temperature = 0.7)
 		{
-			// Get user's wellness data and profile for personalized prompts
-			var wellnessData = await _wellnessService.GetAsync(userId);
+			// Get user's profile early for personalized validation responses
 			var userProfile = await _userService.GetProfileAsync(userId);
 			
 			// Get user's display name (FirstName LastName or UserName as fallback)
 			var userName = GetUserDisplayName(userProfile);
+			var rawText = request.Text ?? string.Empty;
+			var inputValidation = ValidateBrainDumpInput(rawText);
+
+			if (!inputValidation.IsValid)
+			{
+				_logger.LogInformation("Brain dump rejected for user {UserId}. Reason: {Reason}", userId, inputValidation.Reason);
+
+				var blockedEntry = new BrainDumpEntry
+				{
+					UserId = userId,
+					Text = rawText,
+					Context = request.Context,
+					Mood = request.Mood,
+					Stress = request.Stress,
+					Purpose = request.Purpose,
+					TokensEstimate = rawText.Length,
+					CreatedAtUtc = DateTime.UtcNow,
+					Title = GenerateDefaultTitle(rawText),
+					WordCount = CalculateWordCount(rawText),
+					IsFavorite = false,
+					Source = BrainDumpSource.Web,
+					IsFlagged = true,
+					FlagReason = inputValidation.Reason
+				};
+
+				_db.BrainDumpEntries.Add(blockedEntry);
+				await _db.SaveChangesAsync();
+
+				return BuildRestrictedBrainDumpResponse(userName, blockedEntry.Id);
+			}
+
+			// Get user's wellness data and profile for personalized prompts
+			var wellnessData = await _wellnessService.GetAsync(userId);
 			
 			// Extract tags using LLM
             var emotions = await ExtractEmotionsAsync(request.Text);
@@ -400,7 +508,7 @@ namespace Mindflow_Web_API.Services
 					var logger = scope.ServiceProvider.GetRequiredService<ILogger<BrainDumpService>>();
 					var timeSlotHelper = scope.ServiceProvider.GetRequiredService<TimeSlotHelper>();
 					// Create a temporary service instance for the background task
-					var tempService = new BrainDumpService(runPodService, logger, dbContext, _wellnessService, _userService, _serviceProvider, timeSlotHelper);
+					var tempService = new BrainDumpService(runPodService, logger, dbContext, _wellnessService, _userService, _serviceProvider, timeSlotHelper, _configuration);
 					
 					var insight = await tempService.GenerateAiInsightAsync(userId, entry.Id);
 					if (!string.IsNullOrEmpty(insight))
@@ -450,7 +558,73 @@ namespace Mindflow_Web_API.Services
 			// Persist suggestions for later scheduling/skip actions
 			await SaveTaskSuggestionRecordsAsync(userId, entry.Id, brainDumpResponse.SuggestedActivities ?? new List<TaskSuggestion>());
 
+			// Separate prompt call: pattern learning from historical journal + suggestion behavior.
+			try
+			{
+				brainDumpResponse.PatternLearning = await GeneratePatternLearningAsync(
+					userId,
+					entry,
+					summary,
+					emotions,
+					topics,
+					themes,
+					temperature
+				);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogWarning(ex, "Pattern learning prompt failed for brain dump entry {EntryId}", entry.Id);
+			}
+
 			return brainDumpResponse;
+		}
+
+		private static (bool IsValid, string Reason) ValidateBrainDumpInput(string text)
+		{
+			if (string.IsNullOrWhiteSpace(text))
+				return (false, "Empty input");
+
+			var normalized = text.Trim();
+			var lower = normalized.ToLowerInvariant();
+			var wordCount = CalculateWordCount(normalized);
+
+			if (wordCount < 8)
+				return (false, "Too short to be a meaningful reflection");
+
+			if (SuggestionGamingKeywords.Any(k => lower.Contains(k)))
+				return (false, "Suggestion-engine gaming phrase detected");
+
+			var hasReflectionSignal =
+				Regex.IsMatch(lower, @"\b(i|i'm|i am|my|me|today|feeling|felt|stressed|anxious|overwhelmed|worried|grateful|confused|struggling)\b");
+
+			var hasSentenceStructure = normalized.Contains(' ') && (normalized.Contains('.') || normalized.Contains(',') || normalized.Contains('\n'));
+			if (!hasReflectionSignal || !hasSentenceStructure)
+				return (false, "Input does not look like a genuine brain dump");
+
+			return (true, "Valid");
+		}
+
+		private static BrainDumpResponse BuildRestrictedBrainDumpResponse(string userName, Guid entryId)
+		{
+			return new BrainDumpResponse
+			{
+				UserProfile = new UserProfileSummary
+				{
+					Name = userName,
+					CurrentState = "Awaiting a real reflection",
+					Emoji = "📝"
+				},
+				KeyThemes = new List<string>(),
+				AiSummary = "Thanks for checking in. Please share a genuine brain dump about your current thoughts, feelings, or challenges so I can provide meaningful and personalized support.",
+				SuggestedActivities = new List<TaskSuggestion>(),
+				Insights = new List<string>(),
+				Patterns = new List<string>(),
+				CopingTools = new List<string>(),
+				PatternLearning = CreateDefaultPatternLearningResult("Low"),
+				BrainDumpEntryId = entryId,
+				CrisisDetected = false,
+				CrisisKeywords = null
+			};
 		}
 
 		private async Task SaveTaskSuggestionRecordsAsync(Guid userId, Guid brainDumpEntryId, List<TaskSuggestion> suggestions)
@@ -517,6 +691,256 @@ namespace Mindflow_Web_API.Services
 				suggestions[i].Id = savedRecords[i].Id;
 			}
 		}
+
+		private async Task<PatternLearningResultDto?> GeneratePatternLearningAsync(
+			Guid userId,
+			BrainDumpEntry currentEntry,
+			string summary,
+			List<string> emotions,
+			List<string> topics,
+			List<string> themes,
+			double temperature)
+		{
+			var fallback = CreateDefaultPatternLearningResult("Low");
+			var isPatternLearningV2Enabled = _configuration?.GetValue<bool>("PatternLearning:EnableV2", true) ?? true;
+			_logger.LogInformation("PatternLearning V2 is {State} for user {UserId}", isPatternLearningV2Enabled ? "ENABLED" : "DISABLED", userId);
+
+			var recentEntries = await _db.BrainDumpEntries
+				.Where(e => e.UserId == userId && e.DeletedAtUtc == null)
+				.OrderByDescending(e => e.CreatedAtUtc)
+				.Take(12)
+				.Select(e => new
+				{
+					e.CreatedAtUtc,
+					e.Text,
+					e.Mood,
+					e.Stress,
+					e.Tags
+				})
+				.ToListAsync();
+
+			var historicalBrainDumpsContext = recentEntries.Count == 0
+				? "No historical brain dumps found."
+				: string.Join("\n", recentEntries.Select(e =>
+				{
+					var snippet = e.Text ?? string.Empty;
+					if (snippet.Length > 220) snippet = snippet.Substring(0, 220) + "...";
+					return $"- {e.CreatedAtUtc:yyyy-MM-dd}: Mood={e.Mood?.ToString() ?? "n/a"}, Stress={e.Stress?.ToString() ?? "n/a"}, Tags={e.Tags ?? "n/a"}, Text=\"{snippet}\"";
+				}));
+
+			var recentSuggestionRecords = await _db.TaskSuggestionRecords
+				.Where(r => r.UserId == userId)
+				.OrderByDescending(r => r.CreatedAtUtc)
+				.Take(60)
+				.Select(r => new
+				{
+					r.CreatedAtUtc,
+					r.Task,
+					r.Urgency,
+					r.Importance,
+					r.PriorityScore,
+					r.Status,
+					r.TaskItemId
+				})
+				.Select(r => new PatternSuggestionSnapshot(
+					r.CreatedAtUtc,
+					r.Task ?? string.Empty,
+					r.Urgency,
+					r.Importance,
+					r.PriorityScore,
+					r.Status,
+					r.TaskItemId))
+				.ToListAsync();
+
+			if (isPatternLearningV2Enabled && recentEntries.Count < 2 && recentSuggestionRecords.Count < 5)
+				return fallback;
+
+			var deterministicBehaviorSummary = "Deterministic metrics disabled via configuration.";
+			if (isPatternLearningV2Enabled)
+			{
+				var taskIds = recentSuggestionRecords
+					.Where(r => r.TaskItemId.HasValue)
+					.Select(r => r.TaskItemId!.Value)
+					.Distinct()
+					.ToList();
+
+				var taskStatusById = taskIds.Count == 0
+					? new Dictionary<Guid, Models.TaskStatus>()
+					: await _db.Tasks
+						.Where(t => taskIds.Contains(t.Id))
+						.Select(t => new { t.Id, t.Status })
+						.ToDictionaryAsync(t => t.Id, t => t.Status);
+
+				deterministicBehaviorSummary = BuildDeterministicPatternMetricsContext(recentSuggestionRecords, taskStatusById);
+			}
+
+			var suggestionBehaviorContext = recentSuggestionRecords.Count == 0
+				? "No suggestion behavior history found."
+				: string.Join("\n", recentSuggestionRecords.Select(r =>
+					$"- {r.CreatedAtUtc:yyyy-MM-dd}: Task=\"{r.Task}\", Urgency={r.Urgency ?? "n/a"}, Importance={r.Importance ?? "n/a"}, PriorityScore={r.PriorityScore?.ToString() ?? "n/a"}, Status={r.Status}"));
+
+			var patternPrompt = BrainDumpPromptBuilder.BuildPatternLearningPrompt(
+				currentEntry.Text ?? string.Empty,
+				summary,
+				emotions ?? new List<string>(),
+				topics ?? new List<string>(),
+				themes ?? new List<string>(),
+				historicalBrainDumpsContext,
+				$"{deterministicBehaviorSummary}\n\nRaw History:\n{suggestionBehaviorContext}"
+			);
+
+			var response = await _runPodService.SendPromptAsync(patternPrompt, 650, temperature);
+			var parsed = BrainDumpPromptBuilder.ParsePatternLearningResponse(response, _logger);
+			if (parsed == null)
+				return fallback;
+
+			var hasAnySignals =
+				parsed.RecurringStressors.Count > 0 ||
+				parsed.RecurringThemes.Count > 0 ||
+				parsed.HighFollowThroughTaskTypes.Count > 0 ||
+				parsed.LowFollowThroughTaskTypes.Count > 0 ||
+				parsed.ProactiveRecommendations.Count > 0;
+
+			if (!hasAnySignals)
+				return fallback;
+
+			return parsed;
+		}
+
+		private static PatternLearningResultDto CreateDefaultPatternLearningResult(string confidence = "Low")
+		{
+			return new PatternLearningResultDto(
+				new List<string>(),
+				new List<string>(),
+				new List<string>(),
+				new List<string>(),
+				new List<string>(),
+				confidence
+			);
+		}
+
+		private static string BuildDeterministicPatternMetricsContext(
+			List<PatternSuggestionSnapshot> recentSuggestionRecords,
+			Dictionary<Guid, Models.TaskStatus> taskStatusById)
+		{
+			if (recentSuggestionRecords.Count == 0)
+				return "Deterministic metrics: insufficient suggestion history.";
+
+			var scheduledCount = 0;
+			var skippedCount = 0;
+			var completedCount = 0;
+
+			var byType = new Dictionary<string, (int suggested, int scheduled, int skipped, int completed)>(StringComparer.OrdinalIgnoreCase);
+
+			foreach (var record in recentSuggestionRecords)
+			{
+				var taskTitle = record.Task ?? string.Empty;
+				var taskType = InferTaskType(taskTitle);
+				var status = record.Status;
+				var taskItemId = record.TaskItemId;
+
+				if (!byType.TryGetValue(taskType, out var stats))
+					stats = (0, 0, 0, 0);
+
+				stats.suggested += 1;
+
+				if (status == TaskSuggestionStatus.Scheduled)
+				{
+					scheduledCount += 1;
+					stats.scheduled += 1;
+
+					if (taskItemId.HasValue &&
+						taskStatusById.TryGetValue(taskItemId.Value, out var taskStatus) &&
+						taskStatus == Models.TaskStatus.Completed)
+					{
+						completedCount += 1;
+						stats.completed += 1;
+					}
+				}
+				else if (status == TaskSuggestionStatus.Skipped)
+				{
+					skippedCount += 1;
+					stats.skipped += 1;
+				}
+
+				byType[taskType] = stats;
+			}
+
+			var totalSuggestions = recentSuggestionRecords.Count;
+			double scheduleRate = totalSuggestions > 0 ? (double)scheduledCount / totalSuggestions : 0;
+			double skipRate = totalSuggestions > 0 ? (double)skippedCount / totalSuggestions : 0;
+			double completionRate = scheduledCount > 0 ? (double)completedCount / scheduledCount : 0;
+
+			var topPerforming = byType
+				.Where(x => x.Value.suggested >= 2)
+				.Select(x => new
+				{
+					Type = x.Key,
+					Score = x.Value.scheduled == 0 ? 0 : (double)x.Value.completed / x.Value.scheduled
+				})
+				.OrderByDescending(x => x.Score)
+				.ThenByDescending(x => x.Type)
+				.Take(3)
+				.Select(x => $"{x.Type} ({x.Score:P0} completion after scheduling)")
+				.ToList();
+
+			var lowPerforming = byType
+				.Where(x => x.Value.suggested >= 2)
+				.Select(x => new
+				{
+					Type = x.Key,
+					SkipRatio = (double)x.Value.skipped / x.Value.suggested
+				})
+				.OrderByDescending(x => x.SkipRatio)
+				.Take(3)
+				.Select(x => $"{x.Type} ({x.SkipRatio:P0} skipped)")
+				.ToList();
+
+			var sb = new StringBuilder();
+			sb.AppendLine("Deterministic Behavior Metrics:");
+			sb.AppendLine($"- TotalSuggestions: {totalSuggestions}");
+			sb.AppendLine($"- ScheduleRate: {scheduleRate:P0}");
+			sb.AppendLine($"- SkipRate: {skipRate:P0}");
+			sb.AppendLine($"- ScheduledToCompletedRate: {completionRate:P0}");
+			sb.AppendLine($"- HighFollowThroughTypes: {(topPerforming.Count == 0 ? "none" : string.Join(", ", topPerforming))}");
+			sb.AppendLine($"- LowFollowThroughTypes: {(lowPerforming.Count == 0 ? "none" : string.Join(", ", lowPerforming))}");
+			return sb.ToString().Trim();
+		}
+
+		private static string InferTaskType(string taskTitle)
+		{
+			if (string.IsNullOrWhiteSpace(taskTitle))
+				return "General";
+
+			var text = taskTitle.ToLowerInvariant();
+
+			if (text.Contains("call") || text.Contains("email") || text.Contains("message") || text.Contains("reply"))
+				return "Communication";
+			if (text.Contains("meeting") || text.Contains("deadline") || text.Contains("project") || text.Contains("work"))
+				return "Work";
+			if (text.Contains("doctor") || text.Contains("appointment") || text.Contains("health") || text.Contains("med"))
+				return "Health";
+			if (text.Contains("exercise") || text.Contains("walk") || text.Contains("run") || text.Contains("gym"))
+				return "Fitness";
+			if (text.Contains("meditat") || text.Contains("breath") || text.Contains("journal") || text.Contains("reflect"))
+				return "EmotionalWellness";
+			if (text.Contains("clean") || text.Contains("organize") || text.Contains("home") || text.Contains("house"))
+				return "Home";
+			if (text.Contains("pay") || text.Contains("bill") || text.Contains("bank") || text.Contains("budget"))
+				return "Finance";
+
+			return "General";
+		}
+
+		private sealed record PatternSuggestionSnapshot(
+			DateTime CreatedAtUtc,
+			string Task,
+			string? Urgency,
+			string? Importance,
+			int? PriorityScore,
+			TaskSuggestionStatus Status,
+			Guid? TaskItemId
+		);
 
 		private static List<TaskSuggestion> GenerateFallbackActivities(BrainDumpRequest request)
 		{

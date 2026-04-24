@@ -1795,6 +1795,157 @@ namespace Mindflow_Web_API.Utilities
 			}
 		}
 
+		public static string BuildPatternLearningPrompt(
+			string currentEntryText,
+			string summary,
+			List<string> emotions,
+			List<string> topics,
+			List<string> themes,
+			string historicalBrainDumpsContext,
+			string suggestionBehaviorContext)
+		{
+			var sb = new StringBuilder();
+			sb.Append("[INST] ");
+			sb.Append("You are a pattern-learning assistant for a wellness app. ");
+			sb.Append("Analyze recurring patterns from the user's current brain dump plus recent history.\n\n");
+			sb.Append("Return ONLY a valid JSON object with this exact schema:\n");
+			sb.Append("{\n");
+			sb.Append("  \"recurringStressors\": [\"...\"],\n");
+			sb.Append("  \"recurringThemes\": [\"...\"],\n");
+			sb.Append("  \"highFollowThroughTaskTypes\": [\"...\"],\n");
+			sb.Append("  \"lowFollowThroughTaskTypes\": [\"...\"],\n");
+			sb.Append("  \"proactiveRecommendations\": [\"...\"],\n");
+			sb.Append("  \"confidence\": \"Low | Medium | High\"\n");
+			sb.Append("}\n\n");
+
+			sb.Append("Current Brain Dump:\n");
+			sb.Append(currentEntryText);
+			sb.Append("\n\n");
+
+			sb.Append("Current Summary: ");
+			sb.Append(summary);
+			sb.Append("\n\n");
+
+			sb.Append("Current Emotions: ");
+			sb.Append(string.Join(", ", emotions));
+			sb.Append("\n\n");
+
+			sb.Append("Current Topics: ");
+			sb.Append(string.Join(", ", topics));
+			sb.Append("\n\n");
+
+			sb.Append("Current Themes: ");
+			sb.Append(string.Join(", ", themes));
+			sb.Append("\n\n");
+
+			sb.Append("Recent Brain Dumps (historical context):\n");
+			sb.Append(historicalBrainDumpsContext);
+			sb.Append("\n\n");
+
+			sb.Append("Suggestion and Follow-through History:\n");
+			sb.Append(suggestionBehaviorContext);
+			sb.Append("\n\n");
+
+			sb.Append("Rules:\n");
+			sb.Append("- Use cautious language when evidence is weak.\n");
+			sb.Append("- Include up to 3-5 items per list.\n");
+			sb.Append("- Prioritize practical, concrete proactive recommendations.\n");
+			sb.Append("- Do not include markdown, explanations, or text outside JSON.\n");
+			sb.Append("- If evidence is insufficient, return empty arrays and confidence=Low.\n\n");
+			sb.Append("Return ONLY JSON. [/INST]");
+
+			return sb.ToString();
+		}
+
+		public static PatternLearningResultDto? ParsePatternLearningResponse(string aiResponse, ILogger? logger = null)
+		{
+			try
+			{
+				if (string.IsNullOrWhiteSpace(aiResponse))
+				{
+					logger?.LogWarning("Pattern learning response is null or empty");
+					return null;
+				}
+
+				var extractedText = RunpodResponseHelper.ExtractTextFromRunpodResponse(aiResponse);
+				var cleanText = extractedText?.Trim() ?? string.Empty;
+
+				if (cleanText.StartsWith("```json"))
+					cleanText = cleanText.Substring(7);
+				if (cleanText.StartsWith("```"))
+					cleanText = cleanText.Substring(3);
+				if (cleanText.EndsWith("```"))
+					cleanText = cleanText.Substring(0, cleanText.Length - 3);
+				cleanText = cleanText.Trim();
+
+				if (cleanText.Contains('{') && cleanText.Contains('}'))
+				{
+					var firstBrace = cleanText.IndexOf('{');
+					var lastBrace = cleanText.LastIndexOf('}');
+					if (firstBrace >= 0 && lastBrace > firstBrace)
+					{
+						cleanText = cleanText.Substring(firstBrace, lastBrace - firstBrace + 1);
+					}
+				}
+				else
+				{
+					logger?.LogWarning("No JSON object found in pattern learning response");
+					return null;
+				}
+
+				try
+				{
+					cleanText = RepairJson(cleanText);
+				}
+				catch
+				{
+					// Continue with original text if repair fails.
+				}
+
+				using var doc = JsonDocument.Parse(cleanText);
+				var root = doc.RootElement;
+
+				List<string> ReadStringArray(string propertyName)
+				{
+					var result = new List<string>();
+					if (root.TryGetProperty(propertyName, out var arr) && arr.ValueKind == JsonValueKind.Array)
+					{
+						foreach (var item in arr.EnumerateArray())
+						{
+							if (item.ValueKind != JsonValueKind.String) continue;
+							var value = item.GetString();
+							if (!string.IsNullOrWhiteSpace(value))
+								result.Add(value.Trim());
+						}
+					}
+					return result;
+				}
+
+				var recurringStressors = ReadStringArray("recurringStressors");
+				var recurringThemes = ReadStringArray("recurringThemes");
+				var highFollowThroughTaskTypes = ReadStringArray("highFollowThroughTaskTypes");
+				var lowFollowThroughTaskTypes = ReadStringArray("lowFollowThroughTaskTypes");
+				var proactiveRecommendations = ReadStringArray("proactiveRecommendations");
+				var confidence = root.TryGetProperty("confidence", out var confidenceEl) && confidenceEl.ValueKind == JsonValueKind.String
+					? confidenceEl.GetString()
+					: null;
+
+				return new PatternLearningResultDto(
+					recurringStressors,
+					recurringThemes,
+					highFollowThroughTaskTypes,
+					lowFollowThroughTaskTypes,
+					proactiveRecommendations,
+					confidence
+				);
+			}
+			catch (Exception ex)
+			{
+				logger?.LogWarning(ex, "Failed to parse pattern learning response");
+				return null;
+			}
+		}
+
 		public static string BuildTagExtractionPrompt(string text)
 		{
 			return $@"[INST] You are an expert at analyzing text and extracting relevant tags. Analyze the following text and extract 3-5 meaningful tags that best represent the content, emotions, themes, or topics.

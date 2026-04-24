@@ -94,6 +94,10 @@ namespace Mindflow_Web_API.DTOs
 		[JsonPropertyName("copingTools")]
 		public List<string>? CopingTools { get; set; } // 1-2 quick coping strategies
 
+		// Separate pattern-learning output from a dedicated prompt call.
+		[JsonPropertyName("patternLearning")]
+		public PatternLearningResultDto? PatternLearning { get; set; }
+
 		// Crisis / safety signal for client UI.
 		// When true, the client should prioritize showing a crisis card instead of normal AI content.
 		[JsonPropertyName("crisisDetected")]
@@ -103,6 +107,15 @@ namespace Mindflow_Web_API.DTOs
 		[JsonPropertyName("crisisKeywords")]
 		public List<string>? CrisisKeywords { get; set; }
 	}
+
+	public record PatternLearningResultDto(
+		List<string> RecurringStressors,
+		List<string> RecurringThemes,
+		List<string> HighFollowThroughTaskTypes,
+		List<string> LowFollowThroughTaskTypes,
+		List<string> ProactiveRecommendations,
+		string? Confidence
+	);
     public class WellnessSummary
     {
         public string? MoodLevel { get; set; }
