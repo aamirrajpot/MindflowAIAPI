@@ -2,6 +2,8 @@ using Mindflow_Web_API.DTOs;
 using Mindflow_Web_API.Models;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using System.Linq;
 using Microsoft.Extensions.Logging;
 using JsonRepairSharp;
@@ -906,42 +908,193 @@ namespace Mindflow_Web_API.Utilities
         {
             var sb = new StringBuilder();
             sb.Append("[INST] ");
-            sb.Append("You are a productivity coach. Break down complex tasks into 2-3 actionable micro-steps.\n\n");
+            sb.Append("You are a productivity coach. Break down ONLY the listed tasks into 2-3 actionable micro-steps.\n\n");
             
             sb.Append("CRITICAL RULES:\n");
-            sb.Append("- Only break down tasks that are complex or multi-step\n");
-            sb.Append("- Simple tasks (like 'Take a 10-minute walk') don't need breakdown\n");
-            sb.Append("- Each micro-step should be specific and actionable\n");
-            sb.Append("- Micro-steps should be in logical order\n");
-            sb.Append("- Return sub-steps only for tasks that need them\n\n");
+            sb.Append("- Sub-steps MUST be directly about the exact task title at that index number.\n");
+            sb.Append("- NEVER copy steps from another task or from examples.\n");
+            sb.Append("- NEVER use generic project-management steps (e.g. 'sort and prioritize tasks', 'create timeline', 'set deadlines') unless the task itself is about planning.\n");
+            sb.Append("- Only break down complex or multi-step tasks. Skip simple one-action tasks.\n");
+            sb.Append("- Each micro-step must be specific, short, and actionable for THAT task only.\n");
+            sb.Append("- Use the exact index numbers shown below.\n\n");
             
             sb.Append("Original Brain Dump Context:\n");
-            sb.Append(originalText.Length > 500 ? originalText.Substring(0, 500) + "..." : originalText);
+            sb.Append(originalText.Length > 800 ? originalText.Substring(0, 800) + "..." : originalText);
             sb.Append("\n\n");
             
-            sb.Append("Tasks to analyze:\n");
+            sb.Append("Tasks to analyze (index is authoritative):\n");
             for (int i = 0; i < tasks.Count; i++)
             {
-                sb.Append($"{i + 1}. {tasks[i].Task}\n");
+                sb.Append($"[{i + 1}] {tasks[i].Task}\n");
                 if (!string.IsNullOrWhiteSpace(tasks[i].Notes))
-                    sb.Append($"   Notes: {tasks[i].Notes}\n");
+                    sb.Append($"    Notes: {tasks[i].Notes}\n");
             }
             sb.Append("\n");
 
-            sb.Append("Return ONLY a JSON object where keys are task numbers (1, 2, 3...) and values are arrays of sub-steps.\n");
-            sb.Append("Only include tasks that need breakdown. Skip simple tasks.\n\n");
-            
-            sb.Append("EXAMPLE:\n");
-            sb.Append("{\n");
-            sb.Append("  \"1\": [\"Research moving companies online\", \"Get quotes from 3 companies\", \"Compare prices and services\"],\n");
-            sb.Append("  \"3\": [\"Schedule doctor appointment\", \"Prepare list of symptoms\", \"Write down questions to ask\"]\n");
-            sb.Append("}\n\n");
-            
-            sb.Append("If task 1 is \"Pack kitchen items\" and it's complex, include it.\n");
-            sb.Append("If task 2 is \"Take a 10-minute walk\" and it's simple, skip it.\n\n");
-            
-            sb.Append("Return ONLY the JSON object. No explanations. No markdown. Start with { and end with }. [/INST]");
+            sb.Append("Return ONLY a JSON array. Each item must include index, task (exact title), and subSteps:\n");
+            sb.Append("[\n");
+            sb.Append("  {\"index\": 2, \"task\": \"<exact task title from list>\", \"subSteps\": [\"step 1 for that task\", \"step 2 for that task\"]}\n");
+            sb.Append("]\n\n");
+            sb.Append("Only include tasks that need breakdown. Omit simple tasks entirely.\n");
+            sb.Append("Return ONLY the JSON array. No markdown. No explanations. [/INST]");
             return sb.ToString();
+        }
+
+        public static bool AreSubStepsRelevantToTask(string taskTitle, List<string> subSteps)
+        {
+            if (string.IsNullOrWhiteSpace(taskTitle) || subSteps == null || subSteps.Count == 0)
+                return false;
+
+            var stopWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "the", "and", "for", "with", "that", "this", "from", "your", "have", "need", "help", "make", "take", "into"
+            };
+
+            var taskTokens = Regex.Split(taskTitle.ToLowerInvariant(), @"\W+")
+                .Where(w => w.Length >= 4 && !stopWords.Contains(w))
+                .Distinct()
+                .ToList();
+
+            if (taskTokens.Count == 0)
+            {
+                taskTokens = Regex.Split(taskTitle.ToLowerInvariant(), @"\W+")
+                    .Where(w => w.Length >= 3 && !stopWords.Contains(w))
+                    .Distinct()
+                    .ToList();
+            }
+
+            var combinedSteps = string.Join(" ", subSteps).ToLowerInvariant();
+
+            if (taskTokens.Any(t => combinedSteps.Contains(t)))
+                return true;
+
+            var genericPatterns = new[]
+            {
+                "sort and prioritize",
+                "create timeline",
+                "set deadlines",
+                "prioritize tasks",
+                "break into smaller"
+            };
+            if (genericPatterns.Any(p => combinedSteps.Contains(p)))
+                return false;
+
+            var domainKeywords = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["homework"] = new[] { "homework", "kids", "school", "assignment", "study" },
+                ["medical"] = new[] { "doctor", "dentist", "symptom", "appointment", "medication", "pill", "pharmacy", "prescription" },
+                ["moving"] = new[] { "moving", "movers", "relocation", "quotes", "pack" },
+                ["kitchen"] = new[] { "kitchen", "dishes", "fridge", "produce", "dinner", "cook", "meal" },
+                ["work"] = new[] { "presentation", "work", "designer", "document", "handoff", "meeting" }
+            };
+
+            string? TaskDomain()
+            {
+                var lowerTask = taskTitle.ToLowerInvariant();
+                foreach (var kvp in domainKeywords)
+                {
+                    if (kvp.Value.Any(k => lowerTask.Contains(k)))
+                        return kvp.Key;
+                }
+                return null;
+            }
+
+            string? StepsDomain()
+            {
+                foreach (var kvp in domainKeywords)
+                {
+                    if (kvp.Value.Any(k => combinedSteps.Contains(k)))
+                        return kvp.Key;
+                }
+                return null;
+            }
+
+            var taskDomain = TaskDomain();
+            var stepsDomain = StepsDomain();
+            if (taskDomain != null && stepsDomain != null && taskDomain != stepsDomain)
+                return false;
+
+            return false;
+        }
+
+        public static bool TaskTitlesRoughlyMatch(string expectedTask, string? returnedTask)
+        {
+            if (string.IsNullOrWhiteSpace(returnedTask))
+                return true;
+
+            static string Normalize(string s) =>
+                Regex.Replace(s.ToLowerInvariant(), @"[^a-z0-9\s]", " ").Trim();
+
+            var expected = Normalize(expectedTask);
+            var returned = Normalize(returnedTask);
+            if (expected == returned)
+                return true;
+
+            var expectedWords = expected.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Where(w => w.Length > 3)
+                .ToHashSet();
+            var returnedWords = returned.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Where(w => w.Length > 3)
+                .ToHashSet();
+
+            if (expectedWords.Count == 0 || returnedWords.Count == 0)
+                return false;
+
+            var overlap = expectedWords.Intersect(returnedWords).Count();
+            var required = Math.Min(2, Math.Min(expectedWords.Count, returnedWords.Count));
+            return overlap >= required;
+        }
+
+        public static List<string> GenerateFallbackSubSteps(string taskTitle)
+        {
+            var title = taskTitle.Trim();
+            if (string.IsNullOrWhiteSpace(title))
+                return new List<string>();
+
+            var lower = title.ToLowerInvariant();
+            if (lower.Contains("homework") || lower.Contains("kids"))
+            {
+                return new List<string>
+                {
+                    "Check each child's assignments for today",
+                    "Set a 20-minute focused homework block",
+                    "Help with one stuck problem, then move on"
+                };
+            }
+            if (lower.Contains("medication") || lower.Contains("medicine") || lower.Contains("pill"))
+            {
+                return new List<string>
+                {
+                    "Gather all medications and labels",
+                    "Sort doses by day/time for this week",
+                    "Place prepared doses in a visible weekly organizer"
+                };
+            }
+            if (lower.Contains("dish") || lower.Contains("kitchen") || lower.Contains("dinner") || lower.Contains("clean"))
+            {
+                return new List<string>
+                {
+                    "Pick one kitchen zone to tackle first",
+                    "Set a 15-minute timer and complete only that zone",
+                    "Reset surfaces and tools before starting the next zone"
+                };
+            }
+            if (lower.Contains("presentation") || lower.Contains("work") || lower.Contains("designer"))
+            {
+                return new List<string>
+                {
+                    "List the top 3 deliverables needed",
+                    "Draft a simple outline or checklist",
+                    "Complete the first concrete section only"
+                };
+            }
+
+            return new List<string>
+            {
+                $"Clarify the smallest first action for: {title}",
+                "Work in a 15-minute focused block",
+                "Stop after one visible win and reassess"
+            };
         }
 
         // Multi-prompt approach: Step 6 - Generate Emotional Intelligence Layer (Enhanced with CBT/DBT/Trauma-Informed)
@@ -1419,24 +1572,32 @@ namespace Mindflow_Web_API.Utilities
             }
         }
 
+        private sealed class TaskBreakdownItemDto
+        {
+            [JsonPropertyName("index")]
+            public int Index { get; set; }
+
+            [JsonPropertyName("task")]
+            public string? Task { get; set; }
+
+            [JsonPropertyName("subSteps")]
+            public List<string>? SubSteps { get; set; }
+        }
+
         // Parser for Step 5: Task Breakdown
-        public static Dictionary<int, List<string>> ParseTaskBreakdownResponse(string aiResponse, ILogger? logger = null)
+        public static Dictionary<int, (string? TaskTitle, List<string> SubSteps)> ParseTaskBreakdownResponse(string aiResponse, ILogger? logger = null)
         {
             try
             {
                 if (string.IsNullOrWhiteSpace(aiResponse))
                 {
                     logger?.LogWarning("Task breakdown response is null or empty");
-                    return new Dictionary<int, List<string>>();
+                    return new Dictionary<int, (string? TaskTitle, List<string> SubSteps)>();
                 }
                 
-                // Extract text from RunPod response envelope (handles both new and old structures)
                 var extractedText = RunpodResponseHelper.ExtractTextFromRunpodResponse(aiResponse);
-                logger?.LogDebug("Extracted text before cleaning: {Text}", extractedText?.Substring(0, Math.Min(300, extractedText?.Length ?? 0)));
-                
                 var cleanText = extractedText?.Trim() ?? string.Empty;
                 
-                // Remove markdown code blocks first
                 if (cleanText.StartsWith("```json"))
                     cleanText = cleanText.Substring(7);
                 if (cleanText.StartsWith("```"))
@@ -1444,9 +1605,54 @@ namespace Mindflow_Web_API.Utilities
                 if (cleanText.EndsWith("```"))
                     cleanText = cleanText.Substring(0, cleanText.Length - 3);
                 cleanText = cleanText.Trim();
-                
-                // CRITICAL: Extract JSON OBJECT first (not array) - prioritize { over [
-                // We need the object wrapper, not the inner arrays
+
+                try
+                {
+                    cleanText = RepairJson(cleanText);
+                }
+                catch
+                {
+                    // Continue with original text if repair fails.
+                }
+
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    AllowTrailingCommas = true
+                };
+
+                var result = new Dictionary<int, (string? TaskTitle, List<string> SubSteps)>();
+
+                // Preferred format: JSON array with index + task + subSteps
+                var arrayStart = cleanText.IndexOf('[');
+                var arrayEnd = cleanText.LastIndexOf(']');
+                if (arrayStart >= 0 && arrayEnd > arrayStart)
+                {
+                    var arrayJson = cleanText.Substring(arrayStart, arrayEnd - arrayStart + 1);
+                    var items = JsonSerializer.Deserialize<List<TaskBreakdownItemDto>>(arrayJson, options);
+                    if (items != null)
+                    {
+                        foreach (var item in items)
+                        {
+                            if (item.Index < 1 || item.SubSteps == null || item.SubSteps.Count == 0)
+                                continue;
+
+                            var steps = item.SubSteps
+                                .Where(s => !string.IsNullOrWhiteSpace(s))
+                                .Select(s => s.Trim())
+                                .Take(5)
+                                .ToList();
+
+                            if (steps.Count > 0)
+                                result[item.Index - 1] = (item.Task, steps);
+                        }
+
+                        logger?.LogDebug("Parsed task breakdown array for {Count} tasks", result.Count);
+                        return result;
+                    }
+                }
+
+                // Legacy format: { "1": ["step"], "3": ["step"] }
                 if (cleanText.Contains('{') && cleanText.Contains('}'))
                 {
                     var firstBrace = cleanText.IndexOf('{');
@@ -1454,43 +1660,25 @@ namespace Mindflow_Web_API.Utilities
                     if (firstBrace >= 0 && lastBrace > firstBrace)
                     {
                         cleanText = cleanText.Substring(firstBrace, lastBrace - firstBrace + 1);
-                        logger?.LogDebug("Extracted JSON object: {Text}", cleanText.Substring(0, Math.Min(300, cleanText.Length)));
                     }
-                }
-                else
-                {
-                    logger?.LogWarning("No JSON object found in response");
-                    return new Dictionary<int, List<string>>();
-                }
-                
-                // Try to repair JSON
-                try
-                {
-                    cleanText = RepairJson(cleanText);
-                }
-                catch
-                {
-                    // If repair fails, continue with original
-                }
-                
-                // Parse as dictionary with string keys (task numbers) and list of strings (sub-steps)
-                var breakdown = JsonSerializer.Deserialize<Dictionary<string, List<string>>>(cleanText, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true,
-                    AllowTrailingCommas = true
-                });
-                
-                if (breakdown == null)
-                    return new Dictionary<int, List<string>>();
-                
-                // Convert string keys to int keys
-                var result = new Dictionary<int, List<string>>();
-                foreach (var kvp in breakdown)
-                {
-                    if (int.TryParse(kvp.Key, out int taskIndex))
+
+                    var breakdown = JsonSerializer.Deserialize<Dictionary<string, List<string>>>(cleanText, options);
+                    if (breakdown != null)
                     {
-                        // Convert to 0-based index (task 1 = index 0)
-                        result[taskIndex - 1] = kvp.Value ?? new List<string>();
+                        foreach (var kvp in breakdown)
+                        {
+                            if (!int.TryParse(kvp.Key, out int taskIndex))
+                                continue;
+
+                            var steps = kvp.Value?
+                                .Where(s => !string.IsNullOrWhiteSpace(s))
+                                .Select(s => s.Trim())
+                                .Take(5)
+                                .ToList() ?? new List<string>();
+
+                            if (steps.Count > 0)
+                                result[taskIndex - 1] = (null, steps);
+                        }
                     }
                 }
                 
@@ -1500,7 +1688,7 @@ namespace Mindflow_Web_API.Utilities
             catch (Exception ex)
             {
                 logger?.LogWarning(ex, "Failed to parse task breakdown response");
-                return new Dictionary<int, List<string>>();
+                return new Dictionary<int, (string? TaskTitle, List<string> SubSteps)>();
             }
         }
 

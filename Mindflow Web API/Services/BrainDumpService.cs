@@ -412,17 +412,45 @@ namespace Mindflow_Web_API.Services
 				try
 				{
 					var breakdownPrompt = BrainDumpPromptBuilder.BuildTaskBreakdownPrompt(suggestedActivities, request.Text ?? string.Empty);
-					var breakdownResponse = await _runPodService.SendPromptAsync(breakdownPrompt, 600, temperature);
+					var breakdownResponse = await _runPodService.SendPromptAsync(breakdownPrompt, 900, temperature);
 					var taskBreakdown = BrainDumpPromptBuilder.ParseTaskBreakdownResponse(breakdownResponse, _logger);
 					
-					// Apply breakdown to tasks
+					// Apply breakdown to tasks with title/relevance validation
 					foreach (var kvp in taskBreakdown)
 					{
-						if (kvp.Key >= 0 && kvp.Key < suggestedActivities.Count && kvp.Value != null && kvp.Value.Count > 0)
+						if (kvp.Key < 0 || kvp.Key >= suggestedActivities.Count)
+							continue;
+
+						var targetTask = suggestedActivities[kvp.Key];
+						var returnedTitle = kvp.Value.TaskTitle;
+						var candidateSteps = kvp.Value.SubSteps;
+
+						if (candidateSteps == null || candidateSteps.Count == 0)
+							continue;
+
+						var titleMatches = BrainDumpPromptBuilder.TaskTitlesRoughlyMatch(targetTask.Task, returnedTitle);
+						var stepsAreRelevant = titleMatches &&
+							BrainDumpPromptBuilder.AreSubStepsRelevantToTask(targetTask.Task, candidateSteps);
+
+						if (stepsAreRelevant)
 						{
-							suggestedActivities[kvp.Key].SubSteps = kvp.Value;
-							_logger.LogDebug("Added {Count} sub-steps to task: {Task}", kvp.Value.Count, suggestedActivities[kvp.Key].Task);
+							targetTask.SubSteps = candidateSteps;
+							_logger.LogDebug("Added {Count} validated sub-steps to task: {Task}", candidateSteps.Count, targetTask.Task);
+							continue;
 						}
+
+						if (!titleMatches)
+						{
+							_logger.LogWarning(
+								"Sub-step task title mismatch at index {Index}. Expected='{ExpectedTask}', Returned='{ReturnedTask}'",
+								kvp.Key + 1, targetTask.Task, returnedTitle);
+						}
+						else
+						{
+							_logger.LogWarning("Irrelevant sub-steps detected for task: {Task}", targetTask.Task);
+						}
+
+						targetTask.SubSteps = BrainDumpPromptBuilder.GenerateFallbackSubSteps(targetTask.Task);
 					}
 					
 					var tasksWithSubSteps = taskBreakdown.Count;
