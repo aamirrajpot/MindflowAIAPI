@@ -278,7 +278,9 @@ namespace Mindflow_Web_API.Utilities
             sb.Append(string.Join(", ", topics));
             sb.Append("\n\n");
             sb.Append("Return ONLY a JSON array with exactly 3 theme strings.\n");
+            sb.Append("Do NOT wrap in an object. Do NOT add keys like themes/keyThemes.\n");
             sb.Append("Example: [\"Work stress\", \"Family time\", \"Health goals\"]\n");
+            sb.Append("Response format version: themes-v2\n");
             sb.Append("No explanations. Just the JSON array. [/INST]");
             return sb.ToString();
         }
@@ -622,44 +624,222 @@ namespace Mindflow_Web_API.Utilities
         // Parser for Step 1: Extract Themes
         public static List<string> ParseThemesResponse(string aiResponse, ILogger? logger = null)
         {
+            var fallback = new List<string> { "General", "Wellness", "Personal" };
+
             try
             {
-                // Extract text from RunPod response envelope (handles both new and old structures)
+                if (string.IsNullOrWhiteSpace(aiResponse))
+                    return fallback;
+
                 var extractedText = RunpodResponseHelper.ExtractTextFromRunpodResponse(aiResponse);
                 var cleanText = CleanJsonText(extractedText, logger);
-                
-                var options = new JsonSerializerOptions
+                if (string.IsNullOrWhiteSpace(cleanText))
+                    return fallback;
+
+                var themes = TryParseThemeStringsFromJson(cleanText, logger);
+                if (themes.Count > 0)
+                    return themes.Take(5).ToList();
+
+                // Plain comma-separated fallback (no JSON wrapper)
+                if (!cleanText.TrimStart().StartsWith("{") && !cleanText.TrimStart().StartsWith("["))
                 {
-                    PropertyNameCaseInsensitive = true
-                };
-                
-                // Try to deserialize as nested array first (handles cases where AI returns array of arrays)
-                try
-                {
-                    var nestedThemes = JsonSerializer.Deserialize<List<List<string>>>(cleanText, options);
-                    if (nestedThemes != null && nestedThemes.Count > 0)
-                    {
-                        // Flatten the nested array into a single list
-                        var flattened = nestedThemes.SelectMany(x => x).Distinct().ToList();
-                        logger?.LogDebug("Parsed nested themes array, flattened to {Count} themes", flattened.Count);
-                        return flattened;
-                    }
+                    var plain = cleanText
+                        .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                        .Select(s => s.Trim().Trim('"', '\''))
+                        .Where(s => s.Length > 1)
+                        .Take(3)
+                        .ToList();
+
+                    if (plain.Count > 0)
+                        return plain;
                 }
-                catch
-                {
-                    // Not a nested array, try flat array
-                }
-                
-                // Try to deserialize as flat array
-                var themes = JsonSerializer.Deserialize<List<string>>(cleanText, options);
-                
-                return themes ?? new List<string>();
+
+                logger?.LogWarning(
+                    "Could not parse themes response, using fallback. Snippet: {Snippet}",
+                    cleanText.Substring(0, Math.Min(160, cleanText.Length)));
+
+                return fallback;
             }
             catch (Exception ex)
             {
                 logger?.LogWarning(ex, "Failed to parse themes response: {Error}", ex.Message);
-                return new List<string> { "General", "Wellness", "Personal" };
+                return fallback;
             }
+        }
+
+        private static List<string> TryParseThemeStringsFromJson(string cleanText, ILogger? logger)
+        {
+            var options = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                AllowTrailingCommas = true
+            };
+
+            try
+            {
+                cleanText = RepairJson(cleanText);
+            }
+            catch
+            {
+                // Continue with original text if repair fails.
+            }
+
+            // 1) Prefer any JSON array segment in the payload
+            var arrayStart = cleanText.IndexOf('[');
+            var arrayEnd = cleanText.LastIndexOf(']');
+            if (arrayStart >= 0 && arrayEnd > arrayStart)
+            {
+                var arrayJson = cleanText.Substring(arrayStart, arrayEnd - arrayStart + 1);
+                var fromArray = DeserializeThemeList(arrayJson, options);
+                if (fromArray.Count > 0)
+                    return fromArray;
+            }
+
+            // 2) Object wrappers: { "themes": [...] } or { "keyThemes": [...] }
+            if (cleanText.TrimStart().StartsWith("{"))
+            {
+                using var doc = JsonDocument.Parse(cleanText);
+                var root = doc.RootElement;
+
+                var knownArrayProps = new[] { "themes", "keyThemes", "key_themes", "topics", "data", "items", "results" };
+                foreach (var propName in knownArrayProps)
+                {
+                    if (root.TryGetProperty(propName, out var prop) && prop.ValueKind == JsonValueKind.Array)
+                    {
+                        var list = ExtractStringArray(prop);
+                        if (list.Count > 0)
+                            return list;
+                    }
+                }
+
+                // Any array property containing strings
+                foreach (var property in root.EnumerateObject())
+                {
+                    if (property.Value.ValueKind != JsonValueKind.Array)
+                        continue;
+
+                    var list = ExtractStringArray(property.Value);
+                    if (list.Count >= 2)
+                        return list;
+                }
+            }
+
+            return new List<string>();
+        }
+
+        private static List<string> DeserializeThemeList(string json, JsonSerializerOptions options)
+        {
+            try
+            {
+                var flat = JsonSerializer.Deserialize<List<string>>(json, options);
+                if (flat != null && flat.Count > 0)
+                {
+                    return flat
+                        .Where(s => !string.IsNullOrWhiteSpace(s))
+                        .Select(s => s.Trim())
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+                }
+            }
+            catch
+            {
+                // Not a flat string array.
+            }
+
+            try
+            {
+                var nested = JsonSerializer.Deserialize<List<List<string>>>(json, options);
+                if (nested != null && nested.Count > 0)
+                {
+                    return nested
+                        .SelectMany(x => x ?? new List<string>())
+                        .Where(s => !string.IsNullOrWhiteSpace(s))
+                        .Select(s => s.Trim())
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+                }
+            }
+            catch
+            {
+                // Not a nested array.
+            }
+
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.ValueKind != JsonValueKind.Array)
+                    return new List<string>();
+
+                var list = new List<string>();
+                foreach (var item in doc.RootElement.EnumerateArray())
+                {
+                    if (item.ValueKind == JsonValueKind.String)
+                    {
+                        var value = item.GetString();
+                        if (!string.IsNullOrWhiteSpace(value))
+                            list.Add(value.Trim());
+                        continue;
+                    }
+
+                    if (item.ValueKind == JsonValueKind.Object)
+                    {
+                        foreach (var key in new[] { "theme", "name", "title", "value", "label" })
+                        {
+                            if (item.TryGetProperty(key, out var prop) && prop.ValueKind == JsonValueKind.String)
+                            {
+                                var value = prop.GetString();
+                                if (!string.IsNullOrWhiteSpace(value))
+                                {
+                                    list.Add(value.Trim());
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return list
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+            catch
+            {
+                return new List<string>();
+            }
+        }
+
+        private static List<string> ExtractStringArray(JsonElement arrayElement)
+        {
+            var list = new List<string>();
+            foreach (var item in arrayElement.EnumerateArray())
+            {
+                if (item.ValueKind == JsonValueKind.String)
+                {
+                    var value = item.GetString();
+                    if (!string.IsNullOrWhiteSpace(value))
+                        list.Add(value.Trim());
+                    continue;
+                }
+
+                if (item.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (var key in new[] { "theme", "name", "title", "value", "label" })
+                    {
+                        if (item.TryGetProperty(key, out var prop) && prop.ValueKind == JsonValueKind.String)
+                        {
+                            var value = prop.GetString();
+                            if (!string.IsNullOrWhiteSpace(value))
+                            {
+                                list.Add(value.Trim());
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            return list;
         }
 
         // Parser for Step 2: User Profile (Enhanced)
